@@ -14,26 +14,24 @@ interface HeaderProps {
   title: string;
   onMenuPress?: () => void;
   onBackPress?: () => void;
-  showSearch?: boolean;
+  rightButtons?: React.ReactNode;
+  isSearchActive?: boolean;
   searchQuery?: string;
   onSearchChange?: (text: string) => void;
   onSearchSubmit?: () => void;
   onSearchClose?: () => void;
-  rightButtons?: React.ReactNode;
-  isSearchActive?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   title,
   onMenuPress,
   onBackPress,
-  showSearch = false,
+  rightButtons,
+  isSearchActive = false,
   searchQuery = "",
   onSearchChange,
   onSearchSubmit,
   onSearchClose,
-  rightButtons,
-  isSearchActive = false,
 }) => {
   const { theme } = useTheme();
 
@@ -53,6 +51,7 @@ export const Header: React.FC<HeaderProps> = ({
           onChangeText={onSearchChange}
           onSubmitEditing={onSearchSubmit}
           autoFocus
+          returnKeyType="search"
         />
       </View>
     );
@@ -70,15 +69,13 @@ export const Header: React.FC<HeaderProps> = ({
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
       )}
-      <Text style={[styles.title, { color: theme.colors.text }]}>{title}</Text>
-      <View style={styles.rightContainer}>
-        {showSearch && (
-          <TouchableOpacity onPress={onSearchSubmit} style={styles.iconButton}>
-            <Ionicons name="search" size={24} color={theme.colors.text} />
-          </TouchableOpacity>
-        )}
-        {rightButtons}
-      </View>
+      <Text
+        style={[styles.title, { color: theme.colors.text }]}
+        numberOfLines={1}
+      >
+        {title}
+      </Text>
+      <View style={styles.rightContainer}>{rightButtons}</View>
     </View>
   );
 };
@@ -97,6 +94,8 @@ const styles = StyleSheet.create({
   },
   iconButton: {
     padding: 8,
+    justifyContent: "center",
+    alignItems: "center",
   },
   title: {
     flex: 1,
@@ -113,5 +112,6 @@ const styles = StyleSheet.create({
     height: 40,
     fontSize: 16,
     marginLeft: 8,
+    paddingHorizontal: 8,
   },
 });

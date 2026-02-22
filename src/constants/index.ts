@@ -1,24 +1,24 @@
+// src/constants/index.ts
 import {
-    AppSettings,
-    LibrarySortOption,
-    SourceSortOption,
-    StartScreen,
+  AppSettings,
+  LibrarySortOption,
+  SourceSortOption,
+  StartScreen,
 } from "../types";
 
-// src/constants/index.ts
 export const COLORS = {
   primary: "#6200EE",
   primaryDark: "#3700B3",
   accent: "#03DAC6",
-  background: "#FFFFFF",
+  background: "#FAFAFA",
   surface: "#FFFFFF",
   error: "#B00020",
-  text: "#000000",
-  textSecondary: "#666666",
+  text: "#212121",
+  textSecondary: "#757575",
   border: "#E0E0E0",
-  divider: "#E0E0E0",
+  divider: "#EEEEEE",
   success: "#4CAF50",
-  warning: "#FFC107",
+  warning: "#FF9800",
   info: "#2196F3",
 };
 
@@ -34,7 +34,7 @@ export const DARK_COLORS = {
   border: "#2C2C2C",
   divider: "#2C2C2C",
   success: "#4CAF50",
-  warning: "#FFC107",
+  warning: "#FF9800",
   info: "#2196F3",
 };
 

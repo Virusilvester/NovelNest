@@ -7,17 +7,19 @@ import { SettingsProvider } from "./src/context/SettingsContext";
 import { ThemeProvider } from "./src/context/ThemeContext";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 
+// Provider order matters! Settings must be inside Theme if Theme depends on Settings
+// Or make Theme independent as shown above
 export default function App() {
   return (
     <SafeAreaProvider>
-      <ThemeProvider>
-        <SettingsProvider>
+      <SettingsProvider>
+        <ThemeProvider>
           <LibraryProvider>
             <StatusBar style="auto" />
             <AppNavigator />
           </LibraryProvider>
-        </SettingsProvider>
-      </ThemeProvider>
+        </ThemeProvider>
+      </SettingsProvider>
     </SafeAreaProvider>
   );
 }

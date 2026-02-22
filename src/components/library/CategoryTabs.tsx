@@ -33,6 +33,9 @@ export const CategoryTabs: React.FC<CategoryTabsProps> = ({
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        decelerationRate="fast"
+        snapToAlignment="start"
+        snapToInterval={100} // Approximate tab width
       >
         {categories.map((category) => {
           const isSelected = category.id === selectedId;
@@ -68,12 +71,7 @@ export const CategoryTabs: React.FC<CategoryTabsProps> = ({
                     },
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.badgeText,
-                      { color: isSelected ? "#FFF" : "#FFF" },
-                    ]}
-                  >
+                  <Text style={[styles.badgeText, { color: "#FFF" }]}>
                     {count}
                   </Text>
                 </View>
@@ -93,11 +91,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 2,
+    maxHeight: 60, // Fixed height to prevent layout issues
   },
   scrollContent: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 8,
-    paddingVertical: 12,
-    gap: 8,
+    paddingVertical: 10,
+    // Don't use gap here as it can cause measurement issues
   },
   tab: {
     flexDirection: "row",
@@ -107,6 +108,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginHorizontal: 4,
     backgroundColor: "rgba(0,0,0,0.05)",
+    minWidth: 80, // Minimum width for consistency
+    maxWidth: 150, // Maximum width to prevent too wide tabs
   },
   tabText: {
     fontSize: 14,

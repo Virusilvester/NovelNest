@@ -79,6 +79,34 @@ export const LibraryScreen: React.FC = () => {
     },
   ];
 
+  // Custom right buttons for header - ONLY ONE SEARCH BUTTON
+  const headerRightButtons = (
+    <>
+      <TouchableOpacity
+        onPress={() => setIsSearchActive(true)}
+        style={styles.iconButton}
+      >
+        <Ionicons name="search" size={24} color={theme.colors.text} />
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={() => setIsFilterPanelVisible(true)}
+        style={styles.iconButton}
+      >
+        <Ionicons name="filter" size={24} color={theme.colors.text} />
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={() => setIsMenuVisible(true)}
+        style={styles.iconButton}
+      >
+        <Ionicons
+          name="ellipsis-vertical"
+          size={24}
+          color={theme.colors.text}
+        />
+      </TouchableOpacity>
+    </>
+  );
+
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
       <Ionicons
@@ -106,43 +134,17 @@ export const LibraryScreen: React.FC = () => {
       <Header
         title="Library"
         onMenuPress={() => navigation.openDrawer()}
-        showSearch={!isSearchActive}
         isSearchActive={isSearchActive}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        onSearchSubmit={() => setIsSearchActive(true)}
+        onSearchSubmit={() => {
+          // Handle search submit if needed
+        }}
         onSearchClose={() => {
           setIsSearchActive(false);
           setSearchQuery("");
         }}
-        rightButtons={
-          !isSearchActive ? (
-            <>
-              <TouchableOpacity
-                onPress={() => setIsSearchActive(true)}
-                style={styles.iconButton}
-              >
-                <Ionicons name="search" size={24} color={theme.colors.text} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setIsFilterPanelVisible(true)}
-                style={styles.iconButton}
-              >
-                <Ionicons name="filter" size={24} color={theme.colors.text} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setIsMenuVisible(true)}
-                style={styles.iconButton}
-              >
-                <Ionicons
-                  name="ellipsis-vertical"
-                  size={24}
-                  color={theme.colors.text}
-                />
-              </TouchableOpacity>
-            </>
-          ) : null
-        }
+        rightButtons={!isSearchActive ? headerRightButtons : undefined}
       />
 
       <CategoryTabs
@@ -197,6 +199,8 @@ const styles = StyleSheet.create({
   },
   iconButton: {
     padding: 8,
+    justifyContent: "center",
+    alignItems: "center",
   },
   emptyContainer: {
     flex: 1,
