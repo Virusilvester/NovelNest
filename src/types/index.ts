@@ -14,6 +14,7 @@ export interface Novel {
   lastReadDate?: Date;
   isDownloaded: boolean;
   isInLibrary: boolean;
+  categoryId: string;
 }
 
 export interface Chapter {
@@ -40,14 +41,6 @@ export interface Category {
   id: string;
   name: string;
   order: number;
-  novelIds: string[];
-}
-
-export interface ReadingProgress {
-  novelId: string;
-  chapterId: string;
-  position: number;
-  timestamp: Date;
 }
 
 export type LibrarySortOption =

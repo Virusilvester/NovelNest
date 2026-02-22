@@ -1,8 +1,18 @@
 // src/components/common/NovelCard.tsx
 import React from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  Dimensions,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { DisplayMode, Novel } from "../../types";
+
+const { width } = Dimensions.get("window");
+const GRID_ITEM_WIDTH = (width - 32) / 3;
 
 interface NovelCardProps {
   novel: Novel;
@@ -32,6 +42,7 @@ export const NovelCard: React.FC<NovelCardProps> = ({
         ]}
         onPress={onPress}
         onLongPress={onLongPress}
+        activeOpacity={0.7}
       >
         <Image source={{ uri: novel.coverUrl }} style={styles.listCover} />
         <View style={styles.listInfo}>
@@ -43,24 +54,39 @@ export const NovelCard: React.FC<NovelCardProps> = ({
           </Text>
           <Text
             style={[styles.listSubtitle, { color: theme.colors.textSecondary }]}
+            numberOfLines={1}
           >
             {novel.author}
           </Text>
           <View style={styles.listBadges}>
             {showUnreadBadge && novel.unreadChapters > 0 && (
-              <Badge
-                text={`${novel.unreadChapters}`}
-                color={theme.colors.primary}
-                textColor="#FFF"
-              />
+              <View
+                style={[
+                  styles.badge,
+                  { backgroundColor: theme.colors.primary },
+                ]}
+              >
+                <Text style={styles.badgeText}>{novel.unreadChapters}</Text>
+              </View>
             )}
             {showDownloadBadge && novel.isDownloaded && (
-              <Badge
-                icon="download"
-                color={theme.colors.success}
-                textColor="#FFF"
-              />
+              <View
+                style={[
+                  styles.badge,
+                  { backgroundColor: theme.colors.success },
+                ]}
+              >
+                <Text style={styles.badgeText}>↓</Text>
+              </View>
             )}
+            <Text
+              style={[
+                styles.chapterText,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              Ch. {novel.lastReadChapter || 0}/{novel.totalChapters}
+            </Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -72,12 +98,16 @@ export const NovelCard: React.FC<NovelCardProps> = ({
       style={styles.gridContainer}
       onPress={onPress}
       onLongPress={onLongPress}
+      activeOpacity={0.7}
     >
       <View style={styles.gridCoverContainer}>
         <Image source={{ uri: novel.coverUrl }} style={styles.gridCover} />
         {showUnreadBadge && novel.unreadChapters > 0 && (
           <View
-            style={[styles.badge, { backgroundColor: theme.colors.primary }]}
+            style={[
+              styles.gridBadge,
+              { backgroundColor: theme.colors.primary },
+            ]}
           >
             <Text style={styles.badgeText}>{novel.unreadChapters}</Text>
           </View>
@@ -92,6 +122,16 @@ export const NovelCard: React.FC<NovelCardProps> = ({
             <Text style={styles.badgeText}>↓</Text>
           </View>
         )}
+        {novel.status === "completed" && (
+          <View
+            style={[
+              styles.statusIndicator,
+              { backgroundColor: theme.colors.success },
+            ]}
+          >
+            <Text style={styles.statusText}>DONE</Text>
+          </View>
+        )}
       </View>
       <Text
         style={[styles.gridTitle, { color: theme.colors.text }]}
@@ -99,32 +139,26 @@ export const NovelCard: React.FC<NovelCardProps> = ({
       >
         {novel.title}
       </Text>
+      <Text
+        style={[styles.gridSubtitle, { color: theme.colors.textSecondary }]}
+        numberOfLines={1}
+      >
+        Ch. {novel.lastReadChapter || 0}/{novel.totalChapters}
+      </Text>
     </TouchableOpacity>
   );
 };
 
-const Badge: React.FC<{
-  text?: string;
-  icon?: string;
-  color: string;
-  textColor: string;
-}> = ({ text, color, textColor }) => (
-  <View style={[styles.badge, { backgroundColor: color }]}>
-    <Text style={[styles.badgeText, { color: textColor }]}>{text}</Text>
-  </View>
-);
-
 const styles = StyleSheet.create({
   gridContainer: {
-    flex: 1,
-    margin: 4,
-    maxWidth: "33%",
+    width: "100%",
   },
   gridCoverContainer: {
     aspectRatio: 2 / 3,
     borderRadius: 8,
     overflow: "hidden",
     position: "relative",
+    backgroundColor: "#f0f0f0",
   },
   gridCover: {
     width: "100%",
@@ -133,14 +167,56 @@ const styles = StyleSheet.create({
   },
   gridTitle: {
     fontSize: 12,
-    marginTop: 4,
-    textAlign: "center",
+    marginTop: 6,
+    fontWeight: "600",
+    lineHeight: 16,
+  },
+  gridSubtitle: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  gridBadge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 6,
+  },
+  downloadBadge: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  statusIndicator: {
+    position: "absolute",
+    bottom: 6,
+    right: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  statusText: {
+    fontSize: 8,
+    fontWeight: "bold",
+    color: "#FFF",
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: "bold",
+    color: "#FFF",
   },
   listContainer: {
     flexDirection: "row",
     padding: 12,
-    marginVertical: 4,
-    marginHorizontal: 8,
     borderRadius: 8,
     elevation: 2,
     shadowColor: "#000",
@@ -152,6 +228,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 90,
     borderRadius: 4,
+    backgroundColor: "#f0f0f0",
   },
   listInfo: {
     flex: 1,
@@ -159,42 +236,29 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   listTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "bold",
+    lineHeight: 20,
   },
   listSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     marginTop: 4,
   },
   listBadges: {
     flexDirection: "row",
+    alignItems: "center",
     marginTop: 8,
     gap: 8,
   },
   badge: {
-    position: "absolute",
-    top: 4,
-    right: 4,
-    minWidth: 24,
-    height: 24,
-    borderRadius: 12,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 6,
   },
-  downloadBadge: {
-    position: "absolute",
-    top: 4,
-    left: 4,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  badgeText: {
+  chapterText: {
     fontSize: 12,
-    fontWeight: "bold",
-    color: "#FFF",
   },
 });

@@ -2,11 +2,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import React, { useCallback, useState } from "react";
-import { FlatList, StyleSheet, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { FilterPanel } from "../../components/common/FilterPanel";
 import { Header } from "../../components/common/Header";
 import { PopupMenu } from "../../components/common/PopupMenu";
-import { CategorySection } from "../../components/library/CategorySection";
+import { CategoryTabs } from "../../components/library/CategoryTabs";
+import { NovelGrid } from "../../components/library/NovelGrid";
 import { useLibrary } from "../../context/LibraryContext";
 import { useTheme } from "../../context/ThemeContext";
 import { Novel } from "../../types";
@@ -15,8 +16,9 @@ export const LibraryScreen: React.FC = () => {
   const navigation = useNavigation();
   const { theme } = useTheme();
   const {
-    novels,
     categories,
+    selectedCategoryId,
+    selectCategory,
     filterOptions,
     setFilterOptions,
     sortOption,
@@ -30,12 +32,25 @@ export const LibraryScreen: React.FC = () => {
     showItemCount,
     setShowItemCount,
     updateLibrary,
+    getFilteredNovels,
+    novels,
   } = useLibrary();
 
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isFilterPanelVisible, setIsFilterPanelVisible] = useState(false);
   const [isMenuVisible, setIsMenuVisible] = useState(false);
+
+  const filteredNovels = getFilteredNovels();
+
+  // Apply search filter
+  const displayedNovels = searchQuery
+    ? filteredNovels.filter(
+        (n) =>
+          n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          n.author.toLowerCase().includes(searchQuery.toLowerCase()),
+      )
+    : filteredNovels;
 
   const handleNovelPress = useCallback(
     (novel: Novel) => {
@@ -48,6 +63,14 @@ export const LibraryScreen: React.FC = () => {
     await updateLibrary();
   }, [updateLibrary]);
 
+  const getItemCount = useCallback(
+    (categoryId: string) => {
+      if (categoryId === "all") return novels.length;
+      return novels.filter((n) => n.categoryId === categoryId).length;
+    },
+    [novels],
+  );
+
   const menuItems = [
     {
       id: "update",
@@ -56,26 +79,25 @@ export const LibraryScreen: React.FC = () => {
     },
   ];
 
-  const renderCategory = ({
-    item: category,
-  }: {
-    item: (typeof categories)[0];
-  }) => {
-    const categoryNovels = novels.filter((n) =>
-      category.novelIds.includes(n.id),
-    );
-    return (
-      <CategorySection
-        category={category}
-        novels={categoryNovels}
-        displayMode={displayMode}
-        showDownloadBadges={showDownloadBadges}
-        showUnreadBadges={showUnreadBadges}
-        showItemCount={showItemCount}
-        onNovelPress={handleNovelPress}
+  const renderEmptyState = () => (
+    <View style={styles.emptyContainer}>
+      <Ionicons
+        name="book-outline"
+        size={64}
+        color={theme.colors.textSecondary}
       />
-    );
-  };
+      <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+        No novels found
+      </Text>
+      <Text
+        style={[styles.emptySubtext, { color: theme.colors.textSecondary }]}
+      >
+        {selectedCategoryId === "all"
+          ? "Your library is empty"
+          : "No novels in this category"}
+      </Text>
+    </View>
+  );
 
   return (
     <View
@@ -123,12 +145,25 @@ export const LibraryScreen: React.FC = () => {
         }
       />
 
-      <FlatList
-        data={categories}
-        renderItem={renderCategory}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.content}
+      <CategoryTabs
+        categories={categories}
+        selectedId={selectedCategoryId}
+        onSelect={selectCategory}
+        getItemCount={getItemCount}
+        showItemCount={showItemCount}
       />
+
+      {displayedNovels.length === 0 ? (
+        renderEmptyState()
+      ) : (
+        <NovelGrid
+          novels={displayedNovels}
+          displayMode={displayMode}
+          showDownloadBadges={showDownloadBadges}
+          showUnreadBadges={showUnreadBadges}
+          onNovelPress={handleNovelPress}
+        />
+      )}
 
       <FilterPanel
         visible={isFilterPanelVisible}
@@ -160,10 +195,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  content: {
-    paddingTop: 8,
-  },
   iconButton: {
     padding: 8,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginTop: 16,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: "center",
   },
 });
