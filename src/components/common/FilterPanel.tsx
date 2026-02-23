@@ -2,6 +2,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
+  Dimensions,
+  Modal,
   ScrollView,
   StyleSheet,
   Switch,
@@ -16,6 +18,8 @@ import {
   LibraryFilterOption,
   LibrarySortOption,
 } from "../../types";
+
+const { width, height } = Dimensions.get("window");
 
 interface FilterPanelProps {
   visible: boolean;
@@ -55,234 +59,411 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   if (!visible) return null;
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>
-          Filter & Sort
-        </Text>
-        <TouchableOpacity onPress={onClose}>
-          <Ionicons name="close" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-      </View>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View style={styles.overlay}>
+        <TouchableOpacity style={styles.backdrop} onPress={onClose} />
 
-      <ScrollView style={styles.content}>
-        <Section title="Filter">
-          <FilterItem
-            label="Downloaded"
-            value={filterOptions.downloaded}
-            onChange={(v) =>
-              onFilterChange({ ...filterOptions, downloaded: v })
-            }
-            theme={theme}
-          />
-          <FilterItem
-            label="Unread"
-            value={filterOptions.unread}
-            onChange={(v) => onFilterChange({ ...filterOptions, unread: v })}
-            theme={theme}
-          />
-          <FilterItem
-            label="Completed"
-            value={filterOptions.completed}
-            onChange={(v) => onFilterChange({ ...filterOptions, completed: v })}
-            theme={theme}
-          />
-        </Section>
-
-        <Section title="Sort by">
-          {LIBRARY_SORT_OPTIONS.map((option) => (
-            <TouchableOpacity
-              key={option.value}
-              style={styles.sortOption}
-              onPress={() => onSortChange(option.value)}
-            >
-              <Text style={[styles.sortLabel, { color: theme.colors.text }]}>
-                {option.label}
-              </Text>
-              {sortOption === option.value && (
-                <Ionicons
-                  name="arrow-up"
-                  size={20}
-                  color={theme.colors.primary}
-                />
-              )}
+        <View
+          style={[
+            styles.container,
+            { backgroundColor: theme.colors.background },
+          ]}
+        >
+          {/* Header */}
+          <View
+            style={[styles.header, { backgroundColor: theme.colors.surface }]}
+          >
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+              Filter & Sort
+            </Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <Ionicons name="close" size={24} color={theme.colors.text} />
             </TouchableOpacity>
-          ))}
-        </Section>
-
-        <Section title="Display">
-          <FilterItem
-            label="Download badges"
-            value={showDownloadBadges}
-            onChange={onShowDownloadBadgesChange}
-            theme={theme}
-          />
-          <FilterItem
-            label="Unread badges"
-            value={showUnreadBadges}
-            onChange={onShowUnreadBadgesChange}
-            theme={theme}
-          />
-          <FilterItem
-            label="Show number of items"
-            value={showItemCount}
-            onChange={onShowItemCountChange}
-            theme={theme}
-          />
-        </Section>
-
-        <Section title="Display mode">
-          <View style={styles.radioGroup}>
-            <RadioButton
-              label="Compact grid"
-              selected={displayMode === "compactGrid"}
-              onPress={() => onDisplayModeChange("compactGrid")}
-              theme={theme}
-            />
-            <RadioButton
-              label="List"
-              selected={displayMode === "list"}
-              onPress={() => onDisplayModeChange("list")}
-              theme={theme}
-            />
           </View>
-        </Section>
-      </ScrollView>
-    </View>
+
+          <ScrollView
+            style={styles.content}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Filter Section */}
+            <View style={styles.section}>
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Filter
+              </Text>
+              <View
+                style={[
+                  styles.sectionCard,
+                  { backgroundColor: theme.colors.surface },
+                ]}
+              >
+                <FilterSwitch
+                  label="Downloaded only"
+                  value={filterOptions.downloaded}
+                  onChange={(v) =>
+                    onFilterChange({ ...filterOptions, downloaded: v })
+                  }
+                />
+                <FilterSwitch
+                  label="Unread only"
+                  value={filterOptions.unread}
+                  onChange={(v) =>
+                    onFilterChange({ ...filterOptions, unread: v })
+                  }
+                />
+                <FilterSwitch
+                  label="Completed only"
+                  value={filterOptions.completed}
+                  onChange={(v) =>
+                    onFilterChange({ ...filterOptions, completed: v })
+                  }
+                  isLast
+                />
+              </View>
+            </View>
+
+            {/* Sort Section */}
+            <View style={styles.section}>
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Sort By
+              </Text>
+              <View
+                style={[
+                  styles.sectionCard,
+                  { backgroundColor: theme.colors.surface },
+                ]}
+              >
+                {LIBRARY_SORT_OPTIONS.map((option, index) => (
+                  <SortOption
+                    key={option.value}
+                    label={option.label}
+                    selected={sortOption === option.value}
+                    onPress={() => onSortChange(option.value)}
+                    isLast={index === LIBRARY_SORT_OPTIONS.length - 1}
+                  />
+                ))}
+              </View>
+            </View>
+
+            {/* Display Mode Section */}
+            <View style={styles.section}>
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Display Mode
+              </Text>
+              <View
+                style={[
+                  styles.sectionCard,
+                  { backgroundColor: theme.colors.surface },
+                ]}
+              >
+                <DisplayModeOption
+                  label="Compact Grid"
+                  icon="grid-outline"
+                  selected={displayMode === "compactGrid"}
+                  onPress={() => onDisplayModeChange("compactGrid")}
+                />
+                <DisplayModeOption
+                  label="List"
+                  icon="list-outline"
+                  selected={displayMode === "list"}
+                  onPress={() => onDisplayModeChange("list")}
+                  isLast
+                />
+              </View>
+            </View>
+
+            {/* Badge Settings Section */}
+            <View style={styles.section}>
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Badges
+              </Text>
+              <View
+                style={[
+                  styles.sectionCard,
+                  { backgroundColor: theme.colors.surface },
+                ]}
+              >
+                <FilterSwitch
+                  label="Show download badges"
+                  value={showDownloadBadges}
+                  onChange={onShowDownloadBadgesChange}
+                />
+                <FilterSwitch
+                  label="Show unread badges"
+                  value={showUnreadBadges}
+                  onChange={onShowUnreadBadgesChange}
+                />
+                <FilterSwitch
+                  label="Show item count"
+                  value={showItemCount}
+                  onChange={onShowItemCountChange}
+                  isLast
+                />
+              </View>
+            </View>
+
+            {/* Spacer for bottom padding */}
+            <View style={styles.bottomSpacer} />
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   );
 };
 
-const Section: React.FC<{ title: string; children: React.ReactNode }> = ({
-  title,
-  children,
-}) => {
-  const { theme } = useTheme();
-  return (
-    <View style={styles.section}>
-      <Text
-        style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}
-      >
-        {title}
-      </Text>
-      {children}
-    </View>
-  );
-};
-
-const FilterItem: React.FC<{
+// Sub-components
+const FilterSwitch: React.FC<{
   label: string;
   value: boolean;
   onChange: (value: boolean) => void;
-  theme: any;
-}> = ({ label, value, onChange, theme }) => (
-  <View style={styles.filterItem}>
-    <Text style={[styles.filterLabel, { color: theme.colors.text }]}>
-      {label}
-    </Text>
-    <Switch
-      value={value}
-      onValueChange={onChange}
-      trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
-    />
-  </View>
-);
+  isLast?: boolean;
+}> = ({ label, value, onChange, isLast }) => {
+  const { theme } = useTheme();
 
-const RadioButton: React.FC<{
+  return (
+    <View
+      style={[
+        styles.switchRow,
+        !isLast && {
+          borderBottomWidth: 1,
+          borderBottomColor: theme.colors.divider,
+        },
+      ]}
+    >
+      <Text style={[styles.switchLabel, { color: theme.colors.text }]}>
+        {label}
+      </Text>
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+        thumbColor={value ? "#FFF" : "#f4f3f4"}
+      />
+    </View>
+  );
+};
+
+const SortOption: React.FC<{
   label: string;
   selected: boolean;
   onPress: () => void;
-  theme: any;
-}> = ({ label, selected, onPress, theme }) => (
-  <TouchableOpacity style={styles.radioButton} onPress={onPress}>
-    <View
+  isLast?: boolean;
+}> = ({ label, selected, onPress, isLast }) => {
+  const { theme } = useTheme();
+
+  return (
+    <TouchableOpacity
       style={[
-        styles.radioCircle,
-        {
-          borderColor: theme.colors.primary,
-          backgroundColor: selected ? theme.colors.primary : "transparent",
+        styles.sortRow,
+        !isLast && {
+          borderBottomWidth: 1,
+          borderBottomColor: theme.colors.divider,
         },
+        selected && { backgroundColor: theme.colors.primary + "10" },
       ]}
-    />
-    <Text style={[styles.radioLabel, { color: theme.colors.text }]}>
-      {label}
-    </Text>
-  </TouchableOpacity>
-);
+      onPress={onPress}
+    >
+      <Text
+        style={[
+          styles.sortLabel,
+          { color: selected ? theme.colors.primary : theme.colors.text },
+          selected && { fontWeight: "600" },
+        ]}
+      >
+        {label}
+      </Text>
+      {selected && (
+        <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
+      )}
+    </TouchableOpacity>
+  );
+};
+
+const DisplayModeOption: React.FC<{
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  selected: boolean;
+  onPress: () => void;
+  isLast?: boolean;
+}> = ({ label, icon, selected, onPress, isLast }) => {
+  const { theme } = useTheme();
+
+  return (
+    <TouchableOpacity
+      style={[
+        styles.displayModeRow,
+        !isLast && {
+          borderBottomWidth: 1,
+          borderBottomColor: theme.colors.divider,
+        },
+        selected && { backgroundColor: theme.colors.primary + "10" },
+      ]}
+      onPress={onPress}
+    >
+      <View style={styles.displayModeLeft}>
+        <Ionicons
+          name={icon}
+          size={20}
+          color={selected ? theme.colors.primary : theme.colors.textSecondary}
+          style={styles.displayModeIcon}
+        />
+        <Text
+          style={[
+            styles.displayModeLabel,
+            { color: selected ? theme.colors.primary : theme.colors.text },
+            selected && { fontWeight: "600" },
+          ]}
+        >
+          {label}
+        </Text>
+      </View>
+      {selected && (
+        <View
+          style={[styles.radioButton, { borderColor: theme.colors.primary }]}
+        >
+          <View
+            style={[
+              styles.radioButtonInner,
+              { backgroundColor: theme.colors.primary },
+            ]}
+          />
+        </View>
+      )}
+      {!selected && (
+        <View
+          style={[styles.radioButton, { borderColor: theme.colors.border }]}
+        />
+      )}
+    </TouchableOpacity>
+  );
+};
 
 const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  backdrop: {
+    flex: 1,
+  },
   container: {
-    position: "absolute",
-    right: 0,
-    top: 56,
-    width: 300,
-    height: "100%",
-    elevation: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: -2, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    zIndex: 1000,
+    maxHeight: height * 0.85,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: "hidden",
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     padding: 16,
+    paddingTop: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#E0E0E0",
+    borderBottomColor: "rgba(0,0,0,0.1)",
   },
-  title: {
-    fontSize: 20,
+  headerTitle: {
+    fontSize: 18,
     fontWeight: "bold",
   },
+  closeButton: {
+    padding: 4,
+  },
   content: {
-    flex: 1,
+    padding: 16,
   },
   section: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E0E0E0",
+    marginBottom: 20,
   },
   sectionTitle: {
     fontSize: 12,
+    fontWeight: "700",
     textTransform: "uppercase",
-    marginBottom: 12,
-    fontWeight: "600",
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    marginLeft: 4,
   },
-  filterItem: {
+  sectionCard: {
+    borderRadius: 12,
+    overflow: "hidden",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  switchRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 8,
+    padding: 14,
   },
-  filterLabel: {
-    fontSize: 16,
+  switchLabel: {
+    fontSize: 15,
   },
-  sortOption: {
+  sortRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 12,
+    padding: 14,
   },
   sortLabel: {
-    fontSize: 16,
+    fontSize: 15,
   },
-  radioGroup: {
-    gap: 12,
+  displayModeRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 14,
   },
-  radioButton: {
+  displayModeLeft: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 8,
   },
-  radioCircle: {
+  displayModeIcon: {
+    marginRight: 12,
+  },
+  displayModeLabel: {
+    fontSize: 15,
+  },
+  radioButton: {
     width: 20,
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    marginRight: 12,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  radioLabel: {
-    fontSize: 16,
+  radioButtonInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  bottomSpacer: {
+    height: 30,
   },
 });

@@ -15,9 +15,7 @@ interface NovelGridProps {
 
 const { width } = Dimensions.get("window");
 const GRID_COLUMNS = 3;
-const GRID_SPACING = 8;
-const GRID_ITEM_WIDTH =
-  (width - GRID_SPACING * (GRID_COLUMNS + 1)) / GRID_COLUMNS;
+const GRID_SPACING = 12;
 
 export const NovelGrid: React.FC<NovelGridProps> = ({
   novels,
@@ -27,13 +25,36 @@ export const NovelGrid: React.FC<NovelGridProps> = ({
   onNovelPress,
   onNovelLongPress,
 }) => {
-  const renderNovel = ({ item }: { item: Novel }) => (
-    <View
-      style={displayMode === "compactGrid" ? styles.gridItem : styles.listItem}
-    >
+  // LIST MODE: Single column flat list with key="list" to force re-render
+  if (displayMode === "list") {
+    return (
+      <FlatList
+        key="list" // Force fresh render when switching to list
+        data={novels}
+        renderItem={({ item }) => (
+          <NovelCard
+            novel={item}
+            displayMode="list"
+            showDownloadBadge={showDownloadBadges}
+            showUnreadBadge={showUnreadBadges}
+            onPress={() => onNovelPress(item)}
+            onLongPress={() => onNovelLongPress?.(item)}
+          />
+        )}
+        keyExtractor={(item) => `list-${item.id}`}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        removeClippedSubviews={false}
+      />
+    );
+  }
+
+  // GRID MODE: 3-column grid with key="grid" to force re-render
+  const renderGridItem = ({ item }: { item: Novel }) => (
+    <View style={styles.gridItem}>
       <NovelCard
         novel={item}
-        displayMode={displayMode}
+        displayMode="compactGrid"
         showDownloadBadge={showDownloadBadges}
         showUnreadBadge={showUnreadBadges}
         onPress={() => onNovelPress(item)}
@@ -42,42 +63,38 @@ export const NovelGrid: React.FC<NovelGridProps> = ({
     </View>
   );
 
-  if (displayMode === "list") {
-    return (
-      <FlatList
-        data={novels}
-        renderItem={renderNovel}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
-    );
-  }
-
   return (
     <FlatList
+      key="grid" // Force fresh render when switching to grid
       data={novels}
-      renderItem={renderNovel}
-      keyExtractor={(item) => item.id}
+      renderItem={renderGridItem}
+      keyExtractor={(item) => `grid-${item.id}`}
       numColumns={GRID_COLUMNS}
       contentContainerStyle={styles.gridContent}
       showsVerticalScrollIndicator={false}
+      columnWrapperStyle={styles.gridRow}
+      removeClippedSubviews={false}
     />
   );
 };
 
 const styles = StyleSheet.create({
+  // List mode styles
+  listContent: {
+    padding: 12,
+    paddingTop: 8,
+  },
+
+  // Grid mode styles
   gridContent: {
     padding: GRID_SPACING,
+    paddingTop: 8,
   },
-  listContent: {
-    padding: 8,
+  gridRow: {
+    justifyContent: "space-between",
+    marginBottom: GRID_SPACING,
   },
   gridItem: {
-    width: GRID_ITEM_WIDTH,
-    margin: GRID_SPACING / 2,
-  },
-  listItem: {
-    marginBottom: 8,
+    width: (width - GRID_SPACING * (GRID_COLUMNS + 1)) / GRID_COLUMNS,
   },
 });
