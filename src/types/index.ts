@@ -43,6 +43,25 @@ export interface Category {
   order: number;
 }
 
+export interface HistoryEntry {
+  id: string;
+  novel: Novel;
+  lastReadChapter: Chapter;
+  progress: number; // 0-100 percentage
+  totalChaptersRead: number;
+  lastReadDate: Date;
+  timeSpentReading: number; // in minutes
+}
+
+export interface ReadingSession {
+  id: string;
+  novelId: string;
+  chapterId: string;
+  startTime: Date;
+  endTime?: Date;
+  pagesRead: number;
+}
+
 export type LibrarySortOption =
   | "alphabetically"
   | "lastRead"
