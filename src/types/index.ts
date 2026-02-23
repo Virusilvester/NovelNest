@@ -86,6 +86,7 @@ export interface AppSettings {
   general: {
     startScreen: StartScreen;
     language: string;
+    downloadLocation: string | null;
   };
   display: {
     theme: "dark" | "light";
@@ -124,4 +125,55 @@ export interface AppSettings {
     anilist: boolean;
     myanimelist: boolean;
   };
+  advanced: {
+    userAgent: string;
+  };
 }
+
+export const DEFAULT_SETTINGS: AppSettings = {
+  general: {
+    startScreen: "library",
+    language: "en",
+    downloadLocation: null,
+  },
+  display: {
+    theme: "light",
+  },
+  autoDownload: {
+    downloadNewChapters: false,
+  },
+  updates: {
+    frequency: "daily",
+    onlyUpdateOngoing: false,
+  },
+  reader: {
+    general: {
+      keepScreenOn: true,
+      volumeButtonsScroll: false,
+      swipeToNavigate: true,
+      tapToScroll: true,
+      autoScroll: false,
+    },
+    display: {
+      fullscreen: true,
+      showProgressPercentage: true,
+    },
+    theme: {
+      preset: "default",
+      backgroundColor: "#FFFFFF",
+      textColor: "#000000",
+      textAlign: "justify",
+      textSize: 16,
+      lineHeight: 1.5,
+      padding: 16,
+      fontStyle: "System",
+    },
+  },
+  tracking: {
+    anilist: false,
+    myanimelist: false,
+  },
+  advanced: {
+    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+  },
+};

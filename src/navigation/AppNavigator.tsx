@@ -5,6 +5,7 @@ import React from "react";
 import { DownloadQueueScreen } from "../screens/DownloadQueueScreen";
 import { NovelDetailScreen } from "../screens/library/NovelDetailScreen";
 import { ReaderScreen } from "../screens/reader/ReaderScreen";
+import { DataManagementScreen } from "../screens/settings/DataManagementScreen";
 import { EditCategoriesScreen } from "../screens/settings/EditCategoriesScreen";
 import { ReaderSettingsScreen } from "../screens/settings/ReaderSettingsScreen";
 import { ReaderThemeScreen } from "../screens/settings/ReaderThemeScreen";
@@ -34,6 +35,11 @@ export const AppNavigator: React.FC = () => {
         <Stack.Screen name="EditCategories" component={EditCategoriesScreen} />
         <Stack.Screen name="ReaderSettings" component={ReaderSettingsScreen} />
         <Stack.Screen name="ReaderTheme" component={ReaderThemeScreen} />
+        <Stack.Screen
+          name="DataManagement"
+          component={DataManagementScreen}
+          options={{ title: "Data Management" }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

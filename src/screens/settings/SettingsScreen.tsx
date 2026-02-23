@@ -1,8 +1,10 @@
 // src/screens/settings/SettingsScreen.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import React from "react";
+import * as DocumentPicker from "expo-document-picker";
+import React, { useState } from "react";
 import {
+  Alert,
   Linking,
   ScrollView,
   StyleSheet,
@@ -12,9 +14,11 @@ import {
   View,
 } from "react-native";
 import { Header } from "../../components/common/Header";
+import { SelectionModal } from "../../components/common/SelectionModal";
 import { START_SCREENS, UPDATE_FREQUENCIES } from "../../constants";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
+import { StartScreen } from "../../types";
 
 interface SettingsSectionProps {
   title: string;
@@ -51,6 +55,7 @@ interface SettingsItemProps {
   onPress?: () => void;
   rightElement?: React.ReactNode;
   showArrow?: boolean;
+  isDestructive?: boolean;
 }
 
 const SettingsItem: React.FC<SettingsItemProps> = ({
@@ -59,6 +64,7 @@ const SettingsItem: React.FC<SettingsItemProps> = ({
   onPress,
   rightElement,
   showArrow = true,
+  isDestructive = false,
 }) => {
   const { theme } = useTheme();
   return (
@@ -68,12 +74,18 @@ const SettingsItem: React.FC<SettingsItemProps> = ({
       disabled={!onPress}
     >
       <View style={styles.itemContent}>
-        <Text style={[styles.itemTitle, { color: theme.colors.text }]}>
+        <Text
+          style={[
+            styles.itemTitle,
+            { color: isDestructive ? theme.colors.error : theme.colors.text },
+          ]}
+        >
           {title}
         </Text>
         {subtitle && (
           <Text
             style={[styles.itemSubtitle, { color: theme.colors.textSecondary }]}
+            numberOfLines={1}
           >
             {subtitle}
           </Text>
@@ -84,7 +96,9 @@ const SettingsItem: React.FC<SettingsItemProps> = ({
           <Ionicons
             name="chevron-forward"
             size={20}
-            color={theme.colors.textSecondary}
+            color={
+              isDestructive ? theme.colors.error : theme.colors.textSecondary
+            }
           />
         ))}
     </TouchableOpacity>
@@ -100,10 +114,59 @@ export const SettingsScreen: React.FC = () => {
     updateDisplaySettings,
     updateAutoDownloadSettings,
     updateUpdatesSettings,
+    resetSettings,
+    setDownloadLocation,
   } = useSettings();
+
+  const [showStartScreenModal, setShowStartScreenModal] = useState(false);
+  const [showUpdateFrequencyModal, setShowUpdateFrequencyModal] =
+    useState(false);
 
   const handleHelpPress = () => {
     Linking.openURL("https://github.com/your-repo/wiki");
+  };
+
+  const handleSelectDownloadLocation = async () => {
+    try {
+      // Note: On mobile, we use a different approach
+      // This is a simplified version for test only
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "*/*",
+        copyToCacheDirectory: false,
+      });
+
+      if (result.canceled === false && result.assets && result.assets[0]) {
+        await setDownloadLocation(result.assets[0].uri);
+      }
+    } catch (err) {
+      console.error("Error selecting download location:", err);
+    }
+  };
+
+  const handleClearSettings = () => {
+    Alert.alert(
+      "Clear Settings",
+      "Are you sure you want to reset all settings to default? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset",
+          style: "destructive",
+          onPress: async () => {
+            await resetSettings();
+            Alert.alert("Success", "Settings have been reset to default.");
+          },
+        },
+      ],
+    );
+  };
+
+  const getStartScreenLabel = (value: StartScreen) => {
+    return START_SCREENS.find((s) => s.value === value)?.label || "Library";
+  };
+
+  const getUpdateFrequencyLabel = (value: string) => {
+    return UPDATE_FREQUENCIES.find((f) => f.value === value)?.label || "Daily";
   };
 
   return (
@@ -125,49 +188,53 @@ export const SettingsScreen: React.FC = () => {
       />
 
       <ScrollView style={styles.content}>
+        {/* General Section */}
         <SettingsSection title="General">
           <SettingsItem
             title="Start screen"
-            subtitle={
-              START_SCREENS.find(
-                (s) => s.value === settings.general.startScreen,
-              )?.label
-            }
-            onPress={() => {
-              /* Show selection modal */
-            }}
+            subtitle={getStartScreenLabel(settings.general.startScreen)}
+            onPress={() => setShowStartScreenModal(true)}
           />
-        </SettingsSection>
-
-        <SettingsSection title="Display">
           <SettingsItem
             title="Language"
-            subtitle={settings.general.language}
+            subtitle={
+              settings.general.language === "en"
+                ? "English"
+                : settings.general.language
+            }
             onPress={() => {
               /* Show language selection */
             }}
           />
           <SettingsItem
+            title="Download location"
+            subtitle={settings.general.downloadLocation || "Default"}
+            onPress={handleSelectDownloadLocation}
+          />
+        </SettingsSection>
+
+        {/* Display Section */}
+        <SettingsSection title="Display">
+          <SettingsItem
             title="App Theme"
             subtitle={settings.display.theme === "dark" ? "Dark" : "Light"}
-            onPress={() =>
-              updateDisplaySettings(
-                "theme",
-                settings.display.theme === "dark" ? "light" : "dark",
-              )
-            }
             rightElement={
               <Switch
                 value={settings.display.theme === "dark"}
                 onValueChange={(v) =>
                   updateDisplaySettings("theme", v ? "dark" : "light")
                 }
+                trackColor={{
+                  false: theme.colors.border,
+                  true: theme.colors.primary,
+                }}
               />
             }
             showArrow={false}
           />
         </SettingsSection>
 
+        {/* Auto-download Section */}
         <SettingsSection title="Auto-download">
           <SettingsItem
             title="Download new chapters"
@@ -177,12 +244,17 @@ export const SettingsScreen: React.FC = () => {
                 onValueChange={(v) =>
                   updateAutoDownloadSettings("downloadNewChapters", v)
                 }
+                trackColor={{
+                  false: theme.colors.border,
+                  true: theme.colors.primary,
+                }}
               />
             }
             showArrow={false}
           />
         </SettingsSection>
 
+        {/* Library Section */}
         <SettingsSection title="Library">
           <SettingsItem
             title="Categories"
@@ -190,17 +262,12 @@ export const SettingsScreen: React.FC = () => {
           />
         </SettingsSection>
 
+        {/* Updates Section */}
         <SettingsSection title="Updates">
           <SettingsItem
             title="Library update frequency"
-            subtitle={
-              UPDATE_FREQUENCIES.find(
-                (f) => f.value === settings.updates.frequency,
-              )?.label
-            }
-            onPress={() => {
-              /* Show frequency selection */
-            }}
+            subtitle={getUpdateFrequencyLabel(settings.updates.frequency)}
+            onPress={() => setShowUpdateFrequencyModal(true)}
           />
           <SettingsItem
             title="Only update ongoing"
@@ -210,12 +277,17 @@ export const SettingsScreen: React.FC = () => {
                 onValueChange={(v) =>
                   updateUpdatesSettings("onlyUpdateOngoing", v)
                 }
+                trackColor={{
+                  false: theme.colors.border,
+                  true: theme.colors.primary,
+                }}
               />
             }
             showArrow={false}
           />
         </SettingsSection>
 
+        {/* Reader Section */}
         <SettingsSection title="Reader">
           <SettingsItem
             title="General"
@@ -231,6 +303,7 @@ export const SettingsScreen: React.FC = () => {
           />
         </SettingsSection>
 
+        {/* Tracking Section */}
         <SettingsSection title="Tracking">
           <SettingsItem
             title="Services"
@@ -238,6 +311,7 @@ export const SettingsScreen: React.FC = () => {
           />
         </SettingsSection>
 
+        {/* Backup Section */}
         <SettingsSection title="Backup">
           <SettingsItem
             title="Remote Backup"
@@ -249,17 +323,41 @@ export const SettingsScreen: React.FC = () => {
           />
         </SettingsSection>
 
+        {/* Advanced Section */}
         <SettingsSection title="Advanced">
           <SettingsItem
             title="Data Management"
+            subtitle="Storage, cache, and user agent"
             onPress={() => navigation.navigate("DataManagement")}
           />
         </SettingsSection>
 
+        {/* About Section */}
         <SettingsSection title="About">
           <SettingsItem title="Version" subtitle="1.0.0" showArrow={false} />
         </SettingsSection>
       </ScrollView>
+
+      {/* Selection Modals */}
+      <SelectionModal
+        visible={showStartScreenModal}
+        title="Select Start Screen"
+        options={START_SCREENS}
+        selectedValue={settings.general.startScreen}
+        onSelect={(value) =>
+          updateGeneralSettings("startScreen", value as StartScreen)
+        }
+        onClose={() => setShowStartScreenModal(false)}
+      />
+
+      <SelectionModal
+        visible={showUpdateFrequencyModal}
+        title="Update Frequency"
+        options={UPDATE_FREQUENCIES}
+        selectedValue={settings.updates.frequency}
+        onSelect={(value) => updateUpdatesSettings("frequency", value as any)}
+        onClose={() => setShowUpdateFrequencyModal(false)}
+      />
     </View>
   );
 };
@@ -298,6 +396,7 @@ const styles = StyleSheet.create({
   },
   itemContent: {
     flex: 1,
+    marginRight: 8,
   },
   itemTitle: {
     fontSize: 16,
