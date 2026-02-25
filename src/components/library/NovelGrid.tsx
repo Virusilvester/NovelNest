@@ -12,6 +12,11 @@ interface NovelGridProps {
   showUnreadBadges: boolean;
   onNovelPress: (novel: Novel) => void;
   onNovelLongPress?: (novel: Novel) => void;
+  onEndReached?: () => void;
+  onEndReachedThreshold?: number;
+  ListFooterComponent?: React.ReactElement | null;
+  refreshing?: boolean;
+  onRefresh?: () => void;
 }
 
 const GRID_SPACING = 12;
@@ -23,6 +28,11 @@ export const NovelGrid: React.FC<NovelGridProps> = ({
   showUnreadBadges,
   onNovelPress,
   onNovelLongPress,
+  onEndReached,
+  onEndReachedThreshold,
+  ListFooterComponent,
+  refreshing,
+  onRefresh,
 }) => {
   const { width } = useWindowDimensions();
   const gridColumns = getGridColumns(width);
@@ -48,6 +58,11 @@ export const NovelGrid: React.FC<NovelGridProps> = ({
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         removeClippedSubviews={false}
+        onEndReached={onEndReached}
+        onEndReachedThreshold={onEndReachedThreshold}
+        ListFooterComponent={ListFooterComponent}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
       />
     );
   }
@@ -77,6 +92,11 @@ export const NovelGrid: React.FC<NovelGridProps> = ({
       showsVerticalScrollIndicator={false}
       columnWrapperStyle={styles.gridRow}
       removeClippedSubviews={false}
+      onEndReached={onEndReached}
+      onEndReachedThreshold={onEndReachedThreshold}
+      ListFooterComponent={ListFooterComponent}
+      refreshing={refreshing}
+      onRefresh={onRefresh}
     />
   );
 };

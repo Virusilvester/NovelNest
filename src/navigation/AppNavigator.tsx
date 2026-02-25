@@ -14,6 +14,8 @@ import { RemoteBackupScreen } from "../screens/settings/RemoteBackupScreen";
 import { SettingsScreen } from "../screens/settings/SettingsScreen";
 import { TrackingServicesScreen } from "../screens/settings/TrackingServicesScreen";
 import { TTSSettingsScreen } from "../screens/settings/TTSSettingsScreen";
+import { PluginReaderScreen } from "../screens/sources/PluginReaderScreen";
+import { PluginNovelDetailScreen } from "../screens/sources/PluginNovelDetailScreen";
 import { SourceDetailScreen } from "../screens/sources/SourceDetailScreen";
 import { WebViewScreen } from "../screens/WebViewScreen";
 import { MainDrawer } from "./MainDrawer";
@@ -34,6 +36,11 @@ export const AppNavigator: React.FC = () => {
         <Stack.Screen name="SourceDetail" component={SourceDetailScreen} />
         <Stack.Screen name="Reader" component={ReaderScreen} />
         <Stack.Screen name="WebView" component={WebViewScreen} />
+        <Stack.Screen
+          name="PluginNovelDetail"
+          component={PluginNovelDetailScreen}
+        />
+        <Stack.Screen name="PluginReader" component={PluginReaderScreen} />
         <Stack.Screen name="DownloadQueue" component={DownloadQueueScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="EditCategories" component={EditCategoriesScreen} />

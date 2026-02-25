@@ -13,6 +13,26 @@ const hashString = (input: string): string => {
   return (hash >>> 0).toString(16);
 };
 
+const looksLikeNovelNestApiSource = (value: any): boolean => {
+  return (
+    value &&
+    typeof value === "object" &&
+    typeof value.id === "string" &&
+    typeof value.name === "string" &&
+    typeof value.baseUrl === "string" &&
+    typeof value.language === "string"
+  );
+};
+
+const coerceNovelNestApiIndexUrl = (repoUrl: string): string => {
+  const trimmed = repoUrl.trim().replace(/\/+$/, "");
+  if (!trimmed) return repoUrl;
+  if (trimmed.endsWith("/api/sources")) return trimmed;
+  if (trimmed.endsWith("/api")) return `${trimmed}/sources`;
+  if (trimmed.endsWith(".json")) return trimmed;
+  return `${trimmed}/api/sources`;
+};
+
 const getCacheKey = (repoUrl: string): string => `${CACHE_PREFIX}${hashString(repoUrl)}`;
 
 type RepoCache = {
@@ -55,10 +75,11 @@ export const ExtensionsService = {
   },
 
   fetchRepoIndex: async (repoUrl: string): Promise<RepoCache> => {
+    const indexUrl = coerceNovelNestApiIndexUrl(repoUrl);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20_000);
     try {
-      const response = await fetch(repoUrl, {
+      const response = await fetch(indexUrl, {
         headers: { Accept: "application/json" },
         signal: controller.signal,
       });
@@ -69,7 +90,26 @@ export const ExtensionsService = {
       if (!Array.isArray(data)) {
         throw new Error("Invalid repo index format (expected array).");
       }
-      const plugins = data.filter(isPlugin);
+      let plugins: ExtensionRepoPlugin[] = data.filter(isPlugin);
+
+      // NovelNest API repo: /api/sources
+      if (plugins.length === 0 && data.length > 0 && looksLikeNovelNestApiSource(data[0])) {
+        const apiBase = indexUrl.replace(/\/sources$/, "");
+        const repoHash = hashString(apiBase);
+
+        plugins = data.map((s: any) => {
+          const sourceId = String(s.id);
+          return {
+            id: `nnapi_${repoHash}_${sourceId}`,
+            name: String(s.name),
+            version: "api",
+            lang: String(s.language || "en"),
+            site: String(s.baseUrl || ""),
+            url: `novelnest-api|${apiBase}|${sourceId}`,
+            iconUrl: "",
+          };
+        });
+      }
       if (plugins.length === 0) {
         throw new Error("Repo index returned zero valid plugins.");
       }
@@ -102,6 +142,7 @@ export const ExtensionsService = {
     pluginId: string,
     pluginUrl: string,
   ): Promise<string | null> => {
+    if (pluginUrl.startsWith("novelnest-api|")) return null;
     const dir = await ExtensionsService.getPluginsDir();
     if (!dir) return null;
     const localUri = `${dir}${pluginId}.js`;
@@ -118,4 +159,3 @@ export const ExtensionsService = {
     }
   },
 };
-

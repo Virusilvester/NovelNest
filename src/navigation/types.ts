@@ -7,6 +7,17 @@ export type RootStackParamList = {
   SourceDetail: { sourceId?: string; sourceName?: string; genre?: string };
   WebView: { url: string };
   Reader: { novelId: string; chapterId: string };
+  PluginNovelDetail: {
+    pluginId: string;
+    novelPath: string;
+    novelName?: string;
+    coverUrl?: string;
+  };
+  PluginReader: {
+    pluginId: string;
+    chapterPath: string;
+    chapterTitle?: string;
+  };
   Settings: undefined;
   EditCategories: undefined;
   ReaderSettings: undefined;

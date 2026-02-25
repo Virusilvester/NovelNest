@@ -161,7 +161,7 @@ export const LibraryScreen: React.FC = () => {
       ) : (
         <NovelGrid
           novels={displayedNovels}
-          displayMode={displayMode} // This switches between 'compactGrid' and 'list'
+          displayMode={displayMode}
           showDownloadBadges={showDownloadBadges}
           showUnreadBadges={showUnreadBadges}
           onNovelPress={handleNovelPress}

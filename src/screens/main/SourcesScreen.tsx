@@ -1,7 +1,7 @@
 // src/screens/main/SourcesScreen.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   FlatList,
   Image,
@@ -12,56 +12,64 @@ import {
 } from "react-native";
 import { Header } from "../../components/common/Header";
 import { PopupMenu } from "../../components/common/PopupMenu";
+import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
 import type { MainDrawerNavigationProp } from "../../navigation/navigationTypes";
-import { Source } from "../../types";
-
-// Mock data
-const sources: Source[] = [
-  {
-    id: "1",
-    name: "Novel Updates",
-    iconUrl: "",
-    isEnabled: true,
-    supportsSearch: true,
-    supportsFilters: true,
-  },
-  {
-    id: "2",
-    name: "Royal Road",
-    iconUrl: "",
-    isEnabled: true,
-    supportsSearch: true,
-    supportsFilters: true,
-  },
-];
 
 type SortOption = "alphabetically" | "enabled";
 
 export const SourcesScreen: React.FC = () => {
   const navigation = useNavigation<MainDrawerNavigationProp>();
   const { theme } = useTheme();
+  const { settings, setExtensionPluginEnabled } = useSettings();
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOption, setSortOption] = useState<SortOption>("alphabetically");
   const [isFilterMenuVisible, setIsFilterMenuVisible] = useState(false);
 
-  const filteredSources = sources.sort((a, b) => {
-    if (sortOption === "enabled") {
-      if (a.isEnabled === b.isEnabled) return a.name.localeCompare(b.name);
-      return a.isEnabled ? -1 : 1;
-    }
-    return a.name.localeCompare(b.name);
-  });
+  const installed = useMemo(
+    () => settings.extensions.installedPlugins || {},
+    [settings.extensions.installedPlugins],
+  );
 
-  const handleSourcePress = (source: Source) => {
+  const sources = useMemo(() => {
+    const all = Object.values(installed).map((p) => ({
+      id: p.id,
+      name: p.name,
+      iconUrl: p.iconUrl,
+      site: p.site,
+      lang: p.lang,
+      version: p.version,
+      enabled: p.enabled,
+    }));
+
+    const q = searchQuery.trim().toLowerCase();
+    const filtered = q
+      ? all.filter(
+          (s) =>
+            s.name.toLowerCase().includes(q) ||
+            s.id.toLowerCase().includes(q) ||
+            s.lang.toLowerCase().includes(q),
+        )
+      : all;
+
+    return filtered.sort((a, b) => {
+      if (sortOption === "enabled") {
+        if (a.enabled === b.enabled) return a.name.localeCompare(b.name);
+        return a.enabled ? -1 : 1;
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }, [installed, searchQuery, sortOption]);
+
+  const handleSourcePress = (source: (typeof sources)[0]) => {
     navigation.navigate("SourceDetail", {
       sourceId: source.id,
       sourceName: source.name,
     });
   };
 
-  const renderSource = ({ item }: { item: Source }) => (
+  const renderSource = ({ item }: { item: (typeof sources)[0] }) => (
     <TouchableOpacity
       style={[styles.sourceItem, { backgroundColor: theme.colors.surface }]}
       onPress={() => handleSourcePress(item)}
@@ -83,13 +91,24 @@ export const SourcesScreen: React.FC = () => {
           style={[
             styles.sourceStatus,
             {
-              color: item.isEnabled ? theme.colors.success : theme.colors.error,
+              color: item.enabled ? theme.colors.success : theme.colors.error,
             },
           ]}
         >
-          {item.isEnabled ? "Enabled" : "Disabled"}
+          {item.enabled ? "Enabled" : "Disabled"} • {item.lang.toUpperCase()} •
+          v{item.version}
         </Text>
       </View>
+      <TouchableOpacity
+        onPress={() => setExtensionPluginEnabled(item.id, !item.enabled)}
+        style={styles.toggleButton}
+      >
+        <Ionicons
+          name={item.enabled ? "checkmark-circle" : "close-circle"}
+          size={24}
+          color={item.enabled ? theme.colors.success : theme.colors.error}
+        />
+      </TouchableOpacity>
       <Ionicons
         name="chevron-forward"
         size={24}
@@ -147,10 +166,25 @@ export const SourcesScreen: React.FC = () => {
       />
 
       <FlatList
-        data={filteredSources}
+        data={sources}
         renderItem={renderSource}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
+              No sources installed
+            </Text>
+            <Text
+              style={[
+                styles.emptySubtitle,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              Install sources from Extensions, then enable them here.
+            </Text>
+          </View>
+        }
       />
 
       <PopupMenu
@@ -177,6 +211,19 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
+  },
+  emptyState: {
+    padding: 24,
+    alignItems: "center",
+    gap: 10,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    textAlign: "center",
   },
   sourceItem: {
     flexDirection: "row",
@@ -213,5 +260,8 @@ const styles = StyleSheet.create({
   sourceStatus: {
     fontSize: 12,
     marginTop: 4,
+  },
+  toggleButton: {
+    padding: 8,
   },
 });

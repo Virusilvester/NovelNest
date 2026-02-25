@@ -1,5 +1,5 @@
 {
-  "name": "react-native-app",
+  "name": "novelnest",
   "main": "index.ts",
   "version": "1.0.0",
   "scripts": {
@@ -22,8 +22,9 @@
     "@react-navigation/stack": "^7.7.2",
     "@shopify/flash-list": "2.0.2",
     "axios": "^1.13.5",
-    "cheerio": "^1.2.0",
+    "cheerio-without-node-native": "^0.20.2",
     "date-fns": "^4.1.0",
+    "dayjs": "^1.11.19",
     "epub-gen": "^0.1.0",
     "expo": "~54.0.33",
     "expo-constants": "~18.0.13",
@@ -39,6 +40,7 @@
     "expo-system-ui": "~6.0.9",
     "expo-web-browser": "~15.0.10",
     "html-entities": "^2.6.0",
+    "htmlparser2": "^10.0.0",
     "moti": "^0.30.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
