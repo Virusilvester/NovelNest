@@ -11,18 +11,18 @@ import {
 } from "react-native";
 import { Header } from "../../components/common/Header";
 import { useTheme } from "../../context/ThemeContext";
+import type { MainDrawerNavigationProp } from "../../navigation/navigationTypes";
 import { Novel } from "../../types";
 
 // Mock data - replace with actual data from context/service
 const recentUpdates: Novel[] = [];
 
 export const UpdatesScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<MainDrawerNavigationProp>();
   const { theme } = useTheme();
 
   const handleRefresh = () => {
     // Implementation for refreshing updates
-    console.log("Refreshing updates...");
   };
 
   const renderEmptyState = () => (

@@ -2,13 +2,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
-  Dimensions,
   Modal,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { LIBRARY_SORT_OPTIONS } from "../../constants";
@@ -18,8 +18,6 @@ import {
   LibraryFilterOption,
   LibrarySortOption,
 } from "../../types";
-
-const { width, height } = Dimensions.get("window");
 
 interface FilterPanelProps {
   visible: boolean;
@@ -55,6 +53,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   onShowItemCountChange,
 }) => {
   const { theme } = useTheme();
+  const { height } = useWindowDimensions();
 
   if (!visible) return null;
 
@@ -71,7 +70,10 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         <View
           style={[
             styles.container,
-            { backgroundColor: theme.colors.background },
+            {
+              backgroundColor: theme.colors.background,
+              maxHeight: height * 0.85,
+            },
           ]}
         >
           {/* Header */}
@@ -372,7 +374,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   container: {
-    maxHeight: height * 0.85,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     overflow: "hidden",

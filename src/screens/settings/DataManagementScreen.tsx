@@ -2,12 +2,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Dimensions,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -21,8 +20,6 @@ import { Header } from "../../components/common/Header";
 import { useLibrary } from "../../context/LibraryContext";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
-
-const { width } = Dimensions.get("window");
 
 interface StorageInfo {
   appSize: string;
@@ -143,7 +140,7 @@ export const DataManagementScreen: React.FC = () => {
       // Get app directory size
       const documentDir = FileSystem.documentDirectory;
       if (documentDir) {
-        const info = await FileSystem.getInfoAsync(documentDir);
+        await FileSystem.getInfoAsync(documentDir);
         // Note: This is simplified - in production it must be changed to a detailed calculation
         setStorageInfo({
           appSize: "~45 MB",
@@ -194,7 +191,7 @@ export const DataManagementScreen: React.FC = () => {
                 `Deleted read chapters from ${readChapters.length} novels. Freed up 45 MB.`,
               );
               calculateStorage();
-            } catch (error) {
+            } catch {
               Alert.alert("Error", "Failed to delete read chapters.");
             } finally {
               setIsLoading(false);
@@ -235,7 +232,7 @@ export const DataManagementScreen: React.FC = () => {
 
               Alert.alert("Success", "Cookies and web data have been cleared.");
               calculateStorage();
-            } catch (error) {
+            } catch {
               Alert.alert("Error", "Failed to clear cookies.");
             } finally {
               setIsLoading(false);
@@ -280,7 +277,7 @@ export const DataManagementScreen: React.FC = () => {
                   },
                 ],
               );
-            } catch (error) {
+            } catch {
               Alert.alert(
                 "Error",
                 "Failed to reset settings. Please try again.",
@@ -317,7 +314,7 @@ export const DataManagementScreen: React.FC = () => {
               await new Promise((resolve) => setTimeout(resolve, 500));
               Alert.alert("Success", "Cache cleared successfully.");
               calculateStorage();
-            } catch (error) {
+            } catch {
               Alert.alert("Error", "Failed to clear cache.");
             } finally {
               setIsLoading(false);
@@ -357,7 +354,7 @@ export const DataManagementScreen: React.FC = () => {
                 "Database Cleared",
                 "All library data has been cleared. Please restart the app.",
               );
-            } catch (error) {
+            } catch {
               Alert.alert("Error", "Failed to clear database.");
             } finally {
               setIsLoading(false);
@@ -382,7 +379,7 @@ export const DataManagementScreen: React.FC = () => {
         "Success",
         "User Agent has been updated. Changes will take effect on next web request.",
       );
-    } catch (error) {
+    } catch {
       Alert.alert("Error", "Failed to save user agent.");
     } finally {
       setIsLoading(false);
@@ -524,7 +521,7 @@ export const DataManagementScreen: React.FC = () => {
           <DataAction
             title="Clear Cookies & Web Data"
             description="Clear login sessions and web cache"
-            icon="cookie-outline"
+            icon="trash-bin-outline"
             onPress={handleClearCookies}
             isDestructive
             isLoading={isLoading}
@@ -742,7 +739,7 @@ export const DataManagementScreen: React.FC = () => {
           <DataAction
             title="Import Database"
             description="Restore library data from backup file"
-            icon="upload-outline"
+            icon="download-outline"
             onPress={() => {
               /* Import functionality */
             }}
@@ -872,7 +869,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   storageItem: {
-    width: (width - 72) / 2,
+    flexBasis: "48%",
     padding: 12,
     alignItems: "center",
     marginBottom: 8,

@@ -7,9 +7,13 @@ import { NovelDetailScreen } from "../screens/library/NovelDetailScreen";
 import { ReaderScreen } from "../screens/reader/ReaderScreen";
 import { DataManagementScreen } from "../screens/settings/DataManagementScreen";
 import { EditCategoriesScreen } from "../screens/settings/EditCategoriesScreen";
+import { LegacyBackupScreen } from "../screens/settings/LegacyBackupScreen";
 import { ReaderSettingsScreen } from "../screens/settings/ReaderSettingsScreen";
 import { ReaderThemeScreen } from "../screens/settings/ReaderThemeScreen";
+import { RemoteBackupScreen } from "../screens/settings/RemoteBackupScreen";
 import { SettingsScreen } from "../screens/settings/SettingsScreen";
+import { TrackingServicesScreen } from "../screens/settings/TrackingServicesScreen";
+import { TTSSettingsScreen } from "../screens/settings/TTSSettingsScreen";
 import { SourceDetailScreen } from "../screens/sources/SourceDetailScreen";
 import { WebViewScreen } from "../screens/WebViewScreen";
 import { MainDrawer } from "./MainDrawer";
@@ -35,6 +39,13 @@ export const AppNavigator: React.FC = () => {
         <Stack.Screen name="EditCategories" component={EditCategoriesScreen} />
         <Stack.Screen name="ReaderSettings" component={ReaderSettingsScreen} />
         <Stack.Screen name="ReaderTheme" component={ReaderThemeScreen} />
+        <Stack.Screen name="TTSSettings" component={TTSSettingsScreen} />
+        <Stack.Screen
+          name="TrackingServices"
+          component={TrackingServicesScreen}
+        />
+        <Stack.Screen name="RemoteBackup" component={RemoteBackupScreen} />
+        <Stack.Screen name="LegacyBackup" component={LegacyBackupScreen} />
         <Stack.Screen
           name="DataManagement"
           component={DataManagementScreen}

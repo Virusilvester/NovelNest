@@ -1,23 +1,34 @@
 // src/screens/sources/SourceDetailScreen.tsx
 import { Ionicons } from "@expo/vector-icons";
+import type { RouteProp } from "@react-navigation/native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import React, { useState } from "react";
-import { FlatList, StyleSheet, TouchableOpacity, View } from "react-native";
+import {
+  FlatList,
+  StyleSheet,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { Header } from "../../components/common/Header";
 import { NovelCard } from "../../components/common/NovelCard";
 import { PopupMenu } from "../../components/common/PopupMenu";
 import { useTheme } from "../../context/ThemeContext";
+import type { RootStackParamList } from "../../navigation/types";
 import { DisplayMode, Novel, SourceSortOption } from "../../types";
+import { getGridColumns } from "../../utils/responsive";
 
 // Mock novels
 const mockNovels: Novel[] = [];
 
 export const SourceDetailScreen: React.FC = () => {
   const navigation = useNavigation();
-  const route = useRoute();
+  const route = useRoute<RouteProp<RootStackParamList, "SourceDetail">>();
   const { theme } = useTheme();
+  const { width } = useWindowDimensions();
 
-  const { sourceName } = route.params as { sourceName: string };
+  const { sourceName, genre } = route.params;
+  const headerTitle = sourceName || genre || "Source";
 
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -25,6 +36,26 @@ export const SourceDetailScreen: React.FC = () => {
   const [isFilterPanelVisible, setIsFilterPanelVisible] = useState(false);
   const [isMoreMenuVisible, setIsMoreMenuVisible] = useState(false);
   const [displayMode, setDisplayMode] = useState<DisplayMode>("compactGrid");
+
+  const displayedNovels = (() => {
+    const novels = [...mockNovels];
+    switch (sortOption) {
+      case "completed":
+        novels.sort((a, b) => {
+          const aCompleted = a.status === "completed";
+          const bCompleted = b.status === "completed";
+          if (aCompleted === bCompleted) return a.title.localeCompare(b.title);
+          return aCompleted ? -1 : 1;
+        });
+        return novels;
+      case "latest":
+      case "topRated":
+      case "popular":
+      default:
+        novels.sort((a, b) => a.title.localeCompare(b.title));
+        return novels;
+    }
+  })();
 
   const handleNovelPress = (novel: Novel) => {
     navigation.navigate("NovelDetail", { novelId: novel.id });
@@ -58,9 +89,8 @@ export const SourceDetailScreen: React.FC = () => {
       id: "displayMode",
       label: "Display mode",
       onPress: () => {
-        // Show display mode submenu
         setIsMoreMenuVisible(false);
-        // Toggle or show submenu
+        setDisplayMode((prev) => (prev === "compactGrid" ? "list" : "compactGrid"));
       },
     },
     {
@@ -83,9 +113,8 @@ export const SourceDetailScreen: React.FC = () => {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       <Header
-        title={sourceName}
+        title={headerTitle}
         onBackPress={() => navigation.goBack()}
-        showSearch={!isSearchActive}
         isSearchActive={isSearchActive}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -125,10 +154,15 @@ export const SourceDetailScreen: React.FC = () => {
       />
 
       <FlatList
-        data={mockNovels}
+        data={displayedNovels}
         renderItem={renderNovel}
         keyExtractor={(item) => item.id}
-        numColumns={displayMode === "compactGrid" ? 3 : 1}
+        key={
+          displayMode === "compactGrid"
+            ? `grid-${getGridColumns(width)}`
+            : "list"
+        }
+        numColumns={displayMode === "compactGrid" ? getGridColumns(width) : 1}
         contentContainerStyle={styles.listContent}
       />
 

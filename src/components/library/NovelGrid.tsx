@@ -1,8 +1,9 @@
 // src/components/library/NovelGrid.tsx
 import React from "react";
-import { Dimensions, FlatList, StyleSheet, View } from "react-native";
+import { FlatList, StyleSheet, useWindowDimensions, View } from "react-native";
 import { DisplayMode, Novel } from "../../types";
 import { NovelCard } from "../common/NovelCard";
+import { getGridColumns, getGridItemWidth } from "../../utils/responsive";
 
 interface NovelGridProps {
   novels: Novel[];
@@ -13,8 +14,6 @@ interface NovelGridProps {
   onNovelLongPress?: (novel: Novel) => void;
 }
 
-const { width } = Dimensions.get("window");
-const GRID_COLUMNS = 3;
 const GRID_SPACING = 12;
 
 export const NovelGrid: React.FC<NovelGridProps> = ({
@@ -25,6 +24,10 @@ export const NovelGrid: React.FC<NovelGridProps> = ({
   onNovelPress,
   onNovelLongPress,
 }) => {
+  const { width } = useWindowDimensions();
+  const gridColumns = getGridColumns(width);
+  const gridItemWidth = getGridItemWidth(width, gridColumns, GRID_SPACING);
+
   // LIST MODE: Single column flat list with key="list" to force re-render
   if (displayMode === "list") {
     return (
@@ -51,7 +54,7 @@ export const NovelGrid: React.FC<NovelGridProps> = ({
 
   // GRID MODE: 3-column grid with key="grid" to force re-render
   const renderGridItem = ({ item }: { item: Novel }) => (
-    <View style={styles.gridItem}>
+    <View style={[styles.gridItem, { width: gridItemWidth }]}>
       <NovelCard
         novel={item}
         displayMode="compactGrid"
@@ -65,11 +68,11 @@ export const NovelGrid: React.FC<NovelGridProps> = ({
 
   return (
     <FlatList
-      key="grid" // Force fresh render when switching to grid
+      key={`grid-${gridColumns}`} // Force fresh render when columns change (rotation / resize)
       data={novels}
       renderItem={renderGridItem}
       keyExtractor={(item) => `grid-${item.id}`}
-      numColumns={GRID_COLUMNS}
+      numColumns={gridColumns}
       contentContainerStyle={styles.gridContent}
       showsVerticalScrollIndicator={false}
       columnWrapperStyle={styles.gridRow}
@@ -95,6 +98,6 @@ const styles = StyleSheet.create({
     marginBottom: GRID_SPACING,
   },
   gridItem: {
-    width: (width - GRID_SPACING * (GRID_COLUMNS + 1)) / GRID_COLUMNS,
+    // width set dynamically to react to rotation / resize
   },
 });

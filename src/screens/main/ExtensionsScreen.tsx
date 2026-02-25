@@ -12,6 +12,7 @@ import {
 import { Header } from "../../components/common/Header";
 import { PopupMenu } from "../../components/common/PopupMenu";
 import { useTheme } from "../../context/ThemeContext";
+import type { MainDrawerNavigationProp } from "../../navigation/navigationTypes";
 
 interface Extension {
   id: string;
@@ -42,7 +43,7 @@ const extensions: Extension[] = [
 type SortOption = "az" | "za";
 
 export const ExtensionsScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<MainDrawerNavigationProp>();
   const { theme } = useTheme();
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -105,7 +106,6 @@ export const ExtensionsScreen: React.FC = () => {
       <Header
         title="Extensions"
         onMenuPress={() => navigation.openDrawer()}
-        showSearch={!isSearchActive}
         isSearchActive={isSearchActive}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}

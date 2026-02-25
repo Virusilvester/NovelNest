@@ -21,7 +21,9 @@ export const ReaderScreen: React.FC = () => {
     >
       <Header title="Reader" onBackPress={() => navigation.goBack()} />
       <View style={styles.content}>
-        <Text style={{ color: theme.colors.text }}>Chapter Content Here</Text>
+        <Text style={{ color: theme.colors.text }}>
+          Novel {novelId} • Chapter {chapterId}
+        </Text>
       </View>
     </View>
   );

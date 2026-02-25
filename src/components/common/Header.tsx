@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../../context/ThemeContext";
 
 interface HeaderProps {
@@ -37,46 +38,54 @@ export const Header: React.FC<HeaderProps> = ({
 
   if (isSearchActive) {
     return (
-      <View
-        style={[styles.container, { backgroundColor: theme.colors.surface }]}
+      <SafeAreaView
+        edges={["top"]}
+        style={{ backgroundColor: theme.colors.surface }}
       >
-        <TouchableOpacity onPress={onSearchClose} style={styles.iconButton}>
-          <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-        <TextInput
-          style={[styles.searchInput, { color: theme.colors.text }]}
-          placeholder="Search..."
-          placeholderTextColor={theme.colors.textSecondary}
-          value={searchQuery}
-          onChangeText={onSearchChange}
-          onSubmitEditing={onSearchSubmit}
-          autoFocus
-          returnKeyType="search"
-        />
-      </View>
+        <View style={styles.container}>
+          <TouchableOpacity onPress={onSearchClose} style={styles.iconButton}>
+            <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+          <TextInput
+            style={[styles.searchInput, { color: theme.colors.text }]}
+            placeholder="Search..."
+            placeholderTextColor={theme.colors.textSecondary}
+            value={searchQuery}
+            onChangeText={onSearchChange}
+            onSubmitEditing={onSearchSubmit}
+            autoFocus
+            returnKeyType="search"
+          />
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
-      {onMenuPress && (
-        <TouchableOpacity onPress={onMenuPress} style={styles.iconButton}>
-          <Ionicons name="menu" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-      )}
-      {onBackPress && (
-        <TouchableOpacity onPress={onBackPress} style={styles.iconButton}>
-          <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-      )}
-      <Text
-        style={[styles.title, { color: theme.colors.text }]}
-        numberOfLines={1}
-      >
-        {title}
-      </Text>
-      <View style={styles.rightContainer}>{rightButtons}</View>
-    </View>
+    <SafeAreaView
+      edges={["top"]}
+      style={{ backgroundColor: theme.colors.surface }}
+    >
+      <View style={styles.container}>
+        {onMenuPress && (
+          <TouchableOpacity onPress={onMenuPress} style={styles.iconButton}>
+            <Ionicons name="menu" size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+        )}
+        {onBackPress && (
+          <TouchableOpacity onPress={onBackPress} style={styles.iconButton}>
+            <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+        )}
+        <Text
+          style={[styles.title, { color: theme.colors.text }]}
+          numberOfLines={1}
+        >
+          {title}
+        </Text>
+        <View style={styles.rightContainer}>{rightButtons}</View>
+      </View>
+    </SafeAreaView>
   );
 };
 

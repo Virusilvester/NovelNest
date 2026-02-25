@@ -2,6 +2,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { createDrawerNavigator } from "@react-navigation/drawer";
 import React from "react";
+import { useWindowDimensions } from "react-native";
 import { DownloadQueueScreen } from "../screens/DownloadQueueScreen";
 import { ExtensionsScreen } from "../screens/main/ExtensionsScreen";
 import { HistoryScreen } from "../screens/main/HistoryScreen";
@@ -11,10 +12,14 @@ import { UpdatesScreen } from "../screens/main/UpdatesScreen";
 import { SettingsScreen } from "../screens/settings/SettingsScreen";
 import { CustomDrawerContent } from "./CustomDrawerContent";
 import { MainDrawerParamList } from "./types";
+import { getDrawerWidth } from "../utils/responsive";
 
 const Drawer = createDrawerNavigator<MainDrawerParamList>();
 
 export const MainDrawer: React.FC = () => {
+  const { width, height } = useWindowDimensions();
+  const drawerWidth = getDrawerWidth(width, height);
+
   return (
     <Drawer.Navigator
       drawerContent={(props) => <CustomDrawerContent {...props} />}
@@ -22,6 +27,7 @@ export const MainDrawer: React.FC = () => {
         headerShown: false,
         drawerType: "front",
         overlayColor: "rgba(0,0,0,0.5)",
+        drawerStyle: { width: drawerWidth },
       }}
     >
       <Drawer.Screen

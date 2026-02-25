@@ -13,6 +13,7 @@ import {
 import { Header } from "../../components/common/Header";
 import { PopupMenu } from "../../components/common/PopupMenu";
 import { useTheme } from "../../context/ThemeContext";
+import type { MainDrawerNavigationProp } from "../../navigation/navigationTypes";
 import { Source } from "../../types";
 
 // Mock data
@@ -38,7 +39,7 @@ const sources: Source[] = [
 type SortOption = "alphabetically" | "enabled";
 
 export const SourcesScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<MainDrawerNavigationProp>();
   const { theme } = useTheme();
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -117,7 +118,6 @@ export const SourcesScreen: React.FC = () => {
       <Header
         title="Sources"
         onMenuPress={() => navigation.openDrawer()}
-        showSearch={!isSearchActive}
         isSearchActive={isSearchActive}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}

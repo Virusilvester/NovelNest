@@ -2,7 +2,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
-  Dimensions,
   Image,
   StyleSheet,
   Text,
@@ -11,8 +10,6 @@ import {
 } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { DisplayMode, Novel } from "../../types";
-
-const { width } = Dimensions.get("window");
 
 interface NovelCardProps {
   novel: Novel;

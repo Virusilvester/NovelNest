@@ -21,44 +21,28 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  // Try to get settings, but don't fail if SettingsProvider is not available
-  let settingsContext;
-  try {
-    settingsContext = useSettings();
-  } catch (e) {
-    settingsContext = null;
-  }
+  const settingsContext = useSettings();
 
   const [isDark, setIsDark] = useState(() => {
     // Initialize from settings if available, otherwise default to false
-    return settingsContext?.settings?.display?.theme === "dark" || false;
+    return settingsContext.settings.display.theme === "dark";
   });
 
   // Sync with settings when they change
   useEffect(() => {
-    if (settingsContext?.settings?.display?.theme) {
-      setIsDark(settingsContext.settings.display.theme === "dark");
-    }
-  }, [settingsContext?.settings?.display?.theme]);
+    setIsDark(settingsContext.settings.display.theme === "dark");
+  }, [settingsContext.settings.display.theme]);
 
   const toggleTheme = useCallback(() => {
     const newValue = !isDark;
     setIsDark(newValue);
-    // Update settings if available
-    if (settingsContext?.updateDisplaySettings) {
-      settingsContext.updateDisplaySettings(
-        "theme",
-        newValue ? "dark" : "light",
-      );
-    }
+    settingsContext.updateDisplaySettings("theme", newValue ? "dark" : "light");
   }, [isDark, settingsContext]);
 
   const setTheme = useCallback(
     (dark: boolean) => {
       setIsDark(dark);
-      if (settingsContext?.updateDisplaySettings) {
-        settingsContext.updateDisplaySettings("theme", dark ? "dark" : "light");
-      }
+      settingsContext.updateDisplaySettings("theme", dark ? "dark" : "light");
     },
     [settingsContext],
   );

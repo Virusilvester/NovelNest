@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { Header } from "../../components/common/Header";
@@ -15,6 +16,7 @@ import { PopupMenu } from "../../components/common/PopupMenu";
 import { useLibrary } from "../../context/LibraryContext";
 import { useTheme } from "../../context/ThemeContext";
 import { Chapter, Novel } from "../../types";
+import { clamp } from "../../utils/responsive";
 
 // Mock chapters
 const mockChapters: Chapter[] = [
@@ -43,6 +45,9 @@ export const NovelDetailScreen: React.FC = () => {
   const route = useRoute();
   const { theme } = useTheme();
   const { novels, updateNovel } = useLibrary();
+  const { width } = useWindowDimensions();
+  const coverWidth = clamp(Math.round(Math.min(width * 0.28, 160)), 96, 160);
+  const coverHeight = Math.round(coverWidth * 1.5);
 
   const { novelId } = route.params as { novelId: string };
   const novel =
@@ -203,7 +208,10 @@ export const NovelDetailScreen: React.FC = () => {
 
       <ScrollView style={styles.content}>
         <View style={styles.headerSection}>
-          <Image source={{ uri: novel.coverUrl }} style={styles.cover} />
+          <Image
+            source={{ uri: novel.coverUrl }}
+            style={[styles.cover, { width: coverWidth, height: coverHeight }]}
+          />
           <View style={styles.headerInfo}>
             <Text
               style={[styles.title, { color: theme.colors.text }]}
@@ -423,8 +431,6 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   cover: {
-    width: 120,
-    height: 180,
     borderRadius: 8,
   },
   headerInfo: {

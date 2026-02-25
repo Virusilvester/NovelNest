@@ -5,22 +5,49 @@ import {
   DrawerItemList,
 } from "@react-navigation/drawer";
 import React from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { useTheme } from "../context/ThemeContext";
 
 export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
   props,
 ) => {
   const { theme } = useTheme();
+  const { width, height } = useWindowDimensions();
+  const landscape = width > height;
+  const headerHeight = landscape ? 132 : 160;
+  const logoSize = landscape ? 64 : 80;
 
   return (
     <View
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
-      <View style={[styles.header, { backgroundColor: theme.colors.primary }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: theme.colors.primary,
+            height: headerHeight,
+            paddingVertical: landscape ? 16 : 24,
+          },
+        ]}
+      >
         <Image
           source={{ uri: "https://via.placeholder.com/80" }}
-          style={styles.logo}
+          style={[
+            styles.logo,
+            {
+              width: logoSize,
+              height: logoSize,
+              borderRadius: logoSize / 2,
+            },
+          ]}
         />
         <Text style={styles.appName}>NovelNest</Text>
         <Text style={styles.version}>v1.0.0</Text>
@@ -51,12 +78,8 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: "center",
     justifyContent: "center",
-    height: 160,
   },
   logo: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
     marginBottom: 12,
   },
   appName: {

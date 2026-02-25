@@ -330,6 +330,12 @@ export const SettingsScreen: React.FC = () => {
             subtitle="Storage, cache, and user agent"
             onPress={() => navigation.navigate("DataManagement")}
           />
+          <SettingsItem
+            title="Reset settings"
+            subtitle="Restore defaults"
+            onPress={handleClearSettings}
+            isDestructive
+          />
         </SettingsSection>
 
         {/* About Section */}

@@ -10,10 +10,11 @@ import { CategoryTabs } from "../../components/library/CategoryTabs";
 import { NovelGrid } from "../../components/library/NovelGrid";
 import { useLibrary } from "../../context/LibraryContext";
 import { useTheme } from "../../context/ThemeContext";
+import type { MainDrawerNavigationProp } from "../../navigation/navigationTypes";
 import { Novel } from "../../types";
 
 export const LibraryScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<MainDrawerNavigationProp>();
   const { theme } = useTheme();
   const {
     categories,

@@ -5,7 +5,6 @@ import { format, isAfter, subDays } from "date-fns";
 import React, { useCallback, useState } from "react";
 import {
   Alert,
-  Dimensions,
   FlatList,
   Image,
   StyleSheet,
@@ -16,9 +15,8 @@ import {
 import { Header } from "../../components/common/Header";
 import { useHistory } from "../../context/HistoryContext";
 import { useTheme } from "../../context/ThemeContext";
+import type { MainDrawerNavigationProp } from "../../navigation/navigationTypes";
 import { HistoryEntry } from "../../types";
-
-const { width } = Dimensions.get("window");
 
 // Group entries by time period
 type HistoryGroup = {
@@ -27,7 +25,7 @@ type HistoryGroup = {
 };
 
 export const HistoryScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<MainDrawerNavigationProp>();
   const { theme } = useTheme();
   const {
     historyEntries,

@@ -18,8 +18,7 @@ import { useTheme } from "../../context/ThemeContext";
 export const EditCategoriesScreen: React.FC = () => {
   const navigation = useNavigation();
   const { theme } = useTheme();
-  const { categories, addCategory, removeCategory, reorderCategories } =
-    useLibrary();
+  const { categories, addCategory, removeCategory } = useLibrary();
   const [newCategoryName, setNewCategoryName] = useState("");
 
   const handleAddCategory = () => {

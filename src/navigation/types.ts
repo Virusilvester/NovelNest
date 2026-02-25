@@ -4,7 +4,7 @@ import { NavigatorScreenParams } from "@react-navigation/native";
 export type RootStackParamList = {
   Main: NavigatorScreenParams<MainDrawerParamList>;
   NovelDetail: { novelId: string };
-  SourceDetail: { sourceId: string; sourceName: string };
+  SourceDetail: { sourceId?: string; sourceName?: string; genre?: string };
   WebView: { url: string };
   Reader: { novelId: string; chapterId: string };
   Settings: undefined;
