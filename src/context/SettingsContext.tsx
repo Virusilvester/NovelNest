@@ -7,43 +7,106 @@ import React, {
   useState,
 } from "react";
 import { StorageService } from "../services/storage";
-import { AppSettings, DEFAULT_SETTINGS } from "../types";
+import {
+  AppSettings,
+  DEFAULT_SETTINGS,
+  DisplayMode,
+  LibraryFilterOption,
+  LibrarySortOption,
+  StartScreen,
+} from "../types";
+
+// Extended settings interface to include all UI states
+interface ExtendedSettings extends AppSettings {
+  ui: {
+    libraryDisplayMode: DisplayMode;
+    showDownloadBadges: boolean;
+    showUnreadBadges: boolean;
+    showItemCount: boolean;
+    librarySortOption: LibrarySortOption;
+    libraryFilterOptions: LibraryFilterOption;
+  };
+}
+
+const EXTENDED_DEFAULTS: ExtendedSettings = {
+  ...DEFAULT_SETTINGS,
+  ui: {
+    libraryDisplayMode: "compactGrid",
+    showDownloadBadges: true,
+    showUnreadBadges: true,
+    showItemCount: true,
+    librarySortOption: "lastRead",
+    libraryFilterOptions: {
+      downloaded: false,
+      unread: false,
+      completed: false,
+    },
+  },
+};
 
 interface SettingsContextType {
-  settings: AppSettings;
+  settings: ExtendedSettings;
   isLoading: boolean;
-  updateSettings: (path: string, value: any) => Promise<void>;
+  isReady: boolean;
+
+  // General
   updateGeneralSettings: (
     key: keyof AppSettings["general"],
     value: any,
   ) => Promise<void>;
+  setStartScreen: (screen: StartScreen) => Promise<void>;
+  setDownloadLocation: (path: string | null) => Promise<void>;
+
+  // Display
   updateDisplaySettings: (
     key: keyof AppSettings["display"],
     value: any,
   ) => Promise<void>;
+  setTheme: (theme: "dark" | "light") => Promise<void>;
+
+  // Auto-download
   updateAutoDownloadSettings: (
     key: keyof AppSettings["autoDownload"],
     value: any,
   ) => Promise<void>;
+
+  // Updates
   updateUpdatesSettings: (
     key: keyof AppSettings["updates"],
     value: any,
   ) => Promise<void>;
+
+  // Reader
   updateReaderSettings: (
     section: keyof AppSettings["reader"],
     key: string,
     value: any,
   ) => Promise<void>;
+
+  // Tracking
   updateTrackingSettings: (
     key: keyof AppSettings["tracking"],
     value: any,
   ) => Promise<void>;
+
+  // Advanced
   updateAdvancedSettings: (
     key: keyof AppSettings["advanced"],
     value: any,
   ) => Promise<void>;
+  setUserAgent: (agent: string) => Promise<void>;
+
+  // UI State (Library view settings)
+  setLibraryDisplayMode: (mode: DisplayMode) => Promise<void>;
+  setShowDownloadBadges: (show: boolean) => Promise<void>;
+  setShowUnreadBadges: (show: boolean) => Promise<void>;
+  setShowItemCount: (show: boolean) => Promise<void>;
+  setLibrarySortOption: (option: LibrarySortOption) => Promise<void>;
+  setLibraryFilterOptions: (options: LibraryFilterOption) => Promise<void>;
+
+  // Reset
   resetSettings: () => Promise<void>;
-  setDownloadLocation: (path: string | null) => Promise<void>;
+  resetToDefaults: () => Promise<void>;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(
@@ -53,8 +116,9 @@ const SettingsContext = createContext<SettingsContextType | undefined>(
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<ExtendedSettings>(EXTENDED_DEFAULTS);
   const [isLoading, setIsLoading] = useState(true);
+  const [isReady, setIsReady] = useState(false);
 
   // Load settings on mount
   useEffect(() => {
@@ -64,41 +128,29 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
   const loadSettings = async () => {
     try {
       const loadedSettings = await StorageService.loadSettings();
-      setSettings(loadedSettings);
+      // Merge with extended defaults to ensure UI fields exist
+      const merged = { ...EXTENDED_DEFAULTS, ...loadedSettings };
+      setSettings(merged);
+      console.log("✅ Settings loaded:", merged.ui);
     } catch (error) {
-      console.error("Failed to load settings:", error);
+      console.error("❌ Failed to load settings:", error);
     } finally {
       setIsLoading(false);
+      setIsReady(true);
     }
   };
 
-  // Save settings helper
-  const saveSettings = async (newSettings: AppSettings) => {
+  // Save settings helper with debounce
+  const saveSettings = async (newSettings: ExtendedSettings) => {
     try {
       await StorageService.saveSettings(newSettings);
       setSettings(newSettings);
     } catch (error) {
-      console.error("Failed to save settings:", error);
+      console.error("❌ Failed to save settings:", error);
     }
   };
 
-  const updateSettings = useCallback(
-    async (path: string, value: any) => {
-      const keys = path.split(".");
-      const newSettings = { ...settings };
-      let current: any = newSettings;
-
-      for (let i = 0; i < keys.length - 1; i++) {
-        current[keys[i]] = { ...current[keys[i]] };
-        current = current[keys[i]];
-      }
-
-      current[keys[keys.length - 1]] = value;
-      await saveSettings(newSettings);
-    },
-    [settings],
-  );
-
+  // General Settings
   const updateGeneralSettings = useCallback(
     async (key: keyof AppSettings["general"], value: any) => {
       const newSettings = {
@@ -110,6 +162,21 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     [settings],
   );
 
+  const setStartScreen = useCallback(
+    async (screen: StartScreen) => {
+      await updateGeneralSettings("startScreen", screen);
+    },
+    [updateGeneralSettings],
+  );
+
+  const setDownloadLocation = useCallback(
+    async (path: string | null) => {
+      await updateGeneralSettings("downloadLocation", path);
+    },
+    [updateGeneralSettings],
+  );
+
+  // Display Settings
   const updateDisplaySettings = useCallback(
     async (key: keyof AppSettings["display"], value: any) => {
       const newSettings = {
@@ -121,6 +188,14 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     [settings],
   );
 
+  const setTheme = useCallback(
+    async (theme: "dark" | "light") => {
+      await updateDisplaySettings("theme", theme);
+    },
+    [updateDisplaySettings],
+  );
+
+  // Auto-download
   const updateAutoDownloadSettings = useCallback(
     async (key: keyof AppSettings["autoDownload"], value: any) => {
       const newSettings = {
@@ -132,6 +207,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     [settings],
   );
 
+  // Updates
   const updateUpdatesSettings = useCallback(
     async (key: keyof AppSettings["updates"], value: any) => {
       const newSettings = {
@@ -143,6 +219,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     [settings],
   );
 
+  // Reader
   const updateReaderSettings = useCallback(
     async (section: keyof AppSettings["reader"], key: string, value: any) => {
       const newSettings = {
@@ -157,6 +234,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     [settings],
   );
 
+  // Tracking
   const updateTrackingSettings = useCallback(
     async (key: keyof AppSettings["tracking"], value: any) => {
       const newSettings = {
@@ -168,6 +246,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     [settings],
   );
 
+  // Advanced
   const updateAdvancedSettings = useCallback(
     async (key: keyof AppSettings["advanced"], value: any) => {
       const newSettings = {
@@ -179,21 +258,99 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     [settings],
   );
 
-  const resetSettings = useCallback(async () => {
-    await StorageService.clearSettings();
-    setSettings(DEFAULT_SETTINGS);
-  }, []);
-
-  const setDownloadLocation = useCallback(
-    async (path: string | null) => {
-      await updateGeneralSettings("downloadLocation", path);
+  const setUserAgent = useCallback(
+    async (agent: string) => {
+      await updateAdvancedSettings("userAgent", agent);
     },
-    [updateGeneralSettings],
+    [updateAdvancedSettings],
   );
 
+  // UI State Settings (Library view)
+  const setLibraryDisplayMode = useCallback(
+    async (mode: DisplayMode) => {
+      const newSettings = {
+        ...settings,
+        ui: { ...settings.ui, libraryDisplayMode: mode },
+      };
+      await saveSettings(newSettings);
+      console.log("✅ Display mode saved:", mode);
+    },
+    [settings],
+  );
+
+  const setShowDownloadBadges = useCallback(
+    async (show: boolean) => {
+      const newSettings = {
+        ...settings,
+        ui: { ...settings.ui, showDownloadBadges: show },
+      };
+      await saveSettings(newSettings);
+    },
+    [settings],
+  );
+
+  const setShowUnreadBadges = useCallback(
+    async (show: boolean) => {
+      const newSettings = {
+        ...settings,
+        ui: { ...settings.ui, showUnreadBadges: show },
+      };
+      await saveSettings(newSettings);
+    },
+    [settings],
+  );
+
+  const setShowItemCount = useCallback(
+    async (show: boolean) => {
+      const newSettings = {
+        ...settings,
+        ui: { ...settings.ui, showItemCount: show },
+      };
+      await saveSettings(newSettings);
+    },
+    [settings],
+  );
+
+  const setLibrarySortOption = useCallback(
+    async (option: LibrarySortOption) => {
+      const newSettings = {
+        ...settings,
+        ui: { ...settings.ui, librarySortOption: option },
+      };
+      await saveSettings(newSettings);
+    },
+    [settings],
+  );
+
+  const setLibraryFilterOptions = useCallback(
+    async (options: LibraryFilterOption) => {
+      const newSettings = {
+        ...settings,
+        ui: { ...settings.ui, libraryFilterOptions: options },
+      };
+      await saveSettings(newSettings);
+    },
+    [settings],
+  );
+
+  // Reset all settings to defaults
+  const resetSettings = useCallback(async () => {
+    try {
+      await StorageService.clearSettings();
+      setSettings(EXTENDED_DEFAULTS);
+      console.log("✅ Settings reset to defaults");
+    } catch (error) {
+      console.error("❌ Failed to reset settings:", error);
+      throw error;
+    }
+  }, []);
+
+  const resetToDefaults = useCallback(async () => {
+    await resetSettings();
+  }, [resetSettings]);
+
   if (isLoading) {
-    // You might want to show a loading screen here
-    return null;
+    return null; // Or a loading screen
   }
 
   return (
@@ -201,16 +358,26 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
       value={{
         settings,
         isLoading,
-        updateSettings,
+        isReady,
         updateGeneralSettings,
+        setStartScreen,
+        setDownloadLocation,
         updateDisplaySettings,
+        setTheme,
         updateAutoDownloadSettings,
         updateUpdatesSettings,
         updateReaderSettings,
         updateTrackingSettings,
         updateAdvancedSettings,
+        setUserAgent,
+        setLibraryDisplayMode,
+        setShowDownloadBadges,
+        setShowUnreadBadges,
+        setShowItemCount,
+        setLibrarySortOption,
+        setLibraryFilterOptions,
         resetSettings,
-        setDownloadLocation,
+        resetToDefaults,
       }}
     >
       {children}

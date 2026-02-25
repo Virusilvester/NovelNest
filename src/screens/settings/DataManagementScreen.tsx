@@ -249,7 +249,7 @@ export const DataManagementScreen: React.FC = () => {
   const handleClearSettings = () => {
     Alert.alert(
       "⚠️ Reset All Settings",
-      "This will permanently reset ALL settings to their default values including:\n\n• Start screen preference\n• Theme settings\n• Reader preferences\n• Download settings\n• Update frequency\n• User agent\n\nThis action cannot be undone.",
+      "This will permanently reset ALL settings to their default values including:\n\n• Display mode (Grid/List)\n• Badge settings\n• Sort and filter preferences\n• Theme settings\n• Reader preferences\n• Download settings\n• Update frequency\n• User agent\n\nThis action cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -258,15 +258,27 @@ export const DataManagementScreen: React.FC = () => {
           onPress: async () => {
             setIsLoading(true);
             try {
-              await resetSettings();
-              setUserAgent(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-              );
+              // Clear from storage
+              await resetSettings(); // This now comes from useSettings
+
+              // Also clear any cached UI states
+              await AsyncStorage.multiRemove([
+                "@novelnest_library_display",
+                "@novelnest_filter_options",
+              ]);
 
               Alert.alert(
                 "Settings Reset",
-                "All settings have been restored to default values. The app will use default settings on next launch.",
-                [{ text: "OK", onPress: () => navigation.goBack() }],
+                "All settings have been restored to default values. The app will now use:\n\n• Compact Grid view\n• All badges enabled\n• Library as start screen\n• Light theme\n• Default sort (Last Read)",
+                [
+                  {
+                    text: "OK",
+                    onPress: () => {
+                      // Optional: navigate to library to show changes
+                      navigation.navigate("Main", { screen: "Library" });
+                    },
+                  },
+                ],
               );
             } catch (error) {
               Alert.alert(
