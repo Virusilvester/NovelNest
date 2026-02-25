@@ -68,8 +68,19 @@ export const NovelGrid: React.FC<NovelGridProps> = ({
   }
 
   // GRID MODE: 3-column grid with key="grid" to force re-render
-  const renderGridItem = ({ item }: { item: Novel }) => (
-    <View style={[styles.gridItem, { width: gridItemWidth }]}>
+  const renderGridItem = ({ item, index }: { item: Novel; index: number }) => {
+    const isLastInRow = (index + 1) % gridColumns === 0;
+    return (
+      <View
+        style={[
+          styles.gridItem,
+          {
+            width: gridItemWidth,
+            marginEnd: isLastInRow ? 0 : GRID_SPACING,
+            marginBottom: GRID_SPACING,
+          },
+        ]}
+      >
       <NovelCard
         novel={item}
         displayMode="compactGrid"
@@ -80,6 +91,7 @@ export const NovelGrid: React.FC<NovelGridProps> = ({
       />
     </View>
   );
+  };
 
   return (
     <FlatList
@@ -114,8 +126,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   gridRow: {
-    justifyContent: "space-between",
-    marginBottom: GRID_SPACING,
+    justifyContent: "flex-start",
   },
   gridItem: {
     // width set dynamically to react to rotation / resize

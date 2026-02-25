@@ -159,6 +159,8 @@ export const PluginNovelDetailScreen: React.FC = () => {
       isDownloaded: existingNovel?.isDownloaded ?? false,
       isInLibrary: nextInLibrary,
       categoryId: existingNovel?.categoryId || "reading",
+      pluginId,
+      pluginNovelPath: novelPath,
     };
   };
 
@@ -669,4 +671,3 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 });
-

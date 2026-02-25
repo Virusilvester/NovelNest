@@ -15,6 +15,10 @@ export interface Novel {
   isDownloaded: boolean;
   isInLibrary: boolean;
   categoryId: string;
+  // If this novel came from an installed extension/plugin, keep a stable reference
+  // so `NovelDetailScreen` can re-fetch latest metadata and chapter list.
+  pluginId?: string;
+  pluginNovelPath?: string;
 }
 
 export interface Chapter {
