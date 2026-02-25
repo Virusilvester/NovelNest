@@ -82,6 +82,23 @@ export type SourceSortOption = "popular" | "latest" | "topRated" | "completed";
 
 export type StartScreen = "library" | "updates" | "history" | "sources";
 
+export interface ExtensionRepoPlugin {
+  id: string;
+  name: string;
+  version: string;
+  lang: string;
+  site: string;
+  url: string;
+  iconUrl: string;
+}
+
+export interface InstalledExtensionPlugin extends ExtensionRepoPlugin {
+  repoUrl: string;
+  installedAt: string;
+  enabled: boolean;
+  localPath?: string;
+}
+
 export interface AppSettings {
   general: {
     startScreen: StartScreen;
@@ -90,6 +107,10 @@ export interface AppSettings {
   };
   display: {
     theme: "dark" | "light";
+  };
+  extensions: {
+    repositories: string[];
+    installedPlugins: Record<string, InstalledExtensionPlugin>;
   };
   autoDownload: {
     downloadNewChapters: boolean;
@@ -138,6 +159,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   display: {
     theme: "light",
+  },
+  extensions: {
+    repositories: [
+      "https://raw.githubusercontent.com/LNReader/lnreader-plugins/plugins/v3.0.0/.dist/plugins.min.json",
+    ],
+    installedPlugins: {},
   },
   autoDownload: {
     downloadNewChapters: false,

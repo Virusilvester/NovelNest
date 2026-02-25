@@ -11,6 +11,8 @@ import {
   AppSettings,
   DEFAULT_SETTINGS,
   DisplayMode,
+  ExtensionRepoPlugin,
+  InstalledExtensionPlugin,
   LibraryFilterOption,
   LibrarySortOption,
   StartScreen,
@@ -95,6 +97,20 @@ interface SettingsContextType {
     value: any,
   ) => Promise<void>;
   setUserAgent: (agent: string) => Promise<void>;
+
+  // Extensions
+  addExtensionRepository: (repoUrl: string) => Promise<void>;
+  removeExtensionRepository: (repoUrl: string) => Promise<void>;
+  installExtensionPlugin: (
+    repoUrl: string,
+    plugin: ExtensionRepoPlugin,
+    localPath?: string,
+  ) => Promise<void>;
+  uninstallExtensionPlugin: (pluginId: string) => Promise<void>;
+  setExtensionPluginEnabled: (
+    pluginId: string,
+    enabled: boolean,
+  ) => Promise<void>;
 
   // UI State (Library view settings)
   setLibraryDisplayMode: (mode: DisplayMode) => Promise<void>;
@@ -265,6 +281,98 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     [updateAdvancedSettings],
   );
 
+  // Extensions
+  const addExtensionRepository = useCallback(
+    async (repoUrl: string) => {
+      const normalized = repoUrl.trim();
+      if (!normalized) return;
+      const next = Array.from(
+        new Set([...(settings.extensions.repositories || []), normalized]),
+      );
+      const newSettings = {
+        ...settings,
+        extensions: { ...settings.extensions, repositories: next },
+      };
+      await saveSettings(newSettings);
+    },
+    [settings],
+  );
+
+  const removeExtensionRepository = useCallback(
+    async (repoUrl: string) => {
+      const normalized = repoUrl.trim();
+      const next = (settings.extensions.repositories || []).filter(
+        (r) => r !== normalized,
+      );
+      const newSettings = {
+        ...settings,
+        extensions: { ...settings.extensions, repositories: next },
+      };
+      await saveSettings(newSettings);
+    },
+    [settings],
+  );
+
+  const installExtensionPlugin = useCallback(
+    async (
+      repoUrl: string,
+      plugin: ExtensionRepoPlugin,
+      localPath?: string,
+    ) => {
+      const installed: InstalledExtensionPlugin = {
+        ...plugin,
+        repoUrl,
+        installedAt: new Date().toISOString(),
+        enabled: true,
+        localPath,
+      };
+      const newSettings = {
+        ...settings,
+        extensions: {
+          ...settings.extensions,
+          installedPlugins: {
+            ...settings.extensions.installedPlugins,
+            [plugin.id]: installed,
+          },
+        },
+      };
+      await saveSettings(newSettings);
+    },
+    [settings],
+  );
+
+  const uninstallExtensionPlugin = useCallback(
+    async (pluginId: string) => {
+      const { [pluginId]: _removed, ...rest } =
+        settings.extensions.installedPlugins || {};
+      const newSettings = {
+        ...settings,
+        extensions: { ...settings.extensions, installedPlugins: rest },
+      };
+      await saveSettings(newSettings);
+    },
+    [settings],
+  );
+
+  const setExtensionPluginEnabled = useCallback(
+    async (pluginId: string, enabled: boolean) => {
+      const existing = settings.extensions.installedPlugins?.[pluginId];
+      if (!existing) return;
+      const newSettings = {
+        ...settings,
+        extensions: {
+          ...settings.extensions,
+          installedPlugins: {
+            ...settings.extensions.installedPlugins,
+            [pluginId]: { ...existing, enabled },
+          },
+        },
+      };
+      await saveSettings(newSettings);
+    },
+    [settings],
+  );
+
   // UI State Settings (Library view)
   const setLibraryDisplayMode = useCallback(
     async (mode: DisplayMode) => {
@@ -370,6 +478,11 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
         updateTrackingSettings,
         updateAdvancedSettings,
         setUserAgent,
+        addExtensionRepository,
+        removeExtensionRepository,
+        installExtensionPlugin,
+        uninstallExtensionPlugin,
+        setExtensionPluginEnabled,
         setLibraryDisplayMode,
         setShowDownloadBadges,
         setShowUnreadBadges,
