@@ -190,6 +190,19 @@ const createNovelNestApiPlugin = (
     return all;
   };
 
+  const fetchChaptersPage = async (bookId: string, pageNo: number) => {
+    const url = `${apiBase}/${encodeURIComponent(sourceId)}/book/${encodeURIComponent(
+      bookId,
+    )}/chapters?page=${encodeURIComponent(String(pageNo))}`;
+    const res = await apiFetchJson(url);
+    const items = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+    return {
+      chapters: items,
+      hasMore: Boolean(res?.hasMore),
+      page: Number(res?.currentPage ?? pageNo),
+    };
+  };
+
   const mapChapter = (c: any) => {
     const number = c?.number;
     const title = String(c?.title || "");
@@ -267,8 +280,19 @@ const createNovelNestApiPlugin = (
         status: detail?.status || "",
         summary: detail?.description || detail?.summary || "",
         genres: Array.isArray(detail?.genres) ? detail.genres : [],
+        totalChapters:
+          typeof detail?.totalChapters === "number"
+            ? detail.totalChapters
+            : undefined,
         chapters,
       };
+    },
+    fetchChaptersPage: async (novelPath: string, pageNo: number) => {
+      const res = await fetchChaptersPage(novelPath, pageNo);
+      const chapters = (res.chapters || [])
+        .map(mapChapter)
+        .filter((c: any) => c.name && c.path);
+      return { chapters, hasMore: res.hasMore, page: res.page };
     },
     parseChapter: async (chapterPath: string) => {
       const url = toAbsoluteUrl(chapterPath);
@@ -322,6 +346,10 @@ export type LnReaderPlugin = {
   parseNovel?: (path: string) => Promise<any>;
   parseNovelAndChapters?: (path: string) => Promise<any>;
   parseChapter?: (path: string) => Promise<string>;
+  fetchChaptersPage?: (
+    novelPath: string,
+    page: number,
+  ) => Promise<{ chapters: any[]; hasMore?: boolean; page?: number }>;
 };
 
 const cache = new Map<string, Promise<LnReaderPlugin>>();

@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
+  Modal,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -41,7 +42,7 @@ export const PluginNovelDetailScreen: React.FC = () => {
     useRoute<RouteProp<RootStackParamList, "PluginNovelDetail">>();
   const { theme } = useTheme();
   const { settings } = useSettings();
-  const { novels, addNovel, updateNovel } = useLibrary();
+  const { novels, addNovel, updateNovel, categories } = useLibrary();
   const { width } = useWindowDimensions();
 
   const coverWidth = clamp(Math.round(Math.min(width * 0.28, 160)), 96, 160);
@@ -57,6 +58,13 @@ export const PluginNovelDetailScreen: React.FC = () => {
   const [detail, setDetail] = useState<any>(null);
   const [isDownloadMenuVisible, setIsDownloadMenuVisible] = useState(false);
   const [isMoreMenuVisible, setIsMoreMenuVisible] = useState(false);
+  const [chaptersPage, setChaptersPage] = useState(1);
+  const [chaptersHasMore, setChaptersHasMore] = useState(false);
+  const [isChaptersLoadingMore, setIsChaptersLoadingMore] = useState(false);
+  const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
+  const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(
+    null,
+  );
 
   const title = detail?.name || novelName || "Novel";
   const cover = detail?.cover || coverUrl;
@@ -84,6 +92,8 @@ export const PluginNovelDetailScreen: React.FC = () => {
       try {
         setIsLoading(true);
         setError(null);
+        setChaptersPage(1);
+        setChaptersHasMore(false);
         const instance = await PluginRuntimeService.loadLnReaderPlugin(plugin, {
           userAgent: settings.advanced.userAgent,
         });
@@ -97,6 +107,15 @@ export const PluginNovelDetailScreen: React.FC = () => {
 
         const data = await parseNovel(novelPath);
         setDetail(data);
+
+        const totalFromDetail =
+          typeof data?.totalChapters === "number" ? data.totalChapters : undefined;
+        const initialChapters = Array.isArray(data?.chapters) ? data.chapters : [];
+        setChaptersHasMore(
+          typeof (instance as any).fetchChaptersPage === "function" &&
+            totalFromDetail != null &&
+            initialChapters.length < totalFromDetail,
+        );
       } catch (e: any) {
         setError(e?.message || "Failed to load novel details.");
       } finally {
@@ -105,6 +124,63 @@ export const PluginNovelDetailScreen: React.FC = () => {
     };
     run();
   }, [novelPath, plugin, settings.advanced.userAgent]);
+
+  useEffect(() => {
+    if (!plugin) return;
+    if (!plugin.url?.startsWith("novelnest-api|")) return;
+    const total =
+      typeof detail?.totalChapters === "number" ? detail.totalChapters : undefined;
+    if (total == null) return;
+    setChaptersHasMore(chapters.length < total);
+  }, [chapters.length, detail?.totalChapters, plugin]);
+
+  const loadMoreChapters = async () => {
+    if (!plugin) return;
+    if (!chaptersHasMore || isLoading || isChaptersLoadingMore) return;
+
+    try {
+      setIsChaptersLoadingMore(true);
+      const instance = await PluginRuntimeService.loadLnReaderPlugin(plugin, {
+        userAgent: settings.advanced.userAgent,
+      });
+      if (typeof (instance as any).fetchChaptersPage !== "function") {
+        setChaptersHasMore(false);
+        return;
+      }
+
+      const nextPage = chaptersPage + 1;
+      const res = await (instance as any).fetchChaptersPage(novelPath, nextPage);
+      const raw = Array.isArray(res?.chapters) ? res.chapters : [];
+      const mapped = raw.filter(isChapterItem);
+
+      setDetail((prev: any) => {
+        const prevChapters = Array.isArray(prev?.chapters) ? prev.chapters : [];
+        const seen = new Set(prevChapters.map((c: any) => String(c?.path || "")));
+        const next = [...prevChapters];
+        for (const c of mapped) {
+          if (!seen.has(c.path)) next.push(c);
+        }
+        return { ...(prev || {}), chapters: next };
+      });
+
+      const appliedPage = typeof res?.page === "number" ? res.page : nextPage;
+      setChaptersPage(appliedPage);
+
+      if (typeof res?.hasMore === "boolean") {
+        setChaptersHasMore(res.hasMore);
+      } else {
+        const total =
+          typeof detail?.totalChapters === "number" ? detail.totalChapters : undefined;
+        setChaptersHasMore(
+          total != null ? chapters.length + mapped.length < total : mapped.length > 0,
+        );
+      }
+    } catch {
+      // ignore
+    } finally {
+      setIsChaptersLoadingMore(false);
+    }
+  };
 
   const stableNumericId = useMemo(() => {
     const input = `${pluginId}:${novelPath}`;
@@ -164,16 +240,59 @@ export const PluginNovelDetailScreen: React.FC = () => {
     };
   };
 
+  const categoryChoices = useMemo(() => {
+    const list = Array.isArray(categories) ? categories : [];
+    return list
+      .filter((c) => c && c.id && c.id !== "all")
+      .slice()
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }, [categories]);
+
+  useEffect(() => {
+    if (!isCategoryModalVisible) return;
+    if (pendingCategoryId) return;
+    const existing = existingNovel?.categoryId;
+    const fallback =
+      (existing && categoryChoices.some((c) => c.id === existing) && existing) ||
+      categoryChoices[0]?.id ||
+      null;
+    setPendingCategoryId(fallback);
+  }, [categoryChoices, existingNovel?.categoryId, isCategoryModalVisible, pendingCategoryId]);
+
+  const upsertLibraryNovel = (nextInLibrary: boolean, categoryId?: string) => {
+    const base = buildLibraryNovel(nextInLibrary);
+    const withCategory = categoryId ? { ...base, categoryId } : base;
+
+    if (!existingNovel) {
+      addNovel({ ...withCategory, isInLibrary: true });
+      return;
+    }
+    updateNovel(stableNumericId, withCategory);
+  };
+
   const handleLibraryToggle = () => {
     const next = !isInLibrary;
     setIsInLibrary(next);
+    upsertLibraryNovel(next);
+  };
 
-    if (!existingNovel) {
-      addNovel(buildLibraryNovel(true));
+  const handleAddToLibrary = () => {
+    if (isInLibrary) return;
+
+    if (categoryChoices.length === 0) {
+      setIsInLibrary(true);
+      upsertLibraryNovel(true);
       return;
     }
 
-    updateNovel(stableNumericId, buildLibraryNovel(next));
+    if (categoryChoices.length === 1) {
+      setIsInLibrary(true);
+      upsertLibraryNovel(true, categoryChoices[0].id);
+      return;
+    }
+
+    setPendingCategoryId(null);
+    setIsCategoryModalVisible(true);
   };
 
   const handleWebView = () => {
@@ -341,7 +460,7 @@ export const PluginNovelDetailScreen: React.FC = () => {
                     styles.actionButton,
                     { backgroundColor: theme.colors.primary },
                   ]}
-                  onPress={handleLibraryToggle}
+                  onPress={isInLibrary ? handleLibraryToggle : handleAddToLibrary}
                 >
                   <Text style={styles.actionButtonText}>
                     {isInLibrary ? "In library" : "Add to library"}
@@ -502,6 +621,27 @@ export const PluginNovelDetailScreen: React.FC = () => {
         />
       )}
 
+      {chaptersHasMore && !isLoading && !error ? (
+        <View style={styles.loadMoreWrap}>
+          <TouchableOpacity
+            style={[
+              styles.loadMoreButton,
+              {
+                backgroundColor: isChaptersLoadingMore
+                  ? theme.colors.border
+                  : theme.colors.primary,
+              },
+            ]}
+            disabled={isChaptersLoadingMore}
+            onPress={loadMoreChapters}
+          >
+            <Text style={styles.loadMoreText}>
+              {isChaptersLoadingMore ? "Loading..." : "Load more chapters"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       <PopupMenu
         visible={isDownloadMenuVisible}
         onClose={() => setIsDownloadMenuVisible(false)}
@@ -513,6 +653,105 @@ export const PluginNovelDetailScreen: React.FC = () => {
         onClose={() => setIsMoreMenuVisible(false)}
         items={moreOptions}
       />
+
+      <Modal
+        visible={isCategoryModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsCategoryModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setIsCategoryModalVisible(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[
+              styles.modalCard,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+            ]}
+            onPress={() => {}}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+                Add to category
+              </Text>
+              <Text
+                style={[styles.modalSubtitle, { color: theme.colors.textSecondary }]}
+              >
+                Choose a category, then tap Add.
+              </Text>
+            </View>
+
+            <View style={styles.modalList}>
+              {categoryChoices.map((c) => {
+                const selected = pendingCategoryId === c.id;
+                return (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[
+                      styles.categoryRow,
+                      { borderColor: theme.colors.divider },
+                    ]}
+                    onPress={() => setPendingCategoryId(c.id)}
+                  >
+                    <Text style={[styles.categoryLabel, { color: theme.colors.text }]}>
+                      {c.name}
+                    </Text>
+                    <Ionicons
+                      name={selected ? "checkmark-circle" : "ellipse-outline"}
+                      size={22}
+                      color={selected ? theme.colors.primary : theme.colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[
+                  styles.modalButton,
+                  { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                ]}
+                onPress={() => setIsCategoryModalVisible(false)}
+              >
+                <Text style={[styles.modalButtonText, { color: theme.colors.text }]}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                disabled={!pendingCategoryId}
+                style={[
+                  styles.modalButton,
+                  {
+                    backgroundColor: pendingCategoryId
+                      ? theme.colors.primary
+                      : theme.colors.border,
+                    borderColor: "transparent",
+                  },
+                ]}
+                onPress={() => {
+                  if (!pendingCategoryId) return;
+                  setIsInLibrary(true);
+                  upsertLibraryNovel(true, pendingCategoryId);
+                  setIsCategoryModalVisible(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.modalButtonText,
+                    { color: pendingCategoryId ? "#FFF" : theme.colors.textSecondary },
+                  ]}
+                >
+                  Add
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
@@ -669,5 +908,76 @@ const styles = StyleSheet.create({
   chapterMeta: {
     fontSize: 11,
     marginTop: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    padding: 18,
+    justifyContent: "center",
+  },
+  modalCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    overflow: "hidden",
+  },
+  modalHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 10,
+    gap: 6,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  modalList: {
+    paddingHorizontal: 10,
+    paddingBottom: 6,
+  },
+  categoryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+  },
+  categoryLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    flex: 1,
+    paddingRight: 12,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 10,
+    padding: 12,
+  },
+  modalButton: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderWidth: 1,
+  },
+  modalButtonText: {
+    fontWeight: "800",
+  },
+  loadMoreWrap: {
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+  },
+  loadMoreButton: {
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  loadMoreText: {
+    fontWeight: "800",
+    color: "#FFF",
   },
 });

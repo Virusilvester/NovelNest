@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -38,7 +39,7 @@ export const NovelDetailScreen: React.FC = () => {
   const route = useRoute();
   const { theme } = useTheme();
   const { settings } = useSettings();
-  const { novels, updateNovel } = useLibrary();
+  const { novels, updateNovel, removeNovel, categories } = useLibrary();
   const { width } = useWindowDimensions();
 
   const coverWidth = clamp(Math.round(Math.min(width * 0.28, 160)), 96, 160);
@@ -60,6 +61,49 @@ export const NovelDetailScreen: React.FC = () => {
   const [isRemoteLoading, setIsRemoteLoading] = useState(false);
   const [remoteError, setRemoteError] = useState<string | null>(null);
   const lastFetchKeyRef = useRef<string | null>(null);
+  const [chaptersPage, setChaptersPage] = useState(1);
+  const [chaptersHasMore, setChaptersHasMore] = useState(false);
+  const [isChaptersLoadingMore, setIsChaptersLoadingMore] = useState(false);
+
+  useEffect(() => {
+    if (!novel?.pluginId) return;
+    if (!linkedPlugin?.url?.startsWith("novelnest-api|")) return;
+    const total =
+      typeof remoteDetail?.totalChapters === "number"
+        ? remoteDetail.totalChapters
+        : undefined;
+    if (total == null) return;
+    setChaptersHasMore(remoteChapters.length < total);
+  }, [linkedPlugin?.url, novel?.pluginId, remoteChapters.length, remoteDetail?.totalChapters]);
+
+  const categoryChoices = useMemo(() => {
+    const list = Array.isArray(categories) ? categories : [];
+    return list
+      .filter((c) => c && c.id && c.id !== "all")
+      .slice()
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }, [categories]);
+
+  const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
+  const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!isCategoryModalVisible) return;
+    if (pendingCategoryId) return;
+    const existing = novel?.categoryId;
+    const fallback =
+      (existing && categoryChoices.some((c) => c.id === existing) && existing) ||
+      categoryChoices[0]?.id ||
+      null;
+    setPendingCategoryId(fallback);
+  }, [
+    categoryChoices,
+    isCategoryModalVisible,
+    novel?.categoryId,
+    pendingCategoryId,
+  ]);
 
   useEffect(() => {
     setIsInLibrary(Boolean(novel?.isInLibrary));
@@ -96,6 +140,8 @@ export const NovelDetailScreen: React.FC = () => {
       setRemoteError(null);
       setRemoteDetail(null);
       setRemoteChapters([]);
+      setChaptersPage(1);
+      setChaptersHasMore(false);
 
       try {
         setIsRemoteLoading(true);
@@ -120,6 +166,18 @@ export const NovelDetailScreen: React.FC = () => {
           }))
           .filter(isPluginChapterItem);
         setRemoteChapters(chaptersMapped);
+        setChaptersPage(1);
+
+        const totalFromDetail =
+          typeof data?.totalChapters === "number" ? data.totalChapters : undefined;
+        const hasMoreFromTotal =
+          totalFromDetail != null
+            ? chaptersMapped.length < totalFromDetail
+            : false;
+        setChaptersHasMore(
+          typeof (instance as any).fetchChaptersPage === "function" &&
+            hasMoreFromTotal,
+        );
 
         updateNovel(novel.id, {
           title: String(data?.name || novel.title),
@@ -127,7 +185,10 @@ export const NovelDetailScreen: React.FC = () => {
           coverUrl: String(data?.cover || novel.coverUrl),
           summary: String(data?.summary || novel.summary || ""),
           genres: Array.isArray(data?.genres) ? data.genres : novel.genres,
-          totalChapters: chaptersMapped.length || novel.totalChapters,
+          totalChapters:
+            totalFromDetail != null
+              ? totalFromDetail
+              : chaptersMapped.length || novel.totalChapters,
         });
       } catch (e: any) {
         setRemoteError(e?.message || "Failed to load novel details.");
@@ -218,9 +279,29 @@ export const NovelDetailScreen: React.FC = () => {
 
   const handleLibraryToggle = () => {
     if (!novel) return;
-    const next = !isInLibrary;
-    setIsInLibrary(next);
-    updateNovel(novel.id, { isInLibrary: next });
+    if (isInLibrary) {
+      removeNovel(novel.id);
+      (navigation as any).goBack();
+      return;
+    }
+
+    if (categoryChoices.length === 0) {
+      setIsInLibrary(true);
+      updateNovel(novel.id, { isInLibrary: true });
+      return;
+    }
+
+    if (categoryChoices.length === 1) {
+      setIsInLibrary(true);
+      updateNovel(novel.id, {
+        isInLibrary: true,
+        categoryId: categoryChoices[0].id,
+      });
+      return;
+    }
+
+    setPendingCategoryId(null);
+    setIsCategoryModalVisible(true);
   };
 
   const handleGenrePress = (genre: string) => {
@@ -234,6 +315,60 @@ export const NovelDetailScreen: React.FC = () => {
       chapterPath: c.path,
       chapterTitle: c.name,
     });
+  };
+
+  const loadMoreChapters = async () => {
+    if (!novel?.pluginId || !novel?.pluginNovelPath) return;
+    if (!linkedPlugin || !linkedPlugin.enabled) return;
+    if (!chaptersHasMore || isRemoteLoading || isChaptersLoadingMore) return;
+
+    try {
+      setIsChaptersLoadingMore(true);
+      const instance = await PluginRuntimeService.loadLnReaderPlugin(linkedPlugin, {
+        userAgent: settings.advanced.userAgent,
+      });
+      if (typeof (instance as any).fetchChaptersPage !== "function") {
+        setChaptersHasMore(false);
+        return;
+      }
+      const nextPage = chaptersPage + 1;
+      const res = await (instance as any).fetchChaptersPage(
+        novel.pluginNovelPath,
+        nextPage,
+      );
+
+      const raw = Array.isArray(res?.chapters) ? res.chapters : [];
+      const mapped = raw.filter(isPluginChapterItem);
+
+      setRemoteChapters((prev) => {
+        const seen = new Set(prev.map((c) => c.path));
+        const next = [...prev];
+        for (const c of mapped) {
+          if (!seen.has(c.path)) next.push(c);
+        }
+        return next;
+      });
+
+      const appliedPage =
+        typeof res?.page === "number" ? res.page : nextPage;
+      setChaptersPage(appliedPage);
+
+      if (typeof res?.hasMore === "boolean") {
+        setChaptersHasMore(res.hasMore);
+      } else {
+        const total =
+          typeof remoteDetail?.totalChapters === "number"
+            ? remoteDetail.totalChapters
+            : undefined;
+        setChaptersHasMore(
+          total != null ? remoteChapters.length + mapped.length < total : mapped.length > 0,
+        );
+      }
+    } catch {
+      // ignore
+    } finally {
+      setIsChaptersLoadingMore(false);
+    }
   };
 
   const handleProgressPress = () => {
@@ -331,10 +466,24 @@ export const NovelDetailScreen: React.FC = () => {
 
           <View style={styles.actionButtons}>
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+              style={[
+                styles.actionButton,
+                isInLibrary
+                  ? {
+                      backgroundColor: theme.colors.surface,
+                      borderWidth: 1,
+                      borderColor: theme.colors.border,
+                    }
+                  : { backgroundColor: theme.colors.primary },
+              ]}
               onPress={handleLibraryToggle}
             >
-              <Text style={styles.actionButtonText}>
+              <Text
+                style={[
+                  styles.actionButtonText,
+                  { color: isInLibrary ? theme.colors.text : "#FFF" },
+                ]}
+              >
                 {isInLibrary ? "In library" : "Add to library"}
               </Text>
             </TouchableOpacity>
@@ -431,6 +580,25 @@ export const NovelDetailScreen: React.FC = () => {
                   Chapters are not available for this item yet.
                 </Text>
               )}
+
+            {novel.pluginId && chaptersHasMore ? (
+              <TouchableOpacity
+                style={[
+                  styles.loadMoreButton,
+                  {
+                    backgroundColor: isChaptersLoadingMore
+                      ? theme.colors.border
+                      : theme.colors.primary,
+                  },
+                ]}
+                disabled={isChaptersLoadingMore}
+                onPress={loadMoreChapters}
+              >
+                <Text style={styles.loadMoreText}>
+                  {isChaptersLoadingMore ? "Loading..." : "Load more chapters"}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         </ScrollView>
       )}
@@ -446,6 +614,125 @@ export const NovelDetailScreen: React.FC = () => {
         onClose={() => setIsMoreMenuVisible(false)}
         items={moreOptions}
       />
+
+      <Modal
+        visible={isCategoryModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsCategoryModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setIsCategoryModalVisible(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[
+              styles.modalCard,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+              },
+            ]}
+            onPress={() => {}}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+                Add to category
+              </Text>
+              <Text
+                style={[
+                  styles.modalSubtitle,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Choose a category, then tap Add.
+              </Text>
+            </View>
+
+            <View style={styles.modalList}>
+              {categoryChoices.map((c) => {
+                const selected = pendingCategoryId === c.id;
+                return (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[styles.categoryRow, { borderColor: theme.colors.divider }]}
+                    onPress={() => setPendingCategoryId(c.id)}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryLabel,
+                        { color: theme.colors.text },
+                      ]}
+                    >
+                      {c.name}
+                    </Text>
+                    <Ionicons
+                      name={selected ? "checkmark-circle" : "ellipse-outline"}
+                      size={22}
+                      color={
+                        selected
+                          ? theme.colors.primary
+                          : theme.colors.textSecondary
+                      }
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[
+                  styles.modalButton,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+                onPress={() => setIsCategoryModalVisible(false)}
+              >
+                <Text style={[styles.modalButtonText, { color: theme.colors.text }]}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                disabled={!pendingCategoryId}
+                style={[
+                  styles.modalButton,
+                  {
+                    backgroundColor: pendingCategoryId
+                      ? theme.colors.primary
+                      : theme.colors.border,
+                    borderColor: "transparent",
+                  },
+                ]}
+                onPress={() => {
+                  if (!novel || !pendingCategoryId) return;
+                  setIsInLibrary(true);
+                  updateNovel(novel.id, {
+                    isInLibrary: true,
+                    categoryId: pendingCategoryId,
+                  });
+                  setIsCategoryModalVisible(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.modalButtonText,
+                    {
+                      color: pendingCategoryId ? "#FFF" : theme.colors.textSecondary,
+                    },
+                  ]}
+                >
+                  Add
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
@@ -527,7 +814,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   actionButtonText: {
-    color: "#FFF",
     fontSize: 14,
     fontWeight: "bold",
   },
@@ -596,5 +882,73 @@ const styles = StyleSheet.create({
   chapterTitle: {
     fontSize: 14,
     flex: 1,
+  },
+  loadMoreButton: {
+    marginTop: 12,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  loadMoreText: {
+    fontWeight: "800",
+    color: "#FFF",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    padding: 18,
+    justifyContent: "center",
+  },
+  modalCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    overflow: "hidden",
+  },
+  modalHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 10,
+    gap: 6,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  modalList: {
+    paddingHorizontal: 10,
+    paddingBottom: 6,
+  },
+  categoryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+  },
+  categoryLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    flex: 1,
+    paddingRight: 12,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 10,
+    padding: 12,
+  },
+  modalButton: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderWidth: 1,
+  },
+  modalButtonText: {
+    fontWeight: "800",
   },
 });

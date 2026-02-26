@@ -52,6 +52,7 @@ export const SourceDetailScreen: React.FC = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const lastSubmittedQueryRef = React.useRef<string>("");
 
   const pickBrowseFn = React.useCallback(
     (instance: any) => {
@@ -76,11 +77,11 @@ export const SourceDetailScreen: React.FC = () => {
   );
 
   const loadPage = React.useCallback(async (
-    opts: { pageNo: number; reset: boolean; query?: string },
+    opts: { pageNo: number; reset: boolean; query: string },
   ) => {
     if (!plugin || !plugin.enabled) return;
 
-    const q = (opts.query ?? searchQuery).trim();
+    const q = opts.query.trim();
     const isSearchMode = Boolean(q);
 
     try {
@@ -124,7 +125,7 @@ export const SourceDetailScreen: React.FC = () => {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, [pickBrowseFn, plugin, searchQuery, settings.advanced.userAgent]);
+  }, [pickBrowseFn, plugin, settings.advanced.userAgent]);
 
   useEffect(() => {
     setResults([]);
@@ -139,13 +140,13 @@ export const SourceDetailScreen: React.FC = () => {
       await loadPage({ pageNo: 1, reset: true, query: "" });
     };
     load();
-  }, [loadPage, plugin]);
+  }, [loadPage, plugin, sortOption]);
 
   const refresh = async () => {
     if (!plugin || !plugin.enabled) return;
     setPage(1);
     setHasMore(true);
-    await loadPage({ pageNo: 1, reset: true });
+    await loadPage({ pageNo: 1, reset: true, query: searchQuery.trim() });
   };
 
   const runSearch = async (q: string) => {
@@ -156,6 +157,7 @@ export const SourceDetailScreen: React.FC = () => {
     }
     const query = q.trim();
     if (!query) {
+      lastSubmittedQueryRef.current = "";
       setResults([]);
       setError(null);
       setPage(1);
@@ -163,6 +165,18 @@ export const SourceDetailScreen: React.FC = () => {
       await loadPage({ pageNo: 1, reset: true, query: "" });
       return;
     }
+
+    // Prevent repeated reloads when pressing submit multiple times with the same query.
+    if (
+      lastSubmittedQueryRef.current === query &&
+      results.length > 0 &&
+      page === 1 &&
+      !isLoading &&
+      !isLoadingMore
+    ) {
+      return;
+    }
+    lastSubmittedQueryRef.current = query;
 
     setPage(1);
     setHasMore(true);
@@ -208,7 +222,7 @@ export const SourceDetailScreen: React.FC = () => {
   const loadMore = async () => {
     if (!plugin || !plugin.enabled) return;
     if (!hasMore || isLoading || isLoadingMore) return;
-    await loadPage({ pageNo: page + 1, reset: false });
+    await loadPage({ pageNo: page + 1, reset: false, query: searchQuery.trim() });
   };
 
   const filterItems = [
@@ -249,6 +263,7 @@ export const SourceDetailScreen: React.FC = () => {
         onSearchClose={() => {
           setIsSearchActive(false);
           setSearchQuery("");
+          lastSubmittedQueryRef.current = "";
           setResults([]);
           setError(null);
         }}
