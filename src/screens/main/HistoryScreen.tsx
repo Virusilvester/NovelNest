@@ -162,16 +162,19 @@ export const HistoryScreen: React.FC = () => {
           Ch. {entry.lastReadChapter.number}: {entry.lastReadChapter.title}
         </Text>
 
-        <Text
-          style={[styles.readingTime, { color: theme.colors.textSecondary }]}
-        >
+        <View style={styles.readingTimeRow}>
           <Ionicons
             name="time-outline"
             size={12}
             color={theme.colors.textSecondary}
-          />{" "}
-          {formatReadingTime(entry.timeSpentReading)}
-        </Text>
+          />
+          <Text
+            style={[styles.readingTime, { color: theme.colors.textSecondary }]}
+          >
+            {"  "}
+            {formatReadingTime(entry.timeSpentReading)}
+          </Text>
+        </View>
 
         {/* Progress Bar */}
         <View style={styles.progressBarContainer}>
@@ -477,6 +480,10 @@ const styles = StyleSheet.create({
   readingTime: {
     fontSize: 11,
     marginTop: 4,
+  },
+  readingTimeRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   progressBarContainer: {
     marginTop: 8,

@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import React from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { ErrorBoundary } from "./src/components/common/ErrorBoundary";
 import { HistoryProvider } from "./src/context/HistoryContext";
 import { LibraryProvider } from "./src/context/LibraryContext";
 import { SettingsProvider } from "./src/context/SettingsContext";
@@ -18,7 +19,9 @@ export default function App() {
             <LibraryProvider>
               <HistoryProvider>
                 <StatusBar style="auto" />
-                <AppNavigator />
+                <ErrorBoundary>
+                  <AppNavigator />
+                </ErrorBoundary>
               </HistoryProvider>
             </LibraryProvider>
           </ThemeProvider>

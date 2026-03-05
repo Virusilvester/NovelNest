@@ -18,7 +18,6 @@ import {
   StartScreen,
 } from "../types";
 
-// Extended settings interface to include all UI states
 interface ExtendedSettings extends AppSettings {
   ui: {
     libraryDisplayMode: DisplayMode;
@@ -51,7 +50,6 @@ interface SettingsContextType {
   isLoading: boolean;
   isReady: boolean;
 
-  // General
   updateGeneralSettings: (
     key: keyof AppSettings["general"],
     value: any,
@@ -59,46 +57,39 @@ interface SettingsContextType {
   setStartScreen: (screen: StartScreen) => Promise<void>;
   setDownloadLocation: (path: string | null) => Promise<void>;
 
-  // Display
   updateDisplaySettings: (
     key: keyof AppSettings["display"],
     value: any,
   ) => Promise<void>;
   setTheme: (theme: "dark" | "light") => Promise<void>;
 
-  // Auto-download
   updateAutoDownloadSettings: (
     key: keyof AppSettings["autoDownload"],
     value: any,
   ) => Promise<void>;
 
-  // Updates
   updateUpdatesSettings: (
     key: keyof AppSettings["updates"],
     value: any,
   ) => Promise<void>;
 
-  // Reader
   updateReaderSettings: (
     section: keyof AppSettings["reader"],
     key: string,
     value: any,
   ) => Promise<void>;
 
-  // Tracking
   updateTrackingSettings: (
     key: keyof AppSettings["tracking"],
     value: any,
   ) => Promise<void>;
 
-  // Advanced
   updateAdvancedSettings: (
     key: keyof AppSettings["advanced"],
     value: any,
   ) => Promise<void>;
   setUserAgent: (agent: string) => Promise<void>;
 
-  // Extensions
   addExtensionRepository: (repoUrl: string) => Promise<void>;
   removeExtensionRepository: (repoUrl: string) => Promise<void>;
   installExtensionPlugin: (
@@ -107,12 +98,8 @@ interface SettingsContextType {
     localPath?: string,
   ) => Promise<void>;
   uninstallExtensionPlugin: (pluginId: string) => Promise<void>;
-  setExtensionPluginEnabled: (
-    pluginId: string,
-    enabled: boolean,
-  ) => Promise<void>;
+  setExtensionPluginEnabled: (pluginId: string, enabled: boolean) => Promise<void>;
 
-  // UI State (Library view settings)
   setLibraryDisplayMode: (mode: DisplayMode) => Promise<void>;
   setShowDownloadBadges: (show: boolean) => Promise<void>;
   setShowUnreadBadges: (show: boolean) => Promise<void>;
@@ -120,14 +107,11 @@ interface SettingsContextType {
   setLibrarySortOption: (option: LibrarySortOption) => Promise<void>;
   setLibraryFilterOptions: (options: LibraryFilterOption) => Promise<void>;
 
-  // Reset
   resetSettings: () => Promise<void>;
   resetToDefaults: () => Promise<void>;
 }
 
-const SettingsContext = createContext<SettingsContextType | undefined>(
-  undefined,
-);
+const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -136,37 +120,33 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [isReady, setIsReady] = useState(false);
 
-  // Load settings on mount
   useEffect(() => {
-    loadSettings();
+    void loadSettings();
   }, []);
 
   const loadSettings = async () => {
     try {
       const loadedSettings = await StorageService.loadSettings();
-      // Merge with extended defaults to ensure UI fields exist
-      const merged = { ...EXTENDED_DEFAULTS, ...loadedSettings };
+      const merged = deepMerge(EXTENDED_DEFAULTS, loadedSettings);
       setSettings(merged);
-      console.log("✅ Settings loaded:", merged.ui);
     } catch (error) {
-      console.error("❌ Failed to load settings:", error);
+      console.error("Failed to load settings:", error);
+      setSettings(EXTENDED_DEFAULTS);
     } finally {
       setIsLoading(false);
       setIsReady(true);
     }
   };
 
-  // Save settings helper with debounce
   const saveSettings = async (newSettings: ExtendedSettings) => {
     try {
       await StorageService.saveSettings(newSettings);
       setSettings(newSettings);
     } catch (error) {
-      console.error("❌ Failed to save settings:", error);
+      console.error("Failed to save settings:", error);
     }
   };
 
-  // General Settings
   const updateGeneralSettings = useCallback(
     async (key: keyof AppSettings["general"], value: any) => {
       const newSettings = {
@@ -192,7 +172,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     [updateGeneralSettings],
   );
 
-  // Display Settings
   const updateDisplaySettings = useCallback(
     async (key: keyof AppSettings["display"], value: any) => {
       const newSettings = {
@@ -211,7 +190,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     [updateDisplaySettings],
   );
 
-  // Auto-download
   const updateAutoDownloadSettings = useCallback(
     async (key: keyof AppSettings["autoDownload"], value: any) => {
       const newSettings = {
@@ -223,7 +201,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     [settings],
   );
 
-  // Updates
   const updateUpdatesSettings = useCallback(
     async (key: keyof AppSettings["updates"], value: any) => {
       const newSettings = {
@@ -235,14 +212,13 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     [settings],
   );
 
-  // Reader
   const updateReaderSettings = useCallback(
     async (section: keyof AppSettings["reader"], key: string, value: any) => {
       const newSettings = {
         ...settings,
         reader: {
           ...settings.reader,
-          [section]: { ...settings.reader[section], [key]: value },
+          [section]: { ...(settings.reader as any)[section], [key]: value },
         },
       };
       await saveSettings(newSettings);
@@ -250,7 +226,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     [settings],
   );
 
-  // Tracking
   const updateTrackingSettings = useCallback(
     async (key: keyof AppSettings["tracking"], value: any) => {
       const newSettings = {
@@ -262,7 +237,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     [settings],
   );
 
-  // Advanced
   const updateAdvancedSettings = useCallback(
     async (key: keyof AppSettings["advanced"], value: any) => {
       const newSettings = {
@@ -281,7 +255,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     [updateAdvancedSettings],
   );
 
-  // Extensions
   const addExtensionRepository = useCallback(
     async (repoUrl: string) => {
       const normalized = repoUrl.trim();
@@ -373,7 +346,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     [settings],
   );
 
-  // UI State Settings (Library view)
   const setLibraryDisplayMode = useCallback(
     async (mode: DisplayMode) => {
       const newSettings = {
@@ -381,7 +353,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
         ui: { ...settings.ui, libraryDisplayMode: mode },
       };
       await saveSettings(newSettings);
-      console.log("✅ Display mode saved:", mode);
     },
     [settings],
   );
@@ -441,25 +412,16 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     [settings],
   );
 
-  // Reset all settings to defaults
   const resetSettings = useCallback(async () => {
-    try {
-      await StorageService.clearSettings();
-      setSettings(EXTENDED_DEFAULTS);
-      console.log("✅ Settings reset to defaults");
-    } catch (error) {
-      console.error("❌ Failed to reset settings:", error);
-      throw error;
-    }
+    await StorageService.clearSettings();
+    setSettings(EXTENDED_DEFAULTS);
   }, []);
 
   const resetToDefaults = useCallback(async () => {
     await resetSettings();
   }, [resetSettings]);
 
-  if (isLoading) {
-    return null; // Or a loading screen
-  }
+  if (isLoading) return null;
 
   return (
     <SettingsContext.Provider
@@ -500,7 +462,32 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
 
 export const useSettings = () => {
   const context = useContext(SettingsContext);
-  if (!context)
-    throw new Error("useSettings must be used within SettingsProvider");
+  if (!context) throw new Error("useSettings must be used within SettingsProvider");
   return context;
 };
+
+function deepMerge<T>(defaults: T, saved: any): T {
+  if (!saved || typeof saved !== "object") return defaults;
+
+  const result: any = Array.isArray(defaults) ? [...(defaults as any)] : { ...(defaults as any) };
+  for (const key of Object.keys(saved)) {
+    const savedValue = saved[key];
+    const defaultValue = (defaults as any)?.[key];
+
+    if (
+      savedValue !== null &&
+      typeof savedValue === "object" &&
+      !Array.isArray(savedValue) &&
+      defaultValue !== null &&
+      typeof defaultValue === "object" &&
+      !Array.isArray(defaultValue)
+    ) {
+      result[key] = deepMerge(defaultValue, savedValue);
+    } else {
+      result[key] = savedValue;
+    }
+  }
+
+  return result as T;
+}
+

@@ -157,19 +157,21 @@ export const NovelCard: React.FC<NovelCardProps> = ({
 
           {/* Last read info */}
           {novel.lastReadDate && (
-            <Text
-              style={[
-                styles.listLastRead,
-                { color: theme.colors.textSecondary },
-              ]}
-            >
+            <View style={styles.listLastReadRow}>
               <Ionicons
                 name="time-outline"
                 size={12}
                 color={theme.colors.textSecondary}
-              />{" "}
-              Last read {formatLastRead(novel.lastReadDate)}
-            </Text>
+              />
+              <Text
+                style={[
+                  styles.listLastRead,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                {"  "}Last read {formatLastRead(novel.lastReadDate)}
+              </Text>
+            </View>
           )}
         </View>
 
@@ -459,6 +461,10 @@ const styles = StyleSheet.create({
   },
   listLastRead: {
     fontSize: 11,
+  },
+  listLastReadRow: {
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 4,
   },
   listArrow: {

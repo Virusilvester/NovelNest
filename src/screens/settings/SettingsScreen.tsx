@@ -4,7 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 import * as DocumentPicker from "expo-document-picker";
 import React, { useState } from "react";
 import {
-  Alert,
+  // Alert,
   Linking,
   ScrollView,
   StyleSheet,
@@ -114,7 +114,7 @@ export const SettingsScreen: React.FC = () => {
     updateDisplaySettings,
     updateAutoDownloadSettings,
     updateUpdatesSettings,
-    resetSettings,
+    //resetSettings,
     setDownloadLocation,
   } = useSettings();
 
@@ -143,23 +143,23 @@ export const SettingsScreen: React.FC = () => {
     }
   };
 
-  const handleClearSettings = () => {
-    Alert.alert(
-      "Clear Settings",
-      "Are you sure you want to reset all settings to default? This action cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reset",
-          style: "destructive",
-          onPress: async () => {
-            await resetSettings();
-            Alert.alert("Success", "Settings have been reset to default.");
-          },
-        },
-      ],
-    );
-  };
+  // const handleClearSettings = () => {
+  //   Alert.alert(
+  //     "Clear Settings",
+  //     "Are you sure you want to reset all settings to default? This action cannot be undone.",
+  //     [
+  //       { text: "Cancel", style: "cancel" },
+  //       {
+  //         text: "Reset",
+  //         style: "destructive",
+  //         onPress: async () => {
+  //           await resetSettings();
+  //           Alert.alert("Success", "Settings have been reset to default.");
+  //         },
+  //       },
+  //     ],
+  //   );
+  // };
 
   const getStartScreenLabel = (value: StartScreen) => {
     return START_SCREENS.find((s) => s.value === value)?.label || "Library";
@@ -330,12 +330,12 @@ export const SettingsScreen: React.FC = () => {
             subtitle="Storage, cache, and user agent"
             onPress={() => navigation.navigate("DataManagement")}
           />
-          <SettingsItem
+          {/* <SettingsItem
             title="Reset settings"
             subtitle="Restore defaults"
             onPress={handleClearSettings}
             isDestructive
-          />
+          /> */}
         </SettingsSection>
 
         {/* About Section */}
