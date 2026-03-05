@@ -1,17 +1,29 @@
-export type CachedPluginChapter = {
-  name: string;
-  path: string;
-  releaseTime?: string | null;
-  chapterNumber?: number;
-};
+import type { CachedPluginNovelDetail } from "../types";
 
-export type CachedPluginNovelDetail = {
-  signature: string;
-  cachedAt: number;
-  detail: any;
-  chapters: CachedPluginChapter[];
-  chaptersPage: number;
-  chaptersHasMore: boolean;
+export const normalizePluginDetailForCache = (
+  raw: any,
+): CachedPluginNovelDetail["detail"] => {
+  if (!raw || typeof raw !== "object") return null;
+  const detail = raw as any;
+  const genres = Array.isArray(detail.genres)
+    ? detail.genres.map((g: any) => String(g)).filter(Boolean)
+    : undefined;
+  const totalChapters =
+    typeof detail.totalChapters === "number" && Number.isFinite(detail.totalChapters)
+      ? detail.totalChapters
+      : undefined;
+
+  return {
+    name: detail.name != null ? String(detail.name) : undefined,
+    author: detail.author != null ? String(detail.author) : undefined,
+    cover: detail.cover != null ? String(detail.cover) : undefined,
+    summary: detail.summary != null ? String(detail.summary) : undefined,
+    genres: genres?.length ? genres : undefined,
+    status: detail.status != null ? String(detail.status) : undefined,
+    totalChapters,
+    url: detail.url != null ? String(detail.url) : undefined,
+    path: detail.path != null ? String(detail.path) : undefined,
+  };
 };
 
 const MAX_ENTRIES = 25;
@@ -79,4 +91,3 @@ export const NovelDetailCache = {
     cache.delete(key);
   },
 };
-

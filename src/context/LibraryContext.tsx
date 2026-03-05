@@ -129,16 +129,19 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   const updateNovel = useCallback((id: string, updates: Partial<Novel>) => {
-    setNovels((prev) =>
-      prev.map((n) => {
+    setNovels((prev) => {
+      let updatedAny = false;
+      const next = prev.map((n) => {
         if (n.id !== id) return n;
+        updatedAny = true;
         const updated = { ...n, ...updates };
         DatabaseService.upsertNovel(updated).catch((e) => {
           console.error("Failed to persist novel update:", id, e);
         });
         return updated;
-      }),
-    );
+      });
+      return updatedAny ? next : prev;
+    });
   }, []);
 
   const addCategory = useCallback(

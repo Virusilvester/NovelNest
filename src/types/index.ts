@@ -19,7 +19,36 @@ export interface Novel {
   // so `NovelDetailScreen` can re-fetch latest metadata and chapter list.
   pluginId?: string;
   pluginNovelPath?: string;
+  // Cached plugin metadata + chapters for offline/fast reload (included in DB backups).
+  pluginCache?: CachedPluginNovelDetail;
 }
+
+export type CachedPluginChapter = {
+  name: string;
+  path: string;
+  releaseTime?: string | null;
+  chapterNumber?: number;
+};
+
+export type CachedPluginNovelDetail = {
+  signature: string;
+  cachedAt: number;
+  // Keep this small + JSON-serializable; screens can reconstruct chapters from `chapters`.
+  detail: {
+    name?: string;
+    author?: string;
+    cover?: string;
+    summary?: string;
+    genres?: string[];
+    status?: string;
+    totalChapters?: number;
+    url?: string;
+    path?: string;
+  } | null;
+  chapters: CachedPluginChapter[];
+  chaptersPage: number;
+  chaptersHasMore: boolean;
+};
 
 export interface Chapter {
   id: string;

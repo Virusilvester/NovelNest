@@ -18,9 +18,12 @@ import { PopupMenu } from "../../components/common/PopupMenu";
 import { useLibrary } from "../../context/LibraryContext";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
-import { NovelDetailCache } from "../../services/novelDetailCache";
+import {
+  normalizePluginDetailForCache,
+  NovelDetailCache,
+} from "../../services/novelDetailCache";
 import { PluginRuntimeService } from "../../services/pluginRuntime";
-import { Novel } from "../../types";
+import type { CachedPluginNovelDetail, Novel } from "../../types";
 import { clamp } from "../../utils/responsive";
 
 type PluginChapterItem = {
@@ -47,7 +50,10 @@ export const NovelDetailScreen: React.FC = () => {
   const coverHeight = Math.round(coverWidth * 1.5);
 
   const { novelId } = route.params as { novelId: string };
-  const novel = useMemo(() => novels.find((n) => n.id === novelId), [novels, novelId]);
+  const novel = useMemo(
+    () => novels.find((n) => n.id === novelId),
+    [novels, novelId],
+  );
   const linkedPlugin = useMemo(() => {
     if (!novel?.pluginId) return undefined;
     return settings.extensions.installedPlugins?.[novel.pluginId];
@@ -79,10 +85,15 @@ export const NovelDetailScreen: React.FC = () => {
     settings.advanced.userAgent,
   ]);
 
-  const initialCached = useMemo(() => {
-    if (!cacheKey) return undefined;
-    return NovelDetailCache.get(cacheKey);
-  }, [cacheKey]);
+  const initialCached = useMemo((): CachedPluginNovelDetail | undefined => {
+    const persisted = novel?.pluginCache;
+    if (!cacheKey) return persisted;
+
+    const mem = NovelDetailCache.get(cacheKey);
+    if (!mem) return persisted;
+    if (!persisted) return mem;
+    return mem.cachedAt >= persisted.cachedAt ? mem : persisted;
+  }, [cacheKey, novel?.pluginCache]);
 
   const [isDownloadMenuVisible, setIsDownloadMenuVisible] = useState(false);
   const [isMoreMenuVisible, setIsMoreMenuVisible] = useState(false);
@@ -96,7 +107,9 @@ export const NovelDetailScreen: React.FC = () => {
   );
   const [isRemoteLoading, setIsRemoteLoading] = useState(false);
   const [remoteError, setRemoteError] = useState<string | null>(null);
-  const lastFetchKeyRef = useRef<string | null>(initialCached?.signature ?? null);
+  const lastFetchKeyRef = useRef<string | null>(
+    initialCached?.signature ?? null,
+  );
   const [chaptersPage, setChaptersPage] = useState(
     () => initialCached?.chaptersPage ?? 1,
   );
@@ -114,7 +127,12 @@ export const NovelDetailScreen: React.FC = () => {
         : undefined;
     if (total == null) return;
     setChaptersHasMore(remoteChapters.length < total);
-  }, [linkedPlugin?.url, novel?.pluginId, remoteChapters.length, remoteDetail?.totalChapters]);
+  }, [
+    linkedPlugin?.url,
+    novel?.pluginId,
+    remoteChapters.length,
+    remoteDetail?.totalChapters,
+  ]);
 
   const categoryChoices = useMemo(() => {
     const list = Array.isArray(categories) ? categories : [];
@@ -134,7 +152,9 @@ export const NovelDetailScreen: React.FC = () => {
     if (pendingCategoryId) return;
     const existing = novel?.categoryId;
     const fallback =
-      (existing && categoryChoices.some((c) => c.id === existing) && existing) ||
+      (existing &&
+        categoryChoices.some((c) => c.id === existing) &&
+        existing) ||
       categoryChoices[0]?.id ||
       null;
     setPendingCategoryId(fallback);
@@ -155,7 +175,18 @@ export const NovelDetailScreen: React.FC = () => {
 
       const stableKey =
         cacheKey ?? NovelDetailCache.key(novel.pluginId, novel.pluginNovelPath);
-      const cached = NovelDetailCache.get(stableKey);
+      const mem = NovelDetailCache.get(stableKey);
+      const persisted = novel.pluginCache;
+      const cached =
+        mem && persisted
+          ? mem.cachedAt >= persisted.cachedAt
+            ? mem
+            : persisted
+          : (mem ?? persisted);
+
+      if (cached && cached !== mem) {
+        NovelDetailCache.set(stableKey, cached);
+      }
 
       if (cached) {
         setRemoteError(null);
@@ -170,7 +201,9 @@ export const NovelDetailScreen: React.FC = () => {
             cached.detail?.author || novel.author || "Unknown",
           );
           const resolvedCover = String(cached.detail?.cover || novel.coverUrl);
-          const resolvedSummary = String(cached.detail?.summary || novel.summary || "");
+          const resolvedSummary = String(
+            cached.detail?.summary || novel.summary || "",
+          );
           const resolvedGenres = Array.isArray(cached.detail?.genres)
             ? cached.detail.genres.map((g: any) => String(g))
             : novel.genres;
@@ -178,12 +211,27 @@ export const NovelDetailScreen: React.FC = () => {
             typeof cached.detail?.totalChapters === "number"
               ? cached.detail.totalChapters
               : undefined;
+          const resolvedStatusRaw = String(cached.detail?.status || "").toLowerCase();
+          const resolvedStatus: Novel["status"] | undefined = cached.detail?.status
+            ? resolvedStatusRaw.includes("complete") ||
+                resolvedStatusRaw.includes("end") ||
+                resolvedStatusRaw.includes("finished")
+              ? "completed"
+              : "ongoing"
+            : undefined;
 
           const updates: Partial<Novel> = {};
-          if (resolvedTitle && resolvedTitle !== novel.title) updates.title = resolvedTitle;
-          if (resolvedAuthor && resolvedAuthor !== novel.author) updates.author = resolvedAuthor;
-          if (resolvedCover && resolvedCover !== novel.coverUrl) updates.coverUrl = resolvedCover;
-          if (resolvedSummary !== novel.summary) updates.summary = resolvedSummary;
+          if (resolvedTitle && resolvedTitle !== novel.title)
+            updates.title = resolvedTitle;
+          if (resolvedAuthor && resolvedAuthor !== novel.author)
+            updates.author = resolvedAuthor;
+          if (resolvedCover && resolvedCover !== novel.coverUrl)
+            updates.coverUrl = resolvedCover;
+          if (resolvedSummary !== novel.summary)
+            updates.summary = resolvedSummary;
+          if (resolvedStatus && resolvedStatus !== novel.status) {
+            updates.status = resolvedStatus;
+          }
           if (
             Array.isArray(cached.detail?.genres) &&
             (novel.genres.length !== resolvedGenres.length ||
@@ -250,13 +298,15 @@ export const NovelDetailScreen: React.FC = () => {
           userAgent: settings.advanced.userAgent,
         });
         const parseNovel =
-          (instance as any).parseNovelAndChapters || (instance as any).parseNovel;
+          (instance as any).parseNovelAndChapters ||
+          (instance as any).parseNovel;
         if (typeof parseNovel !== "function") {
           throw new Error("This source does not support novel details.");
         }
 
         const data = await parseNovel(novel.pluginNovelPath);
-        setRemoteDetail(data);
+        const normalizedDetail = normalizePluginDetailForCache(data);
+        setRemoteDetail(normalizedDetail);
 
         const chaptersRaw = Array.isArray(data?.chapters) ? data.chapters : [];
         const chaptersMapped = chaptersRaw
@@ -269,38 +319,49 @@ export const NovelDetailScreen: React.FC = () => {
         setRemoteChapters(chaptersMapped);
         setChaptersPage(1);
 
-        const totalFromDetail =
-          typeof data?.totalChapters === "number" ? data.totalChapters : undefined;
+        const totalFromDetail = normalizedDetail?.totalChapters;
         const hasMoreFromTotal =
           totalFromDetail != null
             ? chaptersMapped.length < totalFromDetail
             : false;
-        setChaptersHasMore(
-          typeof (instance as any).fetchChaptersPage === "function" &&
-            hasMoreFromTotal,
-        );
+        const canPage =
+          typeof (instance as any).fetchChaptersPage === "function";
+        setChaptersHasMore(canPage && hasMoreFromTotal);
 
-        NovelDetailCache.set(stableKey, {
+        const cacheEntry: CachedPluginNovelDetail = {
           signature,
           cachedAt: Date.now(),
-          detail: data,
+          detail: normalizedDetail,
           chapters: chaptersMapped,
           chaptersPage: 1,
-          chaptersHasMore:
-            typeof (instance as any).fetchChaptersPage === "function" &&
-            hasMoreFromTotal,
-        });
+          chaptersHasMore: canPage && hasMoreFromTotal,
+        };
+
+        NovelDetailCache.set(stableKey, cacheEntry);
+
+        const statusRaw = String(normalizedDetail?.status || "").toLowerCase();
+        const nextStatus: Novel["status"] = normalizedDetail?.status
+          ? statusRaw.includes("complete") ||
+              statusRaw.includes("end") ||
+              statusRaw.includes("finished")
+            ? "completed"
+            : "ongoing"
+          : novel.status;
 
         updateNovel(novel.id, {
-          title: String(data?.name || novel.title),
-          author: String(data?.author || novel.author || "Unknown"),
-          coverUrl: String(data?.cover || novel.coverUrl),
-          summary: String(data?.summary || novel.summary || ""),
-          genres: Array.isArray(data?.genres) ? data.genres : novel.genres,
+          title: String(normalizedDetail?.name || novel.title),
+          author: String(normalizedDetail?.author || novel.author || "Unknown"),
+          coverUrl: String(normalizedDetail?.cover || novel.coverUrl),
+          status: nextStatus,
+          summary: String(normalizedDetail?.summary || novel.summary || ""),
+          genres: Array.isArray(normalizedDetail?.genres)
+            ? normalizedDetail.genres
+            : novel.genres,
           totalChapters:
             totalFromDetail != null
               ? totalFromDetail
               : chaptersMapped.length || novel.totalChapters,
+          pluginCache: cacheEntry,
         });
       } catch (e: any) {
         setRemoteError(e?.message || "Failed to load novel details.");
@@ -316,10 +377,12 @@ export const NovelDetailScreen: React.FC = () => {
     novel?.pluginNovelPath,
     novel?.author,
     novel?.coverUrl,
+    novel?.status,
     novel?.genres,
     novel?.summary,
     novel?.title,
     novel?.totalChapters,
+    novel?.pluginCache,
     settings.advanced.userAgent,
     linkedPlugin,
     linkedPlugin?.enabled,
@@ -334,15 +397,23 @@ export const NovelDetailScreen: React.FC = () => {
   const displayTitle = remoteDetail?.name || novel?.title || "Novel";
   const displayAuthor = remoteDetail?.author || novel?.author || "Unknown";
   const displayCover =
-    remoteDetail?.cover || novel?.coverUrl || "https://via.placeholder.com/300x450";
+    remoteDetail?.cover ||
+    novel?.coverUrl ||
+    "https://via.placeholder.com/300x450";
   const displaySummary = remoteDetail?.summary || novel?.summary || "";
   const displayGenres: string[] = useMemo(() => {
     if (Array.isArray(remoteDetail?.genres)) return remoteDetail.genres;
     return novel?.genres || [];
   }, [remoteDetail?.genres, novel?.genres]);
   const displayStatus: Novel["status"] = useMemo(() => {
-    const raw = String(remoteDetail?.status || novel?.status || "").toLowerCase();
-    if (raw.includes("complete") || raw.includes("end") || raw.includes("finished"))
+    const raw = String(
+      remoteDetail?.status || novel?.status || "",
+    ).toLowerCase();
+    if (
+      raw.includes("complete") ||
+      raw.includes("end") ||
+      raw.includes("finished")
+    )
       return "completed";
     if (raw.includes("ongoing")) return "ongoing";
     return (novel?.status as any) || "ongoing";
@@ -438,9 +509,12 @@ export const NovelDetailScreen: React.FC = () => {
 
     try {
       setIsChaptersLoadingMore(true);
-      const instance = await PluginRuntimeService.loadLnReaderPlugin(linkedPlugin, {
-        userAgent: settings.advanced.userAgent,
-      });
+      const instance = await PluginRuntimeService.loadLnReaderPlugin(
+        linkedPlugin,
+        {
+          userAgent: settings.advanced.userAgent,
+        },
+      );
       if (typeof (instance as any).fetchChaptersPage !== "function") {
         setChaptersHasMore(false);
         return;
@@ -474,36 +548,40 @@ export const NovelDetailScreen: React.FC = () => {
           userAgent: settings.advanced.userAgent,
         });
 
-      setRemoteChapters((prev) => {
-        const seen = new Set(prev.map((c) => c.path));
-        const next = [...prev];
-        for (const c of mapped) {
-          if (!seen.has(c.path)) next.push(c);
-        }
+      const seen = new Set(remoteChapters.map((c) => c.path));
+      const next = [...remoteChapters];
+      for (const c of mapped) {
+        if (!seen.has(c.path)) next.push(c);
+      }
 
-        const nextHasMore =
-          typeof explicitHasMore === "boolean"
-            ? explicitHasMore
-            : totalFromDetail != null
-              ? next.length < totalFromDetail
-              : mapped.length > 0;
+      const nextHasMore =
+        typeof explicitHasMore === "boolean"
+          ? explicitHasMore
+          : totalFromDetail != null
+            ? next.length < totalFromDetail
+            : mapped.length > 0;
 
-        setChaptersPage(appliedPage);
-        setChaptersHasMore(nextHasMore);
+      setRemoteChapters(next);
+      setChaptersPage(appliedPage);
+      setChaptersHasMore(nextHasMore);
 
-        const cacheDetail =
-          remoteDetail ?? NovelDetailCache.get(stableKey)?.detail ?? null;
-        NovelDetailCache.set(stableKey, {
-          signature,
-          cachedAt: Date.now(),
-          detail: cacheDetail,
-          chapters: next,
-          chaptersPage: appliedPage,
-          chaptersHasMore: nextHasMore,
-        });
+      const cacheDetail =
+        remoteDetail ??
+        NovelDetailCache.get(stableKey)?.detail ??
+        novel.pluginCache?.detail ??
+        null;
 
-        return next;
-      });
+      const cacheEntry: CachedPluginNovelDetail = {
+        signature,
+        cachedAt: Date.now(),
+        detail: cacheDetail,
+        chapters: next,
+        chaptersPage: appliedPage,
+        chaptersHasMore: nextHasMore,
+      };
+
+      NovelDetailCache.set(stableKey, cacheEntry);
+      updateNovel(novel.id, { pluginCache: cacheEntry });
     } catch {
       // ignore
     } finally {
@@ -519,17 +597,30 @@ export const NovelDetailScreen: React.FC = () => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
       <Header
         title=""
         onBackPress={() => (navigation as any).goBack()}
         rightButtons={
           <>
-            <TouchableOpacity onPress={handleEpubExport} style={styles.iconButton}>
-              <Ionicons name="document-text" size={24} color={theme.colors.text} />
+            <TouchableOpacity
+              onPress={handleEpubExport}
+              style={styles.iconButton}
+            >
+              <Ionicons
+                name="document-text"
+                size={24}
+                color={theme.colors.text}
+              />
             </TouchableOpacity>
             <TouchableOpacity onPress={handleShare} style={styles.iconButton}>
-              <Ionicons name="share-outline" size={24} color={theme.colors.text} />
+              <Ionicons
+                name="share-outline"
+                size={24}
+                color={theme.colors.text}
+              />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setIsDownloadMenuVisible(true)}
@@ -538,11 +629,20 @@ export const NovelDetailScreen: React.FC = () => {
               <Ionicons
                 name={novel?.isDownloaded ? "download" : "download-outline"}
                 size={24}
-                color={novel?.isDownloaded ? theme.colors.success : theme.colors.text}
+                color={
+                  novel?.isDownloaded ? theme.colors.success : theme.colors.text
+                }
               />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setIsMoreMenuVisible(true)} style={styles.iconButton}>
-              <Ionicons name="ellipsis-vertical" size={24} color={theme.colors.text} />
+            <TouchableOpacity
+              onPress={() => setIsMoreMenuVisible(true)}
+              style={styles.iconButton}
+            >
+              <Ionicons
+                name="ellipsis-vertical"
+                size={24}
+                color={theme.colors.text}
+              />
             </TouchableOpacity>
           </>
         }
@@ -567,7 +667,12 @@ export const NovelDetailScreen: React.FC = () => {
           {isRemoteLoading && !remoteDetail && remoteChapters.length === 0 ? (
             <View style={styles.loadingCenter}>
               <ActivityIndicator />
-              <Text style={[styles.centerText, { color: theme.colors.textSecondary }]}>
+              <Text
+                style={[
+                  styles.centerText,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
                 Loading details...
               </Text>
             </View>
@@ -579,10 +684,16 @@ export const NovelDetailScreen: React.FC = () => {
               style={[styles.cover, { width: coverWidth, height: coverHeight }]}
             />
             <View style={styles.headerInfo}>
-              <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={3}>
+              <Text
+                style={[styles.title, { color: theme.colors.text }]}
+                numberOfLines={3}
+              >
                 {displayTitle}
               </Text>
-              <Text style={[styles.author, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+              <Text
+                style={[styles.author, { color: theme.colors.textSecondary }]}
+                numberOfLines={1}
+              >
                 {displayAuthor}
               </Text>
               <View style={styles.statusRow}>
@@ -591,13 +702,18 @@ export const NovelDetailScreen: React.FC = () => {
                     styles.statusBadge,
                     {
                       backgroundColor:
-                        displayStatus === "completed" ? theme.colors.success : theme.colors.warning,
+                        displayStatus === "completed"
+                          ? theme.colors.success
+                          : theme.colors.warning,
                     },
                   ]}
                 >
                   <Text style={styles.statusText}>{displayStatus}</Text>
                 </View>
-                <Text style={[styles.source, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                <Text
+                  style={[styles.source, { color: theme.colors.textSecondary }]}
+                  numberOfLines={1}
+                >
                   {novel.source}
                 </Text>
               </View>
@@ -638,19 +754,29 @@ export const NovelDetailScreen: React.FC = () => {
               ]}
               onPress={handleWebView}
             >
-              <Text style={[styles.actionButtonText, { color: theme.colors.text }]}>WebView</Text>
+              <Text
+                style={[styles.actionButtonText, { color: theme.colors.text }]}
+              >
+                WebView
+              </Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Summary</Text>
-            <Text style={[styles.summary, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+              Summary
+            </Text>
+            <Text
+              style={[styles.summary, { color: theme.colors.textSecondary }]}
+            >
               {displaySummary || "(No summary)"}
             </Text>
           </View>
 
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Genres</Text>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+              Genres
+            </Text>
             <View style={styles.genresContainer}>
               {displayGenres.map((genre) => (
                 <TouchableOpacity
@@ -664,20 +790,36 @@ export const NovelDetailScreen: React.FC = () => {
                   ]}
                   onPress={() => handleGenrePress(genre)}
                 >
-                  <Text style={[styles.genreText, { color: theme.colors.primary }]}>{genre}</Text>
+                  <Text
+                    style={[styles.genreText, { color: theme.colors.primary }]}
+                  >
+                    {genre}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
           </View>
 
-          <TouchableOpacity style={styles.progressSection} onPress={handleProgressPress}>
+          <TouchableOpacity
+            style={styles.progressSection}
+            onPress={handleProgressPress}
+          >
             <View style={styles.progressInfo}>
-              <Text style={[styles.progressText, { color: theme.colors.text }]}>Progress</Text>
-              <Text style={[styles.progressText, { color: theme.colors.primary }]}>
+              <Text style={[styles.progressText, { color: theme.colors.text }]}>
+                Progress
+              </Text>
+              <Text
+                style={[styles.progressText, { color: theme.colors.primary }]}
+              >
                 {chaptersRead} / {novel.totalChapters || chaptersTotal}
               </Text>
             </View>
-            <View style={[styles.progressBar, { backgroundColor: theme.colors.border }]}>
+            <View
+              style={[
+                styles.progressBar,
+                { backgroundColor: theme.colors.border },
+              ]}
+            >
               <View
                 style={[
                   styles.progressFill,
@@ -688,38 +830,50 @@ export const NovelDetailScreen: React.FC = () => {
                 ]}
               />
             </View>
-            <Text style={[styles.chapterCount, { color: theme.colors.textSecondary }]}>
+            <Text
+              style={[
+                styles.chapterCount,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
               {chaptersTotal} chapters
             </Text>
           </TouchableOpacity>
 
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Chapters</Text>
-            {novel.pluginId && remoteChapters.length > 0
-              ? remoteChapters.map((c) => (
-                  <TouchableOpacity
-                    key={c.path}
-                    style={[
-                      styles.chapterItem,
-                      { borderBottomColor: theme.colors.divider },
-                    ]}
-                    onPress={() => handlePluginChapterPress(c)}
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+              Chapters
+            </Text>
+            {novel.pluginId && remoteChapters.length > 0 ? (
+              remoteChapters.map((c) => (
+                <TouchableOpacity
+                  key={c.path}
+                  style={[
+                    styles.chapterItem,
+                    { borderBottomColor: theme.colors.divider },
+                  ]}
+                  onPress={() => handlePluginChapterPress(c)}
+                >
+                  <Text
+                    style={[styles.chapterTitle, { color: theme.colors.text }]}
+                    numberOfLines={2}
                   >
-                    <Text style={[styles.chapterTitle, { color: theme.colors.text }]} numberOfLines={2}>
-                      {c.name}
-                    </Text>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={20}
-                      color={theme.colors.textSecondary}
-                    />
-                  </TouchableOpacity>
-                ))
-              : (
-                <Text style={[styles.summary, { color: theme.colors.textSecondary }]}>
-                  Chapters are not available for this item yet.
-                </Text>
-              )}
+                    {c.name}
+                  </Text>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={theme.colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              ))
+            ) : (
+              <Text
+                style={[styles.summary, { color: theme.colors.textSecondary }]}
+              >
+                Chapters are not available for this item yet.
+              </Text>
+            )}
 
             {novel.pluginId && chaptersHasMore ? (
               <TouchableOpacity
@@ -797,7 +951,10 @@ export const NovelDetailScreen: React.FC = () => {
                 return (
                   <TouchableOpacity
                     key={c.id}
-                    style={[styles.categoryRow, { borderColor: theme.colors.divider }]}
+                    style={[
+                      styles.categoryRow,
+                      { borderColor: theme.colors.divider },
+                    ]}
                     onPress={() => setPendingCategoryId(c.id)}
                   >
                     <Text
@@ -833,7 +990,9 @@ export const NovelDetailScreen: React.FC = () => {
                 ]}
                 onPress={() => setIsCategoryModalVisible(false)}
               >
-                <Text style={[styles.modalButtonText, { color: theme.colors.text }]}>
+                <Text
+                  style={[styles.modalButtonText, { color: theme.colors.text }]}
+                >
                   Cancel
                 </Text>
               </TouchableOpacity>
@@ -862,7 +1021,9 @@ export const NovelDetailScreen: React.FC = () => {
                   style={[
                     styles.modalButtonText,
                     {
-                      color: pendingCategoryId ? "#FFF" : theme.colors.textSecondary,
+                      color: pendingCategoryId
+                        ? "#FFF"
+                        : theme.colors.textSecondary,
                     },
                   ]}
                 >
