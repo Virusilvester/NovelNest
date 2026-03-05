@@ -47,6 +47,10 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
+      # ── Expo prebuild (generates the android/ folder) ────────────────────────
+      - name: Run Expo prebuild
+        run: npx expo prebuild --platform android --no-install
+
       # ── Android SDK ──────────────────────────────────────────────────────────
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
