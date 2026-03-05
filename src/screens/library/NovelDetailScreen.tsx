@@ -901,7 +901,11 @@ export const NovelDetailScreen: React.FC = () => {
     if (!novel) return;
     if (isInLibrary) {
       removeNovel(novel.id);
-      (navigation as any).goBack();
+      if ((navigation as any).canGoBack?.()) {
+        (navigation as any).goBack();
+      } else {
+        (navigation as any).navigate("Main", { screen: "Library" });
+      }
       return;
     }
 
@@ -1052,7 +1056,11 @@ export const NovelDetailScreen: React.FC = () => {
       clearChapterSelection();
       return;
     }
-    (navigation as any).goBack();
+    if ((navigation as any).canGoBack?.()) {
+      (navigation as any).goBack();
+    } else {
+      (navigation as any).navigate("Main", { screen: "Library" });
+    }
   }, [clearChapterSelection, isChapterSelectionMode, navigation]);
 
   return (

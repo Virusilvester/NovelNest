@@ -235,6 +235,8 @@ export const PluginNovelDetailScreen: React.FC = () => {
   );
 
   const existingNovelRef = useRef<Novel | undefined>(undefined);
+  const loadTokenRef = useRef(0);
+  const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     existingNovelRef.current = existingNovel || undefined;
   }, [existingNovel]);
@@ -281,7 +283,7 @@ export const PluginNovelDetailScreen: React.FC = () => {
     () => initialCached?.detail ?? null,
   );
   const [remoteChapters, setRemoteChapters] = useState<ChapterItem[]>(
-    () => initialCached?.chapters?.filter(isChapterItem) ?? [],
+    () => (Array.isArray(initialCached?.chapters) ? initialCached!.chapters : []),
   );
   const [isDownloadMenuVisible, setIsDownloadMenuVisible] = useState(false);
   const [isMoreMenuVisible, setIsMoreMenuVisible] = useState(false);
@@ -331,6 +333,16 @@ export const PluginNovelDetailScreen: React.FC = () => {
   }, [chapters]);
 
   useEffect(() => {
+    const token = ++loadTokenRef.current;
+    if (persistTimeoutRef.current) {
+      clearTimeout(persistTimeoutRef.current);
+      persistTimeoutRef.current = null;
+    }
+
+    const isStale = () => token !== loadTokenRef.current;
+    const yieldToMain = () =>
+      new Promise<void>((resolve) => setTimeout(resolve, 0));
+
     const run = async () => {
       const mem = NovelDetailCache.get(cacheKey);
       const persisted = existingNovel?.pluginCache;
@@ -345,16 +357,23 @@ export const PluginNovelDetailScreen: React.FC = () => {
         NovelDetailCache.set(cacheKey, cached);
       }
 
+      const hasCachedChapters =
+        Array.isArray(cached?.chapters) && cached.chapters.length > 0;
+
       if (cached) {
+        if (isStale()) return;
         setError(null);
         setRemoteDetail(cached.detail);
         setRemoteChapters(
-          Array.isArray(cached.chapters) ? cached.chapters.filter(isChapterItem) : [],
+          Array.isArray(cached.chapters) ? cached.chapters : [],
         );
         setChaptersPage(cached.chaptersPage);
         setChaptersHasMore(cached.chaptersHasMore);
         setIsLoading(false);
         if (cached.signature === fetchSignature) return;
+
+        await yieldToMain();
+        if (isStale()) return;
       }
 
       if (!plugin) {
@@ -384,21 +403,58 @@ export const PluginNovelDetailScreen: React.FC = () => {
         }
 
         const data = await (parseNovel as any).call(instance, novelPath);
+        if (isStale()) return;
         const normalizedDetail = normalizePluginDetailForCache(data);
         setRemoteDetail(normalizedDetail);
 
         const totalFromDetail = normalizedDetail?.totalChapters;
-        const initialChapters = Array.isArray(data?.chapters) ? data.chapters : [];
-        const chaptersMapped = initialChapters
-          .filter(isChapterItem)
-          .map((c: any) => ({
-            name: String(c?.name || ""),
-            path: String(c?.path || ""),
-            releaseTime: c?.releaseTime ?? null,
-            chapterNumber:
-              typeof c?.chapterNumber === "number" ? c.chapterNumber : undefined,
-          }));
-        setRemoteChapters(chaptersMapped);
+        const rawChapters = Array.isArray(data?.chapters) ? data.chapters : [];
+        const chaptersMapped: ChapterItem[] = [];
+
+        const streamChapters = !hasCachedChapters;
+        if (streamChapters) {
+          setIsLoading(false);
+          setRemoteChapters([]);
+          await yieldToMain();
+          if (isStale()) return;
+        }
+
+        const CHUNK_SIZE = 2000;
+        for (let start = 0; start < rawChapters.length; start += CHUNK_SIZE) {
+          if (isStale()) return;
+
+          const end = Math.min(rawChapters.length, start + CHUNK_SIZE);
+          const chunk: ChapterItem[] = [];
+          for (let i = start; i < end; i++) {
+            const c = rawChapters[i];
+            if (!isChapterItem(c)) continue;
+            chunk.push({
+              name: c.name,
+              path: c.path,
+              releaseTime: (c as any)?.releaseTime ?? null,
+              chapterNumber:
+                typeof (c as any)?.chapterNumber === "number"
+                  ? (c as any).chapterNumber
+                  : undefined,
+            });
+          }
+
+          if (chunk.length) {
+            chaptersMapped.push(...chunk);
+            if (streamChapters) {
+              setRemoteChapters((prev) => prev.concat(chunk));
+            }
+          }
+
+          if (end < rawChapters.length) {
+            await yieldToMain();
+          }
+        }
+
+        if (isStale()) return;
+        if (!streamChapters) {
+          setRemoteChapters(chaptersMapped);
+        }
 
         const hasMoreFromTotal =
           totalFromDetail != null ? chaptersMapped.length < totalFromDetail : false;
@@ -418,7 +474,14 @@ export const PluginNovelDetailScreen: React.FC = () => {
         };
 
         NovelDetailCache.set(cacheKey, cacheEntry);
-        updateNovel(stableNumericId, { pluginCache: cacheEntry });
+        if (existingNovelRef.current) {
+          persistTimeoutRef.current = setTimeout(() => {
+            if (token !== loadTokenRef.current) return;
+            const still = existingNovelRef.current;
+            if (!still) return;
+            updateNovel(still.id, { pluginCache: cacheEntry });
+          }, 0);
+        }
       } catch (e: any) {
         if (!cached) {
           setError(e?.message || "Failed to load novel details.");
@@ -427,7 +490,15 @@ export const PluginNovelDetailScreen: React.FC = () => {
         setIsLoading(false);
       }
     };
-    run();
+    void run();
+
+    return () => {
+      loadTokenRef.current += 1;
+      if (persistTimeoutRef.current) {
+        clearTimeout(persistTimeoutRef.current);
+        persistTimeoutRef.current = null;
+      }
+    };
   }, [
     cacheKey,
     existingNovel?.pluginCache,
@@ -435,7 +506,6 @@ export const PluginNovelDetailScreen: React.FC = () => {
     novelPath,
     plugin,
     settings.advanced.userAgent,
-    stableNumericId,
     updateNovel,
   ]);
 
@@ -696,33 +766,6 @@ export const PluginNovelDetailScreen: React.FC = () => {
     }
     return map;
   }, [downloadTasks, pluginId, stableNumericId]);
-
-  const chapterReadByPath = useMemo(() => {
-    if (!existingNovel) return new Map<string, boolean>();
-    const map = new Map<string, boolean>();
-    for (let index = 0; index < chapters.length; index++) {
-      const c = chapters[index];
-      if (!c?.path) continue;
-      map.set(
-        c.path,
-        getEffectiveReadForChapter({
-          chapterPath: c.path,
-          index,
-          total: progressTotal,
-          baseReadCount,
-          order: chapterListOrder,
-          readOverrides: existingNovel.chapterReadOverrides,
-        }),
-      );
-    }
-    return map;
-  }, [
-    baseReadCount,
-    chapterListOrder,
-    chapters,
-    existingNovel,
-    progressTotal,
-  ]);
 
   const enqueueChapterDownload = useCallback(
     (chapter: ChapterItem) => {
@@ -1045,7 +1088,16 @@ export const PluginNovelDetailScreen: React.FC = () => {
       clearChapterSelection();
       return;
     }
-    navigation.goBack();
+    loadTokenRef.current += 1;
+    if (persistTimeoutRef.current) {
+      clearTimeout(persistTimeoutRef.current);
+      persistTimeoutRef.current = null;
+    }
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      (navigation as any).navigate("Main", { screen: "Sources" });
+    }
   }, [clearChapterSelection, isChapterSelectionMode, navigation]);
 
   const handleDownloadUnread = useCallback(
@@ -1183,9 +1235,18 @@ export const PluginNovelDetailScreen: React.FC = () => {
   const chapterDownloaded = existingNovel?.chapterDownloaded;
 
   const renderChapterItem = useCallback<ListRenderItem<ChapterItem>>(
-    ({ item }) => {
+    ({ item, index }) => {
       const selected = selectedChapterPaths.has(item.path);
-      const isRead = existingNovel ? chapterReadByPath.get(item.path) ?? false : false;
+      const isRead = existingNovel
+        ? getEffectiveReadForChapter({
+            chapterPath: item.path,
+            index,
+            total: progressTotal,
+            baseReadCount,
+            order: chapterListOrder,
+            readOverrides: existingNovel.chapterReadOverrides,
+          })
+        : false;
       const downloadInfo = downloadTaskByPath.get(item.path);
       const isDownloaded = Boolean(chapterDownloaded?.[item.path]);
 
@@ -1206,13 +1267,15 @@ export const PluginNovelDetailScreen: React.FC = () => {
       );
     },
     [
+      baseReadCount,
+      chapterListOrder,
       chapterDownloaded,
-      chapterReadByPath,
       downloadTaskByPath,
       enqueueChapterDownload,
       existingNovel,
       isChapterSelectionMode,
       openChapter,
+      progressTotal,
       selectedChapterPaths,
       theme,
       toggleChapterSelected,

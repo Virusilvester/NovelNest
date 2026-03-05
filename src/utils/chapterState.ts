@@ -68,13 +68,15 @@ export const computeTotalEffectiveReadCount = (opts: {
   let readCount = clampInt(opts.baseReadCount, 0, total);
   const overrides = opts.readOverrides;
   if (!overrides) return readCount;
+  const overrideEntries = Object.entries(overrides);
+  if (overrideEntries.length === 0) return readCount;
 
   const indexByPath = new Map<string, number>();
   opts.chapters.forEach((c, i) => {
     if (c?.path) indexByPath.set(String(c.path), i);
   });
 
-  for (const [path, overrideRead] of Object.entries(overrides)) {
+  for (const [path, overrideRead] of overrideEntries) {
     const index = indexByPath.get(path);
     if (index == null) continue;
 
@@ -133,4 +135,3 @@ export const updateReadOverridesForSelection = (opts: {
   const keys = Object.keys(next);
   return keys.length ? next : undefined;
 };
-
