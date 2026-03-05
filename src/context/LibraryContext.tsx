@@ -116,12 +116,16 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const addNovel = useCallback((novel: Novel) => {
     setNovels((prev) => [...prev, novel]);
-    void DatabaseService.upsertNovel(novel);
+    DatabaseService.upsertNovel(novel).catch((e) => {
+      console.error("Failed to persist novel:", novel?.id, e);
+    });
   }, []);
 
   const removeNovel = useCallback((id: string) => {
     setNovels((prev) => prev.filter((n) => n.id !== id));
-    void DatabaseService.deleteNovel(id);
+    DatabaseService.deleteNovel(id).catch((e) => {
+      console.error("Failed to delete novel:", id, e);
+    });
   }, []);
 
   const updateNovel = useCallback((id: string, updates: Partial<Novel>) => {
@@ -129,7 +133,9 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({
       prev.map((n) => {
         if (n.id !== id) return n;
         const updated = { ...n, ...updates };
-        void DatabaseService.upsertNovel(updated);
+        DatabaseService.upsertNovel(updated).catch((e) => {
+          console.error("Failed to persist novel update:", id, e);
+        });
         return updated;
       }),
     );
@@ -297,4 +303,3 @@ export const useLibrary = () => {
   if (!context) throw new Error("useLibrary must be used within LibraryProvider");
   return context;
 };
-

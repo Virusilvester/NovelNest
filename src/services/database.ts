@@ -6,6 +6,7 @@ type Db = any;
 const DB_NAME = "novelnest.db";
 
 let dbPromise: Promise<Db> | null = null;
+let initPromise: Promise<void> | null = null;
 
 type BackupPayloadV1 = {
   version: 1;
@@ -159,27 +160,79 @@ async function ensureJsonDataColumn(
   );
 }
 
-async function exec(db: Db, sql: string): Promise<void> {
-  if (typeof db.execAsync === "function") {
-    await db.execAsync(sql);
-    return;
-  }
-  await new Promise<void>((resolve, reject) => {
-    db.transaction(
-      (tx: any) => {
-        tx.executeSql(
-          sql,
-          [],
-          () => resolve(),
-          (_: any, err: any) => {
-            reject(err);
-            return false;
-          },
-        );
-      },
-      (err: any) => reject(err),
-    );
+async function ensureCanonicalJsonTable(
+  db: Db,
+  tableName: "novels" | "history_entries",
+): Promise<void> {
+  const names = await getTableColumnNames(db, tableName);
+  if (names.length === 0) return;
+
+  const normalized = names.map((n) => String(n).toLowerCase());
+  if (!normalized.includes("id") || !normalized.includes("data")) return;
+
+  const extras = normalized.filter((n) => n !== "id" && n !== "data");
+  if (extras.length === 0) return;
+
+  const source = quoteIdentifier(tableName);
+  const tmpName = `${tableName}__json_tmp`;
+  const tmp = quoteIdentifier(tmpName);
+  const fallback = JSON.stringify({
+    migratedAt: new Date().toISOString(),
+    table: tableName,
   });
+
+  // Merge any legacy columns into the JSON blob so we don't lose data when
+  // rebuilding the table to the canonical `{ id, data }` schema.
+  const existingRows = await getAll<any>(db, `SELECT * FROM ${source}`);
+  for (const row of existingRows) {
+    const id = row?.id;
+    if (id == null) continue;
+    const { data, ...rest } = row || {};
+
+    let base: any = {};
+    if (typeof data === "string") {
+      try {
+        const parsed = JSON.parse(data);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          base = parsed;
+        }
+      } catch {
+        // ignore parse errors, fall back to legacy columns
+      }
+    }
+
+    const merged: Record<string, any> = { ...base };
+    for (const key of Object.keys(rest)) {
+      const value = (rest as any)[key];
+      if (value == null && key in merged) continue;
+      merged[key] = value;
+    }
+
+    const json = JSON.stringify(merged);
+    if (json !== data) {
+      await run(db, `UPDATE ${source} SET data = ? WHERE id = ?`, [
+        json,
+        String(id),
+      ]);
+    }
+  }
+
+  await run(db, `DROP TABLE IF EXISTS ${tmp}`);
+  await run(
+    db,
+    `CREATE TABLE ${tmp} (
+      id TEXT PRIMARY KEY NOT NULL,
+      data TEXT NOT NULL
+    )`,
+  );
+  await run(
+    db,
+    `INSERT OR REPLACE INTO ${tmp} (id, data)
+     SELECT id, COALESCE(data, ?) FROM ${source}`,
+    [fallback],
+  );
+  await run(db, `DROP TABLE ${source}`);
+  await run(db, `ALTER TABLE ${tmp} RENAME TO ${quoteIdentifier(tableName)}`);
 }
 
 async function run(db: Db, sql: string, params: any[] = []): Promise<void> {
@@ -262,36 +315,57 @@ function txRun(txOrDb: any, sql: string, params: any[] = []) {
 
 export const DatabaseService = {
   async initialize(): Promise<void> {
-    const db = await openDb();
+    if (initPromise) return initPromise;
 
-    await exec(
-      db,
-      `
-      PRAGMA foreign_keys = ON;
-      CREATE TABLE IF NOT EXISTS app_meta (
-        key TEXT PRIMARY KEY NOT NULL,
-        value TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS categories (
-        id TEXT PRIMARY KEY NOT NULL,
-        name TEXT NOT NULL,
-        ordering INTEGER NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS novels (
-        id TEXT PRIMARY KEY NOT NULL,
-        data TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS history_entries (
-        id TEXT PRIMARY KEY NOT NULL,
-        data TEXT NOT NULL
-      );
-    `,
-    );
+    initPromise = (async () => {
+      const db = await openDb();
 
-    // Migrations for older dev schemas.
-    await ensureCategoriesOrderingColumn(db);
-    await ensureJsonDataColumn(db, "novels");
-    await ensureJsonDataColumn(db, "history_entries");
+      // Avoid multi-statement SQL strings here to support older SQLite driver APIs.
+      await run(db, "PRAGMA foreign_keys = ON");
+      await run(
+        db,
+        `CREATE TABLE IF NOT EXISTS app_meta (
+          key TEXT PRIMARY KEY NOT NULL,
+          value TEXT NOT NULL
+        )`,
+      );
+      await run(
+        db,
+        `CREATE TABLE IF NOT EXISTS categories (
+          id TEXT PRIMARY KEY NOT NULL,
+          name TEXT NOT NULL,
+          ordering INTEGER NOT NULL
+        )`,
+      );
+      await run(
+        db,
+        `CREATE TABLE IF NOT EXISTS novels (
+          id TEXT PRIMARY KEY NOT NULL,
+          data TEXT NOT NULL
+        )`,
+      );
+      await run(
+        db,
+        `CREATE TABLE IF NOT EXISTS history_entries (
+          id TEXT PRIMARY KEY NOT NULL,
+          data TEXT NOT NULL
+        )`,
+      );
+
+      // Migrations for older dev schemas.
+      await ensureCategoriesOrderingColumn(db);
+      await ensureJsonDataColumn(db, "novels");
+      await ensureJsonDataColumn(db, "history_entries");
+      await ensureCanonicalJsonTable(db, "novels");
+      await ensureCanonicalJsonTable(db, "history_entries");
+    })();
+
+    try {
+      await initPromise;
+    } catch (e) {
+      initPromise = null;
+      throw e;
+    }
   },
 
   async getLibrary(): Promise<{ categories: Category[]; novels: Novel[] }> {
