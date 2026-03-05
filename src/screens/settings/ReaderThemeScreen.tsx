@@ -2,12 +2,12 @@
 import { useNavigation } from "@react-navigation/native";
 import React from "react";
 import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { Header } from "../../components/common/Header";
 import { useSettings } from "../../context/SettingsContext";

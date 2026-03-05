@@ -3,20 +3,20 @@ import { useNavigation } from "@react-navigation/native";
 import { useKeepAwake } from "expo-keep-awake";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Linking,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Linking,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { WebViewMessageEvent } from "react-native-webview";
 import WebView from "react-native-webview";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { PopupMenu } from "../common/PopupMenu";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
+import { PopupMenu } from "../common/PopupMenu";
 import { ChapterDrawer, type ReaderChapterItem } from "./ChapterDrawer";
 
 type Props = {
