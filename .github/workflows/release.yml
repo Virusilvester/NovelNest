@@ -17,6 +17,7 @@ jobs:
     env:
       EXPO_NO_TELEMETRY: "1"
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,6 +36,26 @@ jobs:
 
       - name: Install EAS CLI
         run: npm install -g eas-cli
+
+      - name: Validate Expo auth + project config
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::Missing EXPO_TOKEN. Create an Expo access token and add it as a GitHub secret named EXPO_TOKEN."
+            exit 1
+          fi
+
+          PROJECT_ID="$(node -e "const fs=require('fs'); const c=JSON.parse(fs.readFileSync('app.json','utf8')); process.stdout.write(c?.expo?.extra?.eas?.projectId ?? '')")"
+          if [ -z "$PROJECT_ID" ]; then
+            if [ -n "$EAS_PROJECT_ID" ]; then
+              echo "Linking local project to EAS project id from secret..."
+              eas init --id "$EAS_PROJECT_ID" --force --non-interactive
+            else
+              echo "::error::EAS project is not configured (missing expo.extra.eas.projectId in app.json). Run 'eas init' locally and commit the change, or add a GitHub secret named EAS_PROJECT_ID."
+              exit 1
+            fi
+          fi
+
+          eas whoami
 
       - name: Build Android (AAB)
         id: eas_build
