@@ -3,13 +3,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import React, { useMemo } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  SectionList,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    SectionList,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { Header } from "../components/common/Header";
 import { useDownloadQueue, type DownloadTask } from "../context/DownloadQueueContext";
@@ -58,7 +58,7 @@ const statusSort = (status: DownloadTask["status"]) => {
 export const DownloadQueueScreen: React.FC = () => {
   const navigation = useNavigation();
   const { theme } = useTheme();
-  const { tasks, paused, togglePaused, cancelTask, cancelNovelTasks, retryTask } =
+  const { tasks, paused, togglePaused, cancelTask, cancelNovelTasks, retryTask, clearFinished } =
     useDownloadQueue();
 
   const sections = useMemo<DownloadSection[]>(() => {
@@ -88,6 +88,7 @@ export const DownloadQueueScreen: React.FC = () => {
   const renderItem = ({ item }: { item: DownloadTask }) => {
     const showCancel =
       item.status === "pending" || item.status === "downloading" || item.status === "error";
+    const showCompleted = item.status === "completed";
 
     return (
       <View style={[styles.item, { backgroundColor: theme.colors.surface }]}>
@@ -114,22 +115,15 @@ export const DownloadQueueScreen: React.FC = () => {
             </TouchableOpacity>
           ) : showCancel ? (
             <TouchableOpacity
+              key={`cancel-${item.id}`}
               onPress={() => {
                 Alert.alert(
                   "Cancel download",
                   "Cancel this chapter or cancel all downloads for this novel?",
                   [
                     { text: "Keep", style: "cancel" },
-                    {
-                      text: "Cancel chapter",
-                      style: "destructive",
-                      onPress: () => cancelTask(item.id),
-                    },
-                    {
-                      text: "Cancel novel",
-                      style: "destructive",
-                      onPress: () => cancelNovelTasks(item.novelId),
-                    },
+                    { text: "Cancel chapter", style: "destructive", onPress: () => cancelTask(item.id) },
+                    { text: "Cancel novel", style: "destructive", onPress: () => cancelNovelTasks(item.novelId) },
                   ],
                 );
               }}
@@ -138,8 +132,24 @@ export const DownloadQueueScreen: React.FC = () => {
             >
               <Ionicons name="close" size={18} color={theme.colors.textSecondary} />
             </TouchableOpacity>
-          ) : item.status === "completed" ? (
-            <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary} />
+          ) : showCompleted ? (
+            <TouchableOpacity
+              key={`remove-${item.id}`}
+              onPress={() => {
+                Alert.alert(
+                  "Download Complete",
+                  "This chapter has been downloaded successfully. What would you like to do?",
+                  [
+                    { text: "Keep", style: "cancel" },
+                    { text: "Remove from queue", style: "destructive", onPress: () => cancelTask(item.id) },
+                  ],
+                );
+              }}
+              style={styles.actionBtn}
+              hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+            >
+              <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary} />
+            </TouchableOpacity>
           ) : null}
         </View>
 
@@ -156,7 +166,6 @@ export const DownloadQueueScreen: React.FC = () => {
               ]}
             />
           </View>
-
           <View style={styles.statusRight}>
             {item.status === "downloading" ? (
               <ActivityIndicator size="small" color={theme.colors.primary} />
@@ -181,19 +190,43 @@ export const DownloadQueueScreen: React.FC = () => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View key="download-queue-screen" style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <Header
         title={paused ? "Download Queue (Paused)" : "Download Queue"}
         onBackPress={() => navigation.goBack()}
-        rightButtons={
-          <TouchableOpacity onPress={togglePaused} style={styles.iconButton}>
+        rightButtons={[
+          <TouchableOpacity
+            key="toggle-paused"
+            onPress={togglePaused}
+            style={styles.iconButton}
+          >
             <Ionicons
               name={paused ? "play" : "pause"}
               size={20}
               color={theme.colors.text}
             />
-          </TouchableOpacity>
-        }
+          </TouchableOpacity>,
+          <TouchableOpacity 
+            key="clear-completed"
+            onPress={() => {
+              Alert.alert(
+                "Clear Completed",
+                "Remove all completed downloads from the queue?",
+                [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Clear All",
+                    style: "destructive",
+                    onPress: () => clearFinished(),
+                  },
+                ],
+              );
+            }} 
+            style={styles.iconButton}
+          >
+            <Ionicons name="trash" size={20} color={theme.colors.text} />
+          </TouchableOpacity>,
+        ]}
       />
 
       <SectionList<DownloadTask, DownloadSection>

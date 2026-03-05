@@ -3,7 +3,14 @@ import { Platform } from "react-native";
 
 const internalBaseDir = () => {
   const root = FileSystem.documentDirectory || "";
-  return `${root}downloads/chapters/`;
+  const baseDir = `${root}downloads/chapters/`;
+  console.log('📁 File system info:', {
+    documentDirectory: FileSystem.documentDirectory,
+    cacheDirectory: FileSystem.cacheDirectory,
+    baseDir,
+    platform: Platform.OS
+  });
+  return baseDir;
 };
 
 const fnv1a32Hex = (input: string) => {
@@ -13,6 +20,24 @@ const fnv1a32Hex = (input: string) => {
     hash = Math.imul(hash, 16777619);
   }
   return (hash >>> 0).toString(16);
+};
+
+// Create a safe filename from chapter path
+const createSafeChapterName = (chapterPath: string) => {
+  // Extract the last part of the path for better readability
+  const parts = chapterPath.split('/');
+  const lastPart = parts[parts.length - 1] || chapterPath;
+  
+  // Remove file extension if present
+  const nameWithoutExt = lastPart.replace(/\.[^/.]+$/, "");
+  
+  // Sanitize the name
+  const sanitized = nameWithoutExt
+    .replace(/[^a-zA-Z0-9-_]/g, "_")
+    .replace(/_+/g, "_")
+    .slice(0, 50); // Limit length
+  
+  return sanitized || "chapter";
 };
 
 const safeSegment = (segment: string) => encodeURIComponent(segment || "unknown");
@@ -153,22 +178,99 @@ const findSafFile = async (
 };
 
 export const ChapterDownloads = {
+  // Test function to diagnose file system issues
+  async testFileSystem() {
+    console.log('🧪 Testing file system capabilities...');
+    
+    try {
+      // Test basic file operations
+      const testDir = `${internalBaseDir()}test/`;
+      console.log('📁 Creating test directory:', testDir);
+      
+      await FileSystem.makeDirectoryAsync(testDir, { intermediates: true });
+      console.log('✅ Test directory created');
+      
+      const testFile = `${testDir}test.txt`;
+      const testContent = 'Hello from NovelNest download test!';
+      
+      console.log('📝 Writing test file:', testFile);
+      await FileSystem.writeAsStringAsync(testFile, testContent);
+      console.log('✅ Test file written');
+      
+      const readContent = await FileSystem.readAsStringAsync(testFile);
+      console.log('✅ Test file read:', readContent);
+      
+      // Clean up
+      await FileSystem.deleteAsync(testFile);
+      await FileSystem.deleteAsync(testDir);
+      console.log('✅ Test cleanup completed');
+      
+      return true;
+    } catch (error) {
+      console.error('❌ File system test failed:', error);
+      return false;
+    }
+  },
+
   chapterDirUri(pluginId: string, novelId: string) {
     return `${internalBaseDir()}${safeSegment(pluginId)}/${safeSegment(novelId)}/`;
   },
 
   chapterFileUri(pluginId: string, novelId: string, chapterPath: string) {
-    const fileName = `${fnv1a32Hex(String(chapterPath || ""))}.html`;
+    const hash = fnv1a32Hex(String(chapterPath || ""));
+    const safeName = createSafeChapterName(chapterPath);
+    const fileName = `${hash}_${safeName}.html`;
     return `${this.chapterDirUri(pluginId, novelId)}${fileName}`;
   },
 
   async ensureChapterDir(pluginId: string, novelId: string) {
     const dir = this.chapterDirUri(pluginId, novelId);
+    console.log('📁 ensureChapterDir called:', { pluginId, novelId, dir });
+    
     try {
+      console.log('🔧 Attempting to create directory:', dir);
       await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
-    } catch {
+      console.log('✅ Directory created successfully:', dir);
+    } catch (error) {
+      console.log('ℹ️ Directory creation failed (might already exist):', error);
       // ignore: makeDirectoryAsync throws if it already exists on some platforms
     }
+    
+    // Verify directory exists and is accessible
+    try {
+      console.log('🔍 Checking directory access...');
+      const info = await FileSystem.getInfoAsync(dir);
+      console.log('🔍 Directory verification:', { 
+        dir, 
+        exists: info.exists, 
+        isDirectory: info.isDirectory,
+        uri: info.uri 
+      });
+      
+      if (!info.exists) {
+        console.error('❌ Directory does not exist after creation attempt!');
+        throw new Error(`Directory creation failed: ${dir}`);
+      }
+      
+      if (!info.isDirectory) {
+        console.error('❌ Path exists but is not a directory!');
+        throw new Error(`Path is not a directory: ${dir}`);
+      }
+      
+      // Test write permissions by trying to list directory
+      try {
+        const contents = await FileSystem.readDirectoryAsync(dir);
+        console.log('✅ Directory is readable, contains:', contents.length, 'items');
+      } catch (listError) {
+        console.error('❌ Directory is not readable:', listError);
+        throw new Error(`Directory is not readable: ${dir}`);
+      }
+      
+    } catch (error) {
+      console.error('❌ Directory verification failed:', error);
+      throw error;
+    }
+    
     return dir;
   },
 
@@ -217,10 +319,24 @@ export const ChapterDownloads = {
     chapterPath: string,
     downloadLocation?: string | null,
   ) {
-    const fileName = `${fnv1a32Hex(String(chapterPath || ""))}.html`;
+    const hash = fnv1a32Hex(String(chapterPath || ""));
+    const safeName = createSafeChapterName(chapterPath);
+    const fileName = `${hash}_${safeName}.html`;
     const internalUri = this.chapterFileUri(pluginId, novelId, chapterPath);
 
+    console.log('📖 ChapterDownloads.readChapterHtml called:', {
+      pluginId,
+      novelId,
+      chapterPath,
+      hash,
+      safeName,
+      fileName,
+      internalUri,
+      downloadLocation
+    });
+
     if (isSafDirectoryUri(downloadLocation)) {
+      console.log('📁 Trying SAF location first');
       try {
         const root = downloadLocation as string;
         const dir = await ensureSafDirChain(root, [
@@ -232,20 +348,38 @@ export const ChapterDownloads = {
         const rel = `NovelNest/chapters/${sanitizeDirName(pluginId)}/${sanitizeDirName(novelId)}/${fileName}`;
         const fileUri = await findSafFile(dir, fileName, root, rel);
         if (fileUri) {
-          return await FileSystem.readAsStringAsync(fileUri, {
+          console.log('✅ Found SAF file, reading:', fileUri);
+          const content = await FileSystem.readAsStringAsync(fileUri, {
             encoding: FileSystem.EncodingType.UTF8,
           });
+          console.log('✅ SAF file read successfully, length:', content?.length || 0);
+          return content;
+        } else {
+          console.log('❌ SAF file not found');
         }
-      } catch {}
+      } catch (error) {
+        console.error('❌ SAF read failed:', error);
+      }
     }
 
+    console.log('📁 Trying internal storage location');
     const exists = await this.existsFile(internalUri);
-    if (!exists) return null;
+    console.log('🔍 Internal file exists check:', { fileUri: internalUri, exists });
+    
+    if (!exists) {
+      console.log('❌ Internal file not found, returning null');
+      return null;
+    }
+    
     try {
-      return await FileSystem.readAsStringAsync(internalUri, {
+      console.log('📖 Reading internal file:', internalUri);
+      const content = await FileSystem.readAsStringAsync(internalUri, {
         encoding: FileSystem.EncodingType.UTF8,
       });
-    } catch {
+      console.log('✅ Internal file read successfully, length:', content?.length || 0);
+      return content;
+    } catch (error) {
+      console.error('❌ Internal file read failed:', error);
       return null;
     }
   },
@@ -257,30 +391,70 @@ export const ChapterDownloads = {
     html: string,
     downloadLocation?: string | null,
   ) {
-    const fileName = `${fnv1a32Hex(String(chapterPath || ""))}.html`;
+    const hash = fnv1a32Hex(String(chapterPath || ""));
+    const safeName = createSafeChapterName(chapterPath);
+    const fileName = `${hash}_${safeName}.html`;
     const internalUri = this.chapterFileUri(pluginId, novelId, chapterPath);
 
+    console.log('📝 ChapterDownloads.writeChapterHtml called:', {
+      pluginId,
+      novelId,
+      chapterPath,
+      hash,
+      safeName,
+      fileName,
+      internalUri,
+      downloadLocation,
+      htmlLength: html?.length || 0
+    });
+
     if (isSafDirectoryUri(downloadLocation)) {
+      console.log('📁 Using SAF (Storage Access Framework) location');
       const root = downloadLocation as string;
-      const dir = await ensureSafDirChain(root, [
-        "NovelNest",
-        "chapters",
-        pluginId,
-        novelId,
-      ]);
-      const rel = `NovelNest/chapters/${sanitizeDirName(pluginId)}/${sanitizeDirName(novelId)}/${fileName}`;
-      const fileUri = await ensureSafFile(dir, fileName, "text/html", root, rel);
-      await FileSystem.writeAsStringAsync(fileUri, html || "", {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-      return fileUri;
+      try {
+        const dir = await ensureSafDirChain(root, [
+          "NovelNest",
+          "chapters",
+          pluginId,
+          novelId,
+        ]);
+        console.log('✅ SAF directory chain created:', dir);
+        
+        const rel = `NovelNest/chapters/${sanitizeDirName(pluginId)}/${sanitizeDirName(novelId)}/${fileName}`;
+        const fileUri = await ensureSafFile(dir, fileName, "text/html", root, rel);
+        console.log('✅ SAF file created:', fileUri);
+        
+        await FileSystem.writeAsStringAsync(fileUri, html || "", {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        console.log('✅ SAF file written successfully');
+        return fileUri;
+      } catch (error) {
+        console.error('❌ SAF write failed:', error);
+        throw error;
+      }
     }
 
-    await this.ensureChapterDir(pluginId, novelId);
-    await FileSystem.writeAsStringAsync(internalUri, html || "", {
-      encoding: FileSystem.EncodingType.UTF8,
-    });
-    return internalUri;
+    console.log('📁 Using internal storage location');
+    try {
+      await this.ensureChapterDir(pluginId, novelId);
+      console.log('✅ Chapter directory ensured');
+      
+      console.log('💾 Writing to internal file:', internalUri);
+      await FileSystem.writeAsStringAsync(internalUri, html || "", {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      console.log('✅ Internal file written successfully');
+      
+      // Verify file exists
+      const exists = await this.existsFile(internalUri);
+      console.log('🔍 File verification:', { fileUri: internalUri, exists });
+      
+      return internalUri;
+    } catch (error) {
+      console.error('❌ Internal storage write failed:', error);
+      throw error;
+    }
   },
 
   async deleteChapterHtml(
@@ -289,8 +463,21 @@ export const ChapterDownloads = {
     chapterPath: string,
     downloadLocation?: string | null,
   ) {
-    const fileName = `${fnv1a32Hex(String(chapterPath || ""))}.html`;
+    const hash = fnv1a32Hex(String(chapterPath || ""));
+    const safeName = createSafeChapterName(chapterPath);
+    const fileName = `${hash}_${safeName}.html`;
     const internalUri = this.chapterFileUri(pluginId, novelId, chapterPath);
+
+    console.log('🗑️ ChapterDownloads.deleteChapterHtml called:', {
+      pluginId,
+      novelId,
+      chapterPath,
+      hash,
+      safeName,
+      fileName,
+      internalUri,
+      downloadLocation
+    });
 
     if (isSafDirectoryUri(downloadLocation)) {
       try {

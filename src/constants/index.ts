@@ -9,6 +9,7 @@ import {
 export const COLORS = {
   primary: "#6200EE",
   primaryDark: "#3700B3",
+  onPrimary: "#FFFFFF",
   accent: "#03DAC6",
   background: "#FAFAFA",
   surface: "#FFFFFF",
@@ -25,6 +26,7 @@ export const COLORS = {
 export const DARK_COLORS = {
   primary: "#BB86FC",
   primaryDark: "#3700B3",
+  onPrimary: "#000000",
   accent: "#03DAC6",
   background: "#121212",
   surface: "#1E1E1E",

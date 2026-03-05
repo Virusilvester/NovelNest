@@ -8,8 +8,8 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { PluginRuntimeService } from "../services/pluginRuntime";
 import { ChapterDownloads } from "../services/chapterDownloads";
+import { PluginRuntimeService } from "../services/pluginRuntime";
 import { useLibrary } from "./LibraryContext";
 import { useSettings } from "./SettingsContext";
 
@@ -56,6 +56,10 @@ type DownloadQueueContextType = {
 
 const STORAGE_KEY = "@novelnest_download_queue_v1";
 
+declare global {
+  var __fileSystemTested: boolean | undefined;
+}
+
 const DownloadQueueContext = createContext<DownloadQueueContextType | undefined>(
   undefined,
 );
@@ -71,6 +75,57 @@ const taskIdFor = (input: EnqueueInput) => {
     hash = Math.imul(hash, 16777619);
   }
   return `${input.pluginId}::${input.novelId}::${hash >>> 0}`;
+};
+
+// Reusable function to load chapter content (mirrors ReaderScreen.loadChapterHtml)
+const loadChapterContent = async (
+  chapterPath: string,
+  pluginId: string,
+  novelId: string,
+  settings: any,
+  novels: any[],
+): Promise<string> => {
+  console.log('📖 Loading chapter content for download:', { chapterPath, pluginId, novelId });
+
+  // Always try file system first (for downloads, we want the latest content)
+  console.log('📁 Checking file system first...');
+  const fileContent = await ChapterDownloads.readChapterHtml(
+    pluginId,
+    novelId,
+    chapterPath,
+    settings.general.downloadLocation,
+  );
+  
+  if (fileContent != null) {
+    console.log('✅ Found content in file system, using cached version');
+    return fileContent;
+  }
+
+  // If not in file system, check novel state to avoid re-downloading
+  const novel = novels.find((n) => n.id === novelId);
+  if (novel?.chapterDownloaded?.[chapterPath]) {
+    console.log('⚠️ Chapter marked as downloaded but file not found, fetching from plugin');
+  } else {
+    console.log('🔌 Chapter not downloaded, fetching from plugin');
+  }
+
+  // Load from plugin
+  const installed = settings.extensions.installedPlugins || {};
+  const plugin = installed[pluginId];
+  if (!plugin) throw new Error("Plugin not installed.");
+  if (!plugin.enabled) throw new Error("Plugin is disabled.");
+
+  const instance = await PluginRuntimeService.loadLnReaderPlugin(plugin, {
+    userAgent: settings.advanced.userAgent,
+  });
+  const parseChapter = (instance as any).parseChapter;
+  if (typeof parseChapter !== "function") {
+    throw new Error("This plugin does not support chapters.");
+  }
+
+  const content = (await parseChapter.call(instance, chapterPath)) || "";
+  console.log('✅ Loaded from plugin successfully, length:', content.length);
+  return content;
 };
 
 export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -158,6 +213,12 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
     const list = Array.isArray(input) ? input : [input];
     if (list.length === 0) return;
 
+    console.log('Enqueuing download tasks:', list.map(t => ({ 
+      novelId: t.novelId, 
+      chapterPath: t.chapterPath, 
+      pluginId: t.pluginId 
+    })));
+
     setTasks((prev) => {
       const byId = new Map(prev.map((t) => [t.id, t]));
       let changed = false;
@@ -204,7 +265,13 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
       }
 
       if (!changed) return prev;
-      return Array.from(byId.values()).sort((a, b) => a.createdAt - b.createdAt);
+      const result = Array.from(byId.values()).sort((a, b) => a.createdAt - b.createdAt);
+      console.log('Updated download queue:', result.map(t => ({ 
+        id: t.id, 
+        status: t.status, 
+        chapterPath: t.chapterPath 
+      })));
+      return result;
     });
   }, []);
 
@@ -253,15 +320,46 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const clearFinished = useCallback(() => {
     setTasks((prev) =>
-      prev.filter((t) => t.status === "pending" || t.status === "downloading"),
+      prev.filter((t) => t.status !== "completed"),
     );
   }, []);
 
   const startTask = useCallback(
     async (task: DownloadTask) => {
       if (!task?.id) return;
-      if (inflightRef.current.has(task.id)) return;
-      if (activePluginsRef.current.has(task.pluginId)) return;
+      if (inflightRef.current.has(task.id)) {
+        console.log('❌ Task already in flight:', task.id);
+        return;
+      }
+      if (activePluginsRef.current.has(task.pluginId)) {
+        console.log('❌ Plugin already active:', task.pluginId);
+        return;
+      }
+
+      console.log('🚀 Starting download task execution:', { 
+        id: task.id, 
+        chapterPath: task.chapterPath,
+        pluginId: task.pluginId,
+        novelId: task.novelId
+      });
+
+      // Test file system first (only once per session)
+      if (!globalThis.__fileSystemTested) {
+        console.log('🧪 Running file system test...');
+        const fsTest = await ChapterDownloads.testFileSystem();
+        globalThis.__fileSystemTested = true;
+        if (!fsTest) {
+          console.error('❌ File system test failed - downloads may not work');
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === task.id
+                ? { ...t, status: "error" as const, errorMessage: "File system test failed" }
+                : t,
+            ),
+          );
+          return;
+        }
+      }
 
       inflightRef.current.add(task.id);
       activePluginsRef.current.add(task.pluginId);
@@ -269,8 +367,22 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
       let started = false;
       setTasks((prev) => {
         const existing = prev.find((t) => t.id === task.id);
-        if (!existing || existing.status !== "pending") return prev;
+        console.log('🔍 Checking task status:', { 
+          taskId: task.id, 
+          currentStatus: existing?.status, 
+          expectedStatus: 'pending' 
+        });
+        
+        if (!existing || existing.status !== "pending") {
+          console.log('❌ Task not found or not pending:', { 
+            found: !!existing, 
+            status: existing?.status 
+          });
+          return prev;
+        }
+        
         started = true;
+        console.log('✅ Task status changed to downloading');
         return prev.map((t) =>
           t.id === task.id
             ? {
@@ -284,6 +396,7 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
       });
 
       if (!started) {
+        console.log('❌ Task was not started - already running or not pending');
         inflightRef.current.delete(task.id);
         activePluginsRef.current.delete(task.pluginId);
         return;
@@ -293,28 +406,29 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
       let wroteFile = false;
 
       try {
-        if (canceledRef.current.has(task.id)) return;
-
-        const installed = settings.extensions.installedPlugins || {};
-        const plugin = installed[task.pluginId];
-        if (!plugin) throw new Error("Plugin not installed.");
-        if (!plugin.enabled) throw new Error("Plugin is disabled.");
-
-        const instance = await PluginRuntimeService.loadLnReaderPlugin(plugin, {
-          userAgent: settings.advanced.userAgent,
-        });
-        const parseChapter = (instance as any).parseChapter;
-        if (typeof parseChapter !== "function") {
-          throw new Error("This plugin does not support chapters.");
-        }
-
-        const html =
-          ((await parseChapter.call(instance, task.chapterPath)) as string) || "";
-
         if (canceledRef.current.has(task.id)) {
+          console.log('❌ Task was cancelled before execution');
           return;
         }
 
+        console.log('� Loading chapter content for download');
+        const html = await loadChapterContent(
+          task.chapterPath,
+          task.pluginId,
+          task.novelId,
+          settings,
+          novelsRef.current,
+        );
+
+        if (canceledRef.current.has(task.id)) {
+          console.log('❌ Task was cancelled after loading content');
+          return;
+        }
+
+        console.log('💾 Writing chapter to file system');
+        console.log('📍 Download location:', downloadLocation);
+        console.log('📁 File path:', ChapterDownloads.chapterFileUri(task.pluginId, task.novelId, task.chapterPath));
+        
         await ChapterDownloads.writeChapterHtml(
           task.pluginId,
           task.novelId,
@@ -323,14 +437,26 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
           downloadLocation,
         );
         wroteFile = true;
+        console.log('✅ Chapter file written successfully');
 
         if (canceledRef.current.has(task.id)) {
+          console.log('❌ Task was cancelled after writing file');
           return;
         }
 
+        console.log('📚 Updating novel state');
         if (canceledRef.current.has(task.id)) return;
         const novel = novelsRef.current.find((n) => n.id === task.novelId);
         if (novel) {
+          console.log('Download completed, updating novel:', { 
+            novelId: task.novelId, 
+            chapterPath: task.chapterPath,
+            currentDownloaded: novel.chapterDownloaded,
+            newDownloaded: {
+              ...(novel.chapterDownloaded || {}),
+              [task.chapterPath]: true,
+            }
+          });
           updateNovel(task.novelId, {
             isDownloaded: true,
             chapterDownloaded: {
@@ -338,13 +464,32 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
               [task.chapterPath]: true,
             },
           });
+          console.log('✅ Novel state updated successfully');
+        } else {
+          console.log('❌ Novel not found for ID:', task.novelId);
         }
 
         if (canceledRef.current.has(task.id)) return;
 
-        setTasks((prev) => prev.filter((t) => t.id !== task.id));
+        console.log('🗑️ Marking task as completed');
+        setTasks((prev) => {
+          console.log('🔄 Updating tasks state from:', prev.map(t => ({ id: t.id, status: t.status })));
+          const updated = prev.map((t) =>
+            t.id === task.id
+              ? { ...t, status: "completed" as const, progress: 100 }
+              : t,
+          );
+          console.log('🔄 Updated tasks state to:', updated.map(t => ({ id: t.id, status: t.status })));
+          return updated;
+        });
+        
+        // Small delay to ensure state update propagates
+        await new Promise(resolve => setTimeout(resolve, 100));
+        console.log('✅ Task completion finalized');
       } catch (e: any) {
+        console.log('❌ Download failed with error:', e);
         const message = e?.message ? String(e.message) : "Download failed.";
+        console.log('📝 Error message:', message);
         setTasks((prev) =>
           prev.map((t) =>
             t.id === task.id
@@ -353,6 +498,7 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
           ),
         );
       } finally {
+        console.log('🧹 Cleaning up task resources');
         inflightRef.current.delete(task.id);
         activePluginsRef.current.delete(task.pluginId);
 
@@ -360,6 +506,7 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
         canceledRef.current.delete(task.id);
 
         if (wasCanceled) {
+          console.log('🚫 Task was cancelled, cleaning up files');
           if (wroteFile) {
             await ChapterDownloads.deleteChapterHtml(
               task.pluginId,
@@ -380,14 +527,14 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
             });
           }
 
+          console.log('🗑️ Removing cancelled task from queue');
           setTasks((prev) => prev.filter((t) => t.id !== task.id));
         }
+        console.log('✅ Task cleanup completed');
       }
     },
     [
-      settings.advanced.userAgent,
-      settings.extensions.installedPlugins,
-      settings.general.downloadLocation,
+      settings,
       updateNovel,
     ],
   );
@@ -396,19 +543,38 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
     if (!hydrated) return;
     if (paused) return;
 
-    const pendingByPlugin = new Set<string>();
+    // Count tasks by status and plugin
+    const pendingByPlugin = new Map<string, DownloadTask>();
+    const downloadingByPlugin = new Set<string>();
 
     for (const t of tasks) {
-      if (t.status === "pending") pendingByPlugin.add(t.pluginId);
+      if (t.status === "pending") {
+        const existing = pendingByPlugin.get(t.pluginId);
+        if (!existing || t.createdAt < existing.createdAt) {
+          pendingByPlugin.set(t.pluginId, t);
+        }
+      } else if (t.status === "downloading") {
+        downloadingByPlugin.add(t.pluginId);
+      }
     }
 
-    for (const pluginId of pendingByPlugin) {
-      if (activePluginsRef.current.has(pluginId)) continue;
-      const next = tasks
-        .filter((t) => t.pluginId === pluginId && t.status === "pending")
-        .sort((a, b) => a.createdAt - b.createdAt)[0];
-      if (!next) continue;
-      void startTask(next);
+    console.log('📊 Queue analysis:', { 
+      totalTasks: tasks.length,
+      pendingTasks: tasks.filter(t => t.status === 'pending').length,
+      downloadingTasks: tasks.filter(t => t.status === 'downloading').length,
+      pendingByPlugin: Array.from(pendingByPlugin.entries()).map(([k, v]) => ({ pluginId: k, taskId: v.id })),
+      downloadingPlugins: Array.from(downloadingByPlugin)
+    });
+
+    // Start pending tasks, but only if plugin isn't already downloading
+    for (const [pluginId, task] of pendingByPlugin.entries()) {
+      if (downloadingByPlugin.has(pluginId)) {
+        console.log('⏸️ Skipping task for busy plugin:', { pluginId, taskId: task.id });
+        continue;
+      }
+      
+      console.log('🚀 Starting download task:', { id: task.id, chapterPath: task.chapterPath });
+      void startTask(task);
     }
   }, [hydrated, paused, startTask, tasks]);
 

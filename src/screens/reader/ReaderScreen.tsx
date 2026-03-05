@@ -1,9 +1,9 @@
 import { useNavigation, useRoute } from "@react-navigation/native";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { ChapterReader } from "../../components/reader/ChapterReader";
-import type { ReaderChapterItem } from "../../components/reader/ChapterDrawer";
 import { Header } from "../../components/common/Header";
+import type { ReaderChapterItem } from "../../components/reader/ChapterDrawer";
+import { ChapterReader } from "../../components/reader/ChapterReader";
 import { useHistory } from "../../context/HistoryContext";
 import { useLibrary } from "../../context/LibraryContext";
 import { useSettings } from "../../context/SettingsContext";
@@ -99,12 +99,14 @@ export const ReaderScreen: React.FC = () => {
       if (!plugin.enabled) throw new Error("Plugin is disabled.");
 
       if (novel?.chapterDownloaded?.[path]) {
+        console.log('Loading downloaded chapter:', { path, pluginId, novelId, isDownloaded: novel.chapterDownloaded[path] });
         const cached = await ChapterDownloads.readChapterHtml(
           pluginId,
           novelId,
           path,
           settings.general.downloadLocation,
         );
+        console.log('Cached chapter result:', cached ? 'success' : 'null');
         if (cached != null) return cached;
       }
 

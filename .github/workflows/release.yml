@@ -1,0 +1,84 @@
+name: Release (Android)
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android_build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      EXPO_NO_TELEMETRY: "1"
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint + typecheck
+        run: npm run ci
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Build Android (AAB)
+        id: eas_build
+        run: |
+          eas build --platform android --profile production --non-interactive --wait --json > eas-build.json
+
+          node <<'NODE'
+          const fs = require('fs');
+          const builds = JSON.parse(fs.readFileSync('eas-build.json', 'utf8'));
+          const build = Array.isArray(builds) ? builds[0] : builds;
+          const url = build?.artifacts?.applicationArchiveUrl ?? build?.artifacts?.buildUrl ?? '';
+          if (!url) {
+            console.error('Failed to read artifact URL from EAS build output.');
+            process.exit(1);
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `artifact_url=${url}\n`);
+          NODE
+
+      - name: Download Android artifact
+        env:
+          ARTIFACT_URL: ${{ steps.eas_build.outputs.artifact_url }}
+        run: |
+          curl -L "$ARTIFACT_URL" -o "novelnest-android-${{ github.ref_name }}.aab"
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aab
+          path: novelnest-android-${{ github.ref_name }}.aab
+          if-no-files-found: error
+
+  github_release:
+    needs: android_build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Android artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: android-aab
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: novelnest-android-${{ github.ref_name }}.aab
+          generate_release_notes: true

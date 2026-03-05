@@ -3,16 +3,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  Modal,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  useWindowDimensions,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    Modal,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    useWindowDimensions,
+    View,
 } from "react-native";
 import { Header } from "../../components/common/Header";
 import { PopupMenu } from "../../components/common/PopupMenu";
@@ -22,18 +22,18 @@ import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
 import { ChapterDownloads } from "../../services/chapterDownloads";
 import {
-  normalizePluginDetailForCache,
-  NovelDetailCache,
+    normalizePluginDetailForCache,
+    NovelDetailCache,
 } from "../../services/novelDetailCache";
 import { PluginRuntimeService } from "../../services/pluginRuntime";
 import type { CachedPluginNovelDetail, Novel } from "../../types";
-import { clamp } from "../../utils/responsive";
 import {
-  computeTotalEffectiveReadCount,
-  detectChapterListOrder,
-  getEffectiveReadForChapter,
-  updateReadOverridesForSelection,
+    computeTotalEffectiveReadCount,
+    detectChapterListOrder,
+    getEffectiveReadForChapter,
+    updateReadOverridesForSelection,
 } from "../../utils/chapterState";
+import { clamp } from "../../utils/responsive";
 
 type PluginChapterItem = {
   name: string;
@@ -662,7 +662,7 @@ export const NovelDetailScreen: React.FC = () => {
   const handleShare = () => {};
   const handleEpubExport = () => {};
 
-  const handleWebView = () => {
+  const handleWebView = useCallback(() => {
     const url =
       remoteDetail?.url ||
       (novel?.pluginId
@@ -670,7 +670,7 @@ export const NovelDetailScreen: React.FC = () => {
         : null) ||
       `https://example.com/novel/${novel?.id || ""}`;
     (navigation as any).navigate("WebView", { url });
-  };
+  }, [navigation, novel?.id, novel?.pluginId, remoteDetail?.url, settings.extensions.installedPlugins]);
 
   const clearChapterSelection = useCallback(() => {
     setIsChapterSelectionMenuVisible(false);
@@ -920,7 +920,7 @@ export const NovelDetailScreen: React.FC = () => {
     { id: "editCover", label: "Edit cover", onPress: () => {} },
   ];
 
-  const handleLibraryToggle = () => {
+  const handleLibraryToggle = useCallback(() => {
     if (!novel) return;
     if (isInLibrary) {
       removeNovel(novel.id);
@@ -949,19 +949,19 @@ export const NovelDetailScreen: React.FC = () => {
 
     setPendingCategoryId(null);
     setIsCategoryModalVisible(true);
-  };
+  }, [novel, isInLibrary, removeNovel, navigation, categoryChoices, updateNovel]);
 
-  const handleGenrePress = (genre: string) => {
+  const handleGenrePress = useCallback((genre: string) => {
     (navigation as any).navigate("SourceDetail", { genre });
-  };
+  }, [navigation]);
 
-  const handlePluginChapterPress = (c: PluginChapterItem) => {
+  const handlePluginChapterPress = useCallback((c: PluginChapterItem) => {
     if (!novel?.pluginId) return;
     (navigation as any).navigate("Reader", {
       novelId: novel.id,
       chapterId: c.path,
     });
-  };
+  }, [navigation, novel?.id, novel?.pluginId]);
 
   const loadMoreChapters = async () => {
     if (!novel?.pluginId || !novel?.pluginNovelPath) return;
@@ -1050,7 +1050,7 @@ export const NovelDetailScreen: React.FC = () => {
     }
   };
 
-  const handleProgressPress = () => {
+  const handleProgressPress = useCallback(() => {
     if (!novel?.pluginId) return;
     if (remoteChapters.length === 0) return;
 
@@ -1060,19 +1060,27 @@ export const NovelDetailScreen: React.FC = () => {
       0,
       Math.min(total, Math.floor(novel.lastReadChapter || 0)),
     );
-    const unread = Math.max(
-      0,
-      Math.min(total, Math.floor(novel.unreadChapters || 0)),
-    );
 
-    const targetIndex =
-      unread === 0
-        ? Math.max(0, Math.min(remoteChapters.length - 1, lastRead - 1))
-        : Math.min(remoteChapters.length - 1, lastRead);
+    // If no chapters have been read, start from the first chapter
+    if (lastRead === 0) {
+      const firstChapter = remoteChapters[0];
+      if (firstChapter) handlePluginChapterPress(firstChapter);
+      return;
+    }
 
+    // If all chapters are read, go to the last chapter
+    const unread = Math.max(0, Math.min(total, Math.floor(novel.unreadChapters || 0)));
+    if (unread === 0) {
+      const lastChapter = remoteChapters[remoteChapters.length - 1];
+      if (lastChapter) handlePluginChapterPress(lastChapter);
+      return;
+    }
+
+    // Resume from the last read chapter (convert 1-based to 0-based index)
+    const targetIndex = Math.min(remoteChapters.length - 1, Math.max(0, lastRead - 1));
     const target = remoteChapters[targetIndex];
     if (target) handlePluginChapterPress(target);
-  };
+  }, [handlePluginChapterPress, novel?.pluginId, novel?.lastReadChapter, novel?.totalChapters, novel?.unreadChapters, remoteChapters]);
 
   const handleHeaderBackPress = useCallback(() => {
     if (isChapterSelectionMode) {

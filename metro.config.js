@@ -9,5 +9,10 @@ config.resolver.extraNodeModules = {
   cheerio: require.resolve("cheerio-without-node-native"),
 };
 
-module.exports = config;
+// Needed for expo-sqlite on web (wa-sqlite.wasm).
+config.resolver.assetExts = config.resolver.assetExts || [];
+if (!config.resolver.assetExts.includes("wasm")) {
+  config.resolver.assetExts.push("wasm");
+}
 
+module.exports = config;

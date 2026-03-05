@@ -403,13 +403,15 @@ export const ChapterReader: React.FC<Props> = ({
         }
 
         if (
-          value >= 97 &&
+          value >= 90 &&
           !hasMarkedReadRef.current &&
           chapterIndex >= 0 &&
           chapters[chapterIndex]
         ) {
           hasMarkedReadRef.current = true;
           onChapterReadRef.current?.(chapters[chapterIndex], chapterIndex);
+          // Show navigation controls when reaching the end
+          setControlsHidden(false);
         }
         return;
       }
