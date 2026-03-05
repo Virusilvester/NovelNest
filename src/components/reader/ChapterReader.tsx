@@ -3,13 +3,14 @@ import { useNavigation } from "@react-navigation/native";
 import { useKeepAwake } from "expo-keep-awake";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Linking,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Linking,
+  Modal,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { WebViewMessageEvent } from "react-native-webview";
@@ -39,7 +40,9 @@ type Props = {
 
 type WebMsg =
   | { type: "toggle" }
-  | { type: "scroll"; progress: number };
+  | { type: "scroll"; progress: number }
+  | { type: "tap"; yRatio: number }
+  | { type: "swipe"; direction: "left" | "right" };
 
 const isAbsoluteUrl = (url: string) => {
   if (!url) return false;
@@ -86,22 +89,49 @@ const buildReaderHtml = (opts: {
     />
     <style>
       :root { color-scheme: ${opts.isDark ? "dark" : "light"}; }
-      html, body { width: 100%; height: 100%; }
-      body {
+      html, body {
+        width: 100%;
+        height: 100%;
         margin: 0;
-        padding: ${Math.max(0, opts.padding)}px;
+        padding: 0;
         background: ${opts.backgroundColor};
         color: ${opts.textColor};
+      }
+      body {
+        display: flex;
+        justify-content: center;
+        -webkit-text-size-adjust: 100%;
+        overflow-x: hidden;
+      }
+      #novelnest-reader {
+        box-sizing: border-box;
+        width: 100%;
+        max-width: 720px;
+        margin: 0 auto;
+        padding: ${Math.max(0, opts.padding)}px;
         font-size: ${Math.max(10, opts.fontSize)}px;
         line-height: ${Math.max(1, opts.lineHeight)};
-        font-family: ${opts.fontFamily || "system-ui"}, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        font-family: ${
+          opts.fontFamily || "system-ui"
+        }, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
         text-align: ${opts.textAlign};
-        -webkit-text-size-adjust: 100%;
       }
-      img, video { max-width: 100%; height: auto; }
-      pre, code { white-space: pre-wrap; word-wrap: break-word; }
-      a { color: ${opts.linkColor}; }
-      table { max-width: 100%; }
+      img,
+      video {
+        max-width: 100%;
+        height: auto;
+      }
+      pre,
+      code {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+      a {
+        color: ${opts.linkColor};
+      }
+      table {
+        max-width: 100%;
+      }
     </style>
   </head>
   <body>
@@ -124,7 +154,7 @@ export const ChapterReader: React.FC<Props> = ({
 }) => {
   const navigation = useNavigation();
   const { theme } = useTheme();
-  const { settings } = useSettings();
+  const { settings, updateReaderSettings } = useSettings();
   const insets = useSafeAreaInsets();
 
   const KeepAwake = () => {
@@ -142,11 +172,12 @@ export const ChapterReader: React.FC<Props> = ({
   const [rawHtml, setRawHtml] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [controlsHidden, setControlsHidden] = useState(false);
+  const [controlsHidden, setControlsHidden] = useState(true);
   const [menuVisible, setMenuVisible] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [reloadToken, setReloadToken] = useState(0);
+  const [settingsVisible, setSettingsVisible] = useState(false);
 
   const hasMarkedReadRef = useRef(false);
   const onChapterChangeRef = useRef<Props["onChapterChange"]>(onChapterChange);
@@ -297,13 +328,51 @@ export const ChapterReader: React.FC<Props> = ({
       document.addEventListener('scroll', onScroll, { passive: true });
       window.addEventListener('scroll', onScroll, { passive: true });
 
+      const sendTap = (clientY) => {
+        const vh = window.innerHeight || document.documentElement.clientHeight || 1;
+        const yRatio = vh > 0 ? clientY / vh : 0.5;
+        send({ type: 'tap', yRatio });
+      };
+
       document.addEventListener('click', (e) => {
         try {
           const t = e?.target;
           if (t && typeof t.closest === 'function' && t.closest('a')) return;
-        } catch {}
-        send({ type: 'toggle' });
+          const y = e?.clientY ?? (e?.touches?.[0]?.clientY ?? (window.innerHeight || 0) / 2);
+          sendTap(y);
+        } catch {
+          send({ type: 'tap', yRatio: 0.5 });
+        }
       }, true);
+
+      let touchStartX = 0;
+      let touchStartY = 0;
+      let touchStartTime = 0;
+
+      window.addEventListener('touchstart', (e) => {
+        const t = e.touches && e.touches[0];
+        if (!t) return;
+        touchStartX = t.clientX;
+        touchStartY = t.clientY;
+        touchStartTime = Date.now();
+      }, { passive: true });
+
+      window.addEventListener('touchend', (e) => {
+        const t = e.changedTouches && e.changedTouches[0];
+        if (!t) return;
+        const dx = t.clientX - touchStartX;
+        const dy = t.clientY - touchStartY;
+        const dt = Date.now() - touchStartTime;
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
+
+        if (dt < 600 && absDx > 60 && absDx > absDy) {
+          send({ type: 'swipe', direction: dx < 0 ? 'left' : 'right' });
+        } else {
+          const y = t.clientY;
+          sendTap(y);
+        }
+      }, { passive: true });
 
       setTimeout(calc, 60);
     })(); true;`;
@@ -321,16 +390,17 @@ export const ChapterReader: React.FC<Props> = ({
       }
       if (!msg || typeof msg !== "object" || !("type" in msg)) return;
 
-      if (msg.type === "toggle") {
-        setControlsHidden((prev) => !prev);
-        return;
-      }
       if (msg.type === "scroll") {
         const value =
           typeof msg.progress === "number" && Number.isFinite(msg.progress)
             ? msg.progress
             : 0;
         setScrollProgress(value);
+
+        // Hide controls while actively scrolling to give a clean reading view.
+        if (!controlsHidden && value > 0) {
+          setControlsHidden(true);
+        }
 
         if (
           value >= 97 &&
@@ -341,10 +411,69 @@ export const ChapterReader: React.FC<Props> = ({
           hasMarkedReadRef.current = true;
           onChapterReadRef.current?.(chapters[chapterIndex], chapterIndex);
         }
+        return;
+      }
+
+      if (msg.type === "tap") {
+        const yRatioRaw =
+          typeof msg.yRatio === "number" && Number.isFinite(msg.yRatio)
+            ? msg.yRatio
+            : 0.5;
+        const yRatio = Math.max(0, Math.min(1, yRatioRaw));
+
+        if (settings.reader.general.tapToScroll) {
+          if (yRatio < 0.33) {
+            webViewRef.current?.injectJavaScript(
+              `(()=>{try{const h=window.innerHeight||document.documentElement.clientHeight||400;window.scrollBy({top:-0.6*h,behavior:'smooth'});}catch{}})();true;`,
+            );
+          } else if (yRatio > 0.66) {
+            webViewRef.current?.injectJavaScript(
+              `(()=>{try{const h=window.innerHeight||document.documentElement.clientHeight||400;window.scrollBy({top:0.6*h,behavior:'smooth'});}catch{}})();true;`,
+            );
+          } else {
+            setControlsHidden((prev) => !prev);
+          }
+        } else {
+          setControlsHidden((prev) => !prev);
+        }
+        return;
+      }
+
+      if (msg.type === "swipe") {
+        if (!settings.reader.general.swipeToNavigate) return;
+        if (msg.direction === "left") {
+          goNext();
+        } else {
+          goPrev();
+        }
       }
     },
-    [chapterIndex, chapters],
+    [
+      chapterIndex,
+      chapters,
+      controlsHidden,
+      goNext,
+      goPrev,
+      settings.reader.general.swipeToNavigate,
+      settings.reader.general.tapToScroll,
+    ],
   );
+
+  useEffect(() => {
+    if (!settings.reader.general.autoScroll) return;
+    let cancelled = false;
+    const id = setInterval(() => {
+      if (cancelled) return;
+      webViewRef.current?.injectJavaScript(
+        `(()=>{try{window.scrollBy({top:2,behavior:'smooth'});}catch{}})();true;`,
+      );
+    }, 80);
+
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [settings.reader.general.autoScroll]);
 
   const shouldStartLoad = useCallback((request: any) => {
     const url = String(request?.url || "");
@@ -362,15 +491,32 @@ export const ChapterReader: React.FC<Props> = ({
 
   const menuItems = useMemo(() => {
     const items = [
-      { id: "readerSettings", label: "Reader settings", onPress: () => (navigation as any).navigate("ReaderSettings") },
-      { id: "readerTheme", label: "Reader theme", onPress: () => (navigation as any).navigate("ReaderTheme") },
-      { id: "reload", label: "Reload chapter", onPress: () => {
-        chapterHtmlCacheRef.current.delete(currentPath);
-        setError(null);
-        setLoading(true);
-        setRawHtml("");
-        setReloadToken((prev) => prev + 1);
-      }},
+      {
+        id: "quickReaderSettings",
+        label: "Quick reader settings",
+        onPress: () => setSettingsVisible(true),
+      },
+      {
+        id: "readerSettings",
+        label: "Reader settings",
+        onPress: () => (navigation as any).navigate("ReaderSettings"),
+      },
+      {
+        id: "readerTheme",
+        label: "Reader theme",
+        onPress: () => (navigation as any).navigate("ReaderTheme"),
+      },
+      {
+        id: "reload",
+        label: "Reload chapter",
+        onPress: () => {
+          chapterHtmlCacheRef.current.delete(currentPath);
+          setError(null);
+          setLoading(true);
+          setRawHtml("");
+          setReloadToken((prev) => prev + 1);
+        },
+      },
     ];
 
     const withExtras =
@@ -481,13 +627,17 @@ export const ChapterReader: React.FC<Props> = ({
               },
             ]}
           >
-            <TouchableOpacity
-              onPress={goPrev}
-              disabled={!canGoPrev}
-              style={[styles.bottomBtn, !canGoPrev && { opacity: 0.35 }]}
-            >
-              <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
-            </TouchableOpacity>
+            {!settings.reader.general.swipeToNavigate ? (
+              <TouchableOpacity
+                onPress={goPrev}
+                disabled={!canGoPrev}
+                style={[styles.bottomBtn, !canGoPrev && { opacity: 0.35 }]}
+              >
+                <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
+              </TouchableOpacity>
+            ) : (
+              <View style={[styles.bottomBtn, { opacity: 0 }]} />
+            )}
 
             <TouchableOpacity onPress={scrollToTop} style={styles.bottomBtn}>
               <Ionicons name="arrow-up" size={20} color={theme.colors.text} />
@@ -519,13 +669,17 @@ export const ChapterReader: React.FC<Props> = ({
               <View style={{ flex: 1 }} />
             )}
 
-            <TouchableOpacity
-              onPress={goNext}
-              disabled={!canGoNext}
-              style={[styles.bottomBtn, !canGoNext && { opacity: 0.35 }]}
-            >
-              <Ionicons name="chevron-forward" size={22} color={theme.colors.text} />
-            </TouchableOpacity>
+            {!settings.reader.general.swipeToNavigate ? (
+              <TouchableOpacity
+                onPress={goNext}
+                disabled={!canGoNext}
+                style={[styles.bottomBtn, !canGoNext && { opacity: 0.35 }]}
+              >
+                <Ionicons name="chevron-forward" size={22} color={theme.colors.text} />
+              </TouchableOpacity>
+            ) : (
+              <View style={[styles.bottomBtn, { opacity: 0 }]} />
+            )}
           </View>
         </>
       ) : null}
@@ -539,6 +693,187 @@ export const ChapterReader: React.FC<Props> = ({
         onClose={() => setDrawerVisible(false)}
         onSelect={(chapter) => navigateTo(chapter)}
       />
+
+      <Modal
+        visible={settingsVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSettingsVisible(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.settingsOverlay}
+          onPress={() => setSettingsVisible(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[
+              styles.settingsCard,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+              },
+            ]}
+            onPress={() => {}}
+          >
+            <Text style={[styles.settingsTitle, { color: theme.colors.text }]}>
+              Reader settings
+            </Text>
+
+            <View style={styles.settingsRow}>
+              <Text
+                style={[styles.settingsLabel, { color: theme.colors.textSecondary }]}
+              >
+                Text size
+              </Text>
+              <View style={styles.settingsControls}>
+                <TouchableOpacity
+                  style={styles.settingsIconBtn}
+                  onPress={() => {
+                    const current = settings.reader.theme.textSize;
+                    const next = Math.max(10, current - 1);
+                    void updateReaderSettings("theme", "textSize", next);
+                  }}
+                >
+                  <Ionicons
+                    name="remove"
+                    size={20}
+                    color={theme.colors.primary}
+                  />
+                </TouchableOpacity>
+                <Text
+                  style={[
+                    styles.settingsValue,
+                    { color: theme.colors.text },
+                  ]}
+                >
+                  {settings.reader.theme.textSize}
+                </Text>
+                <TouchableOpacity
+                  style={styles.settingsIconBtn}
+                  onPress={() => {
+                    const current = settings.reader.theme.textSize;
+                    const next = Math.min(40, current + 1);
+                    void updateReaderSettings("theme", "textSize", next);
+                  }}
+                >
+                  <Ionicons
+                    name="add"
+                    size={20}
+                    color={theme.colors.primary}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.settingsRow}>
+              <Text
+                style={[styles.settingsLabel, { color: theme.colors.textSecondary }]}
+              >
+                Line height
+              </Text>
+              <View style={styles.settingsControls}>
+                <TouchableOpacity
+                  style={styles.settingsIconBtn}
+                  onPress={() => {
+                    const current = settings.reader.theme.lineHeight;
+                    const next =
+                      Math.round(Math.max(1, current - 0.1) * 10) / 10;
+                    void updateReaderSettings("theme", "lineHeight", next);
+                  }}
+                >
+                  <Ionicons
+                    name="remove"
+                    size={20}
+                    color={theme.colors.primary}
+                  />
+                </TouchableOpacity>
+                <Text
+                  style={[
+                    styles.settingsValue,
+                    { color: theme.colors.text },
+                  ]}
+                >
+                  {settings.reader.theme.lineHeight.toFixed(1)}
+                </Text>
+                <TouchableOpacity
+                  style={styles.settingsIconBtn}
+                  onPress={() => {
+                    const current = settings.reader.theme.lineHeight;
+                    const next =
+                      Math.round(Math.min(3, current + 0.1) * 10) / 10;
+                    void updateReaderSettings("theme", "lineHeight", next);
+                  }}
+                >
+                  <Ionicons
+                    name="add"
+                    size={20}
+                    color={theme.colors.primary}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.settingsRow}>
+              <Text
+                style={[styles.settingsLabel, { color: theme.colors.textSecondary }]}
+              >
+                Page padding
+              </Text>
+              <View style={styles.settingsControls}>
+                <TouchableOpacity
+                  style={styles.settingsIconBtn}
+                  onPress={() => {
+                    const current = settings.reader.theme.padding;
+                    const next = Math.max(0, current - 2);
+                    void updateReaderSettings("theme", "padding", next);
+                  }}
+                >
+                  <Ionicons
+                    name="remove"
+                    size={20}
+                    color={theme.colors.primary}
+                  />
+                </TouchableOpacity>
+                <Text
+                  style={[
+                    styles.settingsValue,
+                    { color: theme.colors.text },
+                  ]}
+                >
+                  {settings.reader.theme.padding}px
+                </Text>
+                <TouchableOpacity
+                  style={styles.settingsIconBtn}
+                  onPress={() => {
+                    const current = settings.reader.theme.padding;
+                    const next = Math.min(64, current + 2);
+                    void updateReaderSettings("theme", "padding", next);
+                  }}
+                >
+                  <Ionicons
+                    name="add"
+                    size={20}
+                    color={theme.colors.primary}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.settingsFooter}>
+              <TouchableOpacity
+                style={[
+                  styles.settingsCloseBtn,
+                  { backgroundColor: theme.colors.primary },
+                ]}
+                onPress={() => setSettingsVisible(false)}
+              >
+                <Text style={styles.settingsCloseText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
@@ -596,4 +931,63 @@ const styles = StyleSheet.create({
   progressText: { fontSize: 12, fontWeight: "700", textAlign: "center" },
   progressBar: { height: 4, borderRadius: 999, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 999 },
+  settingsOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
+  },
+  settingsCard: {
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 18,
+    gap: 12,
+  },
+  settingsTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  settingsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 6,
+  },
+  settingsLabel: {
+    fontSize: 14,
+    flex: 1,
+    paddingRight: 12,
+  },
+  settingsControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  settingsIconBtn: {
+    padding: 6,
+    borderRadius: 999,
+  },
+  settingsValue: {
+    fontSize: 14,
+    minWidth: 40,
+    textAlign: "center",
+    fontWeight: "600",
+  },
+  settingsFooter: {
+    marginTop: 8,
+    alignItems: "flex-end",
+  },
+  settingsCloseBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 999,
+  },
+  settingsCloseText: {
+    color: "#FFF",
+    fontWeight: "700",
+    fontSize: 14,
+  },
 });
