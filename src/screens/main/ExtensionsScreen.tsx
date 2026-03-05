@@ -1,12 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
+import { FlashList } from "@shopify/flash-list";
 import { useNavigation } from "@react-navigation/native";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   Image,
   Modal,
+  Platform,
   StyleSheet,
   Switch,
   Text,
@@ -364,7 +365,7 @@ export const ExtensionsScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList
+        <FlashList
           data={displayedPlugins}
           renderItem={renderPlugin}
           keyExtractor={(item) => `${item.repoUrl}:${item.id}`}
@@ -392,6 +393,8 @@ export const ExtensionsScreen: React.FC = () => {
               })}
             </View>
           }
+          showsVerticalScrollIndicator={false}
+          removeClippedSubviews={Platform.OS === "android"}
         />
       )}
 
@@ -445,7 +448,7 @@ export const ExtensionsScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <FlatList
+            <FlashList
               data={repositories}
               keyExtractor={(item) => item}
               renderItem={({ item }) => (
@@ -476,6 +479,8 @@ export const ExtensionsScreen: React.FC = () => {
                 </View>
               )}
               contentContainerStyle={{ paddingBottom: 8 }}
+              showsVerticalScrollIndicator={false}
+              removeClippedSubviews={Platform.OS === "android"}
             />
 
             <TouchableOpacity

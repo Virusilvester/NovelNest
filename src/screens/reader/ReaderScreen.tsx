@@ -117,7 +117,14 @@ export const ReaderScreen: React.FC = () => {
       }
       return (await parseChapter.call(instance, path)) || "";
     },
-    [novel?.chapterDownloaded, novelId, plugin, pluginId, settings.advanced.userAgent],
+    [
+      novel?.chapterDownloaded,
+      novelId,
+      plugin,
+      pluginId,
+      settings.advanced.userAgent,
+      settings.general.downloadLocation,
+    ],
   );
 
   const handleChapterRead = useCallback(

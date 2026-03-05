@@ -1,6 +1,7 @@
 // src/components/library/NovelGrid.tsx
-import React from "react";
-import { FlatList, StyleSheet, useWindowDimensions, View } from "react-native";
+import { FlashList, ListRenderItem } from "@shopify/flash-list";
+import React, { useCallback } from "react";
+import { Platform, StyleSheet, useWindowDimensions, View } from "react-native";
 import { DisplayMode, Novel } from "../../types";
 import { NovelCard } from "../common/NovelCard";
 import { getGridColumns, getGridItemWidth } from "../../utils/responsive";
@@ -23,6 +24,59 @@ interface NovelGridProps {
 
 const GRID_SPACING = 12;
 
+type NovelCardItemProps = {
+  novel: Novel;
+  displayMode: DisplayMode;
+  showDownloadBadge: boolean;
+  showUnreadBadge: boolean;
+  isSelectionMode: boolean;
+  isSelected: boolean;
+  onNovelPress: (novel: Novel) => void;
+  onNovelLongPress?: (novel: Novel) => void;
+};
+
+const NovelCardItem = React.memo(
+  ({
+    novel,
+    displayMode,
+    showDownloadBadge,
+    showUnreadBadge,
+    isSelectionMode,
+    isSelected,
+    onNovelPress,
+    onNovelLongPress,
+  }: NovelCardItemProps) => {
+    const handlePress = useCallback(() => onNovelPress(novel), [onNovelPress, novel]);
+    const handleLongPress = useCallback(
+      () => onNovelLongPress?.(novel),
+      [onNovelLongPress, novel],
+    );
+
+    return (
+      <NovelCard
+        novel={novel}
+        displayMode={displayMode}
+        showDownloadBadge={showDownloadBadge}
+        showUnreadBadge={showUnreadBadge}
+        isSelectionMode={isSelectionMode}
+        isSelected={isSelected}
+        onPress={handlePress}
+        onLongPress={onNovelLongPress ? handleLongPress : undefined}
+      />
+    );
+  },
+  (prev, next) =>
+    prev.novel === next.novel &&
+    prev.displayMode === next.displayMode &&
+    prev.showDownloadBadge === next.showDownloadBadge &&
+    prev.showUnreadBadge === next.showUnreadBadge &&
+    prev.isSelectionMode === next.isSelectionMode &&
+    prev.isSelected === next.isSelected &&
+    prev.onNovelPress === next.onNovelPress &&
+    prev.onNovelLongPress === next.onNovelLongPress,
+);
+NovelCardItem.displayName = "NovelCardItem";
+
 export const NovelGrid: React.FC<NovelGridProps> = ({
   novels,
   displayMode,
@@ -44,26 +98,28 @@ export const NovelGrid: React.FC<NovelGridProps> = ({
 
   // LIST MODE: Single column flat list with key="list" to force re-render
   if (displayMode === "list") {
+    const renderItem: ListRenderItem<Novel> = ({ item }) => (
+      <NovelCardItem
+        novel={item}
+        displayMode="list"
+        showDownloadBadge={showDownloadBadges}
+        showUnreadBadge={showUnreadBadges}
+        isSelectionMode={selectionMode}
+        isSelected={Boolean(selectedIds?.has(item.id))}
+        onNovelPress={onNovelPress}
+        onNovelLongPress={onNovelLongPress}
+      />
+    );
+
     return (
-      <FlatList
+      <FlashList
         key="list" // Force fresh render when switching to list
         data={novels}
-        renderItem={({ item }) => (
-          <NovelCard
-            novel={item}
-            displayMode="list"
-            showDownloadBadge={showDownloadBadges}
-            showUnreadBadge={showUnreadBadges}
-            isSelectionMode={selectionMode}
-            isSelected={Boolean(selectedIds?.has(item.id))}
-            onPress={() => onNovelPress(item)}
-            onLongPress={() => onNovelLongPress?.(item)}
-          />
-        )}
+        renderItem={renderItem}
         keyExtractor={(item) => `list-${item.id}`}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        removeClippedSubviews={false}
+        removeClippedSubviews={Platform.OS === "android"}
         onEndReached={onEndReached}
         onEndReachedThreshold={onEndReachedThreshold}
         ListFooterComponent={ListFooterComponent}
@@ -74,7 +130,7 @@ export const NovelGrid: React.FC<NovelGridProps> = ({
   }
 
   // GRID MODE: 3-column grid with key="grid" to force re-render
-  const renderGridItem = ({ item, index }: { item: Novel; index: number }) => {
+  const renderGridItem: ListRenderItem<Novel> = ({ item, index }) => {
     const isLastInRow = (index + 1) % gridColumns === 0;
     return (
       <View
@@ -87,22 +143,22 @@ export const NovelGrid: React.FC<NovelGridProps> = ({
           },
         ]}
       >
-        <NovelCard
+        <NovelCardItem
           novel={item}
           displayMode="compactGrid"
           showDownloadBadge={showDownloadBadges}
           showUnreadBadge={showUnreadBadges}
           isSelectionMode={selectionMode}
           isSelected={Boolean(selectedIds?.has(item.id))}
-          onPress={() => onNovelPress(item)}
-          onLongPress={() => onNovelLongPress?.(item)}
+          onNovelPress={onNovelPress}
+          onNovelLongPress={onNovelLongPress}
         />
       </View>
     );
   };
 
   return (
-    <FlatList
+    <FlashList
       key={`grid-${gridColumns}`} // Force fresh render when columns change (rotation / resize)
       data={novels}
       renderItem={renderGridItem}
@@ -110,8 +166,7 @@ export const NovelGrid: React.FC<NovelGridProps> = ({
       numColumns={gridColumns}
       contentContainerStyle={styles.gridContent}
       showsVerticalScrollIndicator={false}
-      columnWrapperStyle={styles.gridRow}
-      removeClippedSubviews={false}
+      removeClippedSubviews={Platform.OS === "android"}
       onEndReached={onEndReached}
       onEndReachedThreshold={onEndReachedThreshold}
       ListFooterComponent={ListFooterComponent}
@@ -132,9 +187,6 @@ const styles = StyleSheet.create({
   gridContent: {
     padding: GRID_SPACING,
     paddingTop: 8,
-  },
-  gridRow: {
-    justifyContent: "flex-start",
   },
   gridItem: {
     // width set dynamically to react to rotation / resize

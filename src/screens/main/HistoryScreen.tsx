@@ -1,12 +1,13 @@
 // src/screens/main/HistoryScreen.tsx
 import { Ionicons } from "@expo/vector-icons";
+import { FlashList } from "@shopify/flash-list";
 import { useNavigation } from "@react-navigation/native";
 import { format, isAfter, subDays } from "date-fns";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Alert,
-  FlatList,
   Image,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -24,6 +25,37 @@ type HistoryGroup = {
   data: HistoryEntry[];
 };
 
+const groupHistoryEntriesByDate = (entries: HistoryEntry[]): HistoryGroup[] => {
+  const groups: { [key: string]: HistoryEntry[] } = {};
+
+  entries.forEach((entry) => {
+    const date = entry.lastReadDate;
+    const now = new Date();
+    const sevenDaysAgo = subDays(now, 7);
+
+    let key: string;
+    if (isAfter(date, subDays(now, 1))) {
+      key = "Today";
+    } else if (isAfter(date, subDays(now, 2))) {
+      key = "Yesterday";
+    } else if (isAfter(date, sevenDaysAgo)) {
+      const daysDiff = Math.floor(
+        (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      key = `${daysDiff} days ago`;
+    } else {
+      key = format(date, "MMM d, yyyy");
+    }
+
+    if (!groups[key]) {
+      groups[key] = [];
+    }
+    groups[key].push(entry);
+  });
+
+  return Object.entries(groups).map(([title, data]) => ({ title, data }));
+};
+
 export const HistoryScreen: React.FC = () => {
   const navigation = useNavigation<MainDrawerNavigationProp>();
   const { theme } = useTheme();
@@ -37,48 +69,20 @@ export const HistoryScreen: React.FC = () => {
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Filter entries based on search
-  const filteredEntries = searchQuery
-    ? historyEntries.filter(
-        (entry) =>
-          entry.novel.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          entry.novel.author.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
-    : historyEntries;
+  const filteredEntries = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return historyEntries;
+    return historyEntries.filter(
+      (entry) =>
+        entry.novel.title.toLowerCase().includes(q) ||
+        entry.novel.author.toLowerCase().includes(q),
+    );
+  }, [historyEntries, searchQuery]);
 
-  // Group entries by date
-  const groupEntriesByDate = (entries: HistoryEntry[]): HistoryGroup[] => {
-    const groups: { [key: string]: HistoryEntry[] } = {};
-
-    entries.forEach((entry) => {
-      const date = entry.lastReadDate;
-      const now = new Date();
-      const sevenDaysAgo = subDays(now, 7);
-
-      let key: string;
-      if (isAfter(date, subDays(now, 1))) {
-        key = "Today";
-      } else if (isAfter(date, subDays(now, 2))) {
-        key = "Yesterday";
-      } else if (isAfter(date, sevenDaysAgo)) {
-        const daysDiff = Math.floor(
-          (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24),
-        );
-        key = `${daysDiff} days ago`;
-      } else {
-        key = format(date, "MMM d, yyyy");
-      }
-
-      if (!groups[key]) {
-        groups[key] = [];
-      }
-      groups[key].push(entry);
-    });
-
-    return Object.entries(groups).map(([title, data]) => ({ title, data }));
-  };
-
-  const groupedEntries = groupEntriesByDate(filteredEntries);
+  const groupedEntries = useMemo(
+    () => groupHistoryEntriesByDate(filteredEntries),
+    [filteredEntries],
+  );
 
   const handleCoverPress = useCallback(
     (entry: HistoryEntry) => {
@@ -253,7 +257,7 @@ export const HistoryScreen: React.FC = () => {
     </View>
   );
 
-  // Flatten data for FlatList with section headers
+  // Flatten data with section headers
   const renderItem = ({
     item,
     index,
@@ -268,12 +272,14 @@ export const HistoryScreen: React.FC = () => {
     return renderHistoryItem({ item: item as HistoryEntry });
   };
 
-  // Prepare data with section headers interleaved
-  const listData: (HistoryGroup | HistoryEntry)[] = [];
-  groupedEntries.forEach((group) => {
-    listData.push(group);
-    group.data.forEach((entry) => listData.push(entry));
-  });
+  const listData = useMemo(() => {
+    const out: (HistoryGroup | HistoryEntry)[] = [];
+    groupedEntries.forEach((group) => {
+      out.push(group);
+      group.data.forEach((entry) => out.push(entry));
+    });
+    return out;
+  }, [groupedEntries]);
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
@@ -358,7 +364,7 @@ export const HistoryScreen: React.FC = () => {
       {historyEntries.length === 0 ? (
         renderEmptyState()
       ) : (
-        <FlatList
+        <FlashList
           data={listData}
           renderItem={renderItem}
           keyExtractor={(item, index) => {
@@ -369,6 +375,7 @@ export const HistoryScreen: React.FC = () => {
           }}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          removeClippedSubviews={Platform.OS === "android"}
         />
       )}
     </View>

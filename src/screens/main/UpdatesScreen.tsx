@@ -1,9 +1,10 @@
 // src/screens/main/UpdatesScreen.tsx
 import { Ionicons } from "@expo/vector-icons";
+import { FlashList } from "@shopify/flash-list";
 import { useNavigation } from "@react-navigation/native";
 import React from "react";
 import {
-  FlatList,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -53,7 +54,7 @@ export const UpdatesScreen: React.FC = () => {
       {recentUpdates.length === 0 ? (
         renderEmptyState()
       ) : (
-        <FlatList
+        <FlashList
           data={recentUpdates}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
@@ -66,6 +67,8 @@ export const UpdatesScreen: React.FC = () => {
               {/* Update item content */}
             </TouchableOpacity>
           )}
+          showsVerticalScrollIndicator={false}
+          removeClippedSubviews={Platform.OS === "android"}
         />
       )}
     </View>

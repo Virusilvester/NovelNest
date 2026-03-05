@@ -1,8 +1,8 @@
 // src/components/common/NovelCard.tsx
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
+import { Image } from "expo-image";
 import {
-  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -22,7 +22,7 @@ interface NovelCardProps {
   onLongPress?: () => void;
 }
 
-export const NovelCard: React.FC<NovelCardProps> = ({
+const NovelCardComponent: React.FC<NovelCardProps> = ({
   novel,
   displayMode,
   showDownloadBadge = true,
@@ -33,6 +33,14 @@ export const NovelCard: React.FC<NovelCardProps> = ({
   onLongPress,
 }) => {
   const { theme } = useTheme();
+  const totalChapters =
+    typeof novel.totalChapters === "number" && novel.totalChapters > 0
+      ? novel.totalChapters
+      : 0;
+  const totalChaptersRead =
+    totalChapters > 0 ? totalChapters - (novel.unreadChapters || 0) : 0;
+  const progressPercent =
+    totalChapters > 0 ? (totalChaptersRead / totalChapters) * 100 : 0;
 
   // LIST MODE
   if (displayMode === "list") {
@@ -55,7 +63,8 @@ export const NovelCard: React.FC<NovelCardProps> = ({
           <Image
             source={{ uri: novel.coverUrl }}
             style={styles.listCover}
-            resizeMode="cover"
+            contentFit="cover"
+            cachePolicy="memory-disk"
           />
           {isSelectionMode ? (
             <View
@@ -147,7 +156,7 @@ export const NovelCard: React.FC<NovelCardProps> = ({
                         novel.unreadChapters === 0
                           ? theme.colors.success
                           : theme.colors.primary,
-                      width: `${((novel.totalChapters - novel.unreadChapters) / novel.totalChapters) * 100}%`,
+                      width: `${progressPercent}%`,
                     },
                   ]}
                 />
@@ -158,8 +167,7 @@ export const NovelCard: React.FC<NovelCardProps> = ({
                   { color: theme.colors.textSecondary },
                 ]}
               >
-                {novel.totalChapters - novel.unreadChapters}/
-                {novel.totalChapters}
+                {totalChaptersRead}/{totalChapters}
               </Text>
             </View>
 
@@ -232,7 +240,8 @@ export const NovelCard: React.FC<NovelCardProps> = ({
         <Image
           source={{ uri: novel.coverUrl }}
           style={styles.gridCover}
-          resizeMode="cover"
+          contentFit="cover"
+          cachePolicy="memory-disk"
         />
 
         {isSelectionMode ? (
@@ -308,6 +317,8 @@ export const NovelCard: React.FC<NovelCardProps> = ({
     </TouchableOpacity>
   );
 };
+
+export const NovelCard = React.memo(NovelCardComponent);
 
 // Helper function to format last read time
 const formatLastRead = (date: Date): string => {

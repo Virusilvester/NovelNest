@@ -1,10 +1,11 @@
 // src/screens/main/SourcesScreen.tsx
 import { Ionicons } from "@expo/vector-icons";
+import { FlashList } from "@shopify/flash-list";
 import { useNavigation } from "@react-navigation/native";
 import React, { useMemo, useState } from "react";
 import {
-  FlatList,
   Image,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -165,7 +166,7 @@ export const SourcesScreen: React.FC = () => {
         }
       />
 
-      <FlatList
+      <FlashList
         data={sources}
         renderItem={renderSource}
         keyExtractor={(item) => item.id}
@@ -185,6 +186,8 @@ export const SourcesScreen: React.FC = () => {
             </Text>
           </View>
         }
+        showsVerticalScrollIndicator={false}
+        removeClippedSubviews={Platform.OS === "android"}
       />
 
       <PopupMenu

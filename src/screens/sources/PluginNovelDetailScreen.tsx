@@ -1,13 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
+import { FlashList, ListRenderItem } from "@shopify/flash-list";
 import type { RouteProp } from "@react-navigation/native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   Image,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -27,6 +28,7 @@ import {
   normalizePluginDetailForCache,
 } from "../../services/novelDetailCache";
 import { PluginRuntimeService } from "../../services/pluginRuntime";
+import type { Theme } from "../../theme";
 import type { CachedPluginNovelDetail, Novel } from "../../types";
 import { clamp } from "../../utils/responsive";
 import {
@@ -48,6 +50,158 @@ const isChapterItem = (value: any): value is ChapterItem =>
   typeof value === "object" &&
   typeof value.name === "string" &&
   typeof value.path === "string";
+
+type ChapterRowProps = {
+  chapter: ChapterItem;
+  theme: Theme;
+  isSelectionMode: boolean;
+  selected: boolean;
+  isRead: boolean;
+  isInLibrary: boolean;
+  isDownloaded: boolean;
+  downloadStatus?: string;
+  onToggleSelected: (path: string) => void;
+  onOpenChapter: (chapter: ChapterItem) => void;
+  onEnqueueDownload: (chapter: ChapterItem) => void;
+};
+
+const ChapterRow = React.memo(
+  ({
+    chapter,
+    theme,
+    isSelectionMode,
+    selected,
+    isRead,
+    isInLibrary,
+    isDownloaded,
+    downloadStatus,
+    onToggleSelected,
+    onOpenChapter,
+    onEnqueueDownload,
+  }: ChapterRowProps) => {
+    const handlePress = useCallback(() => {
+      if (isSelectionMode) {
+        onToggleSelected(chapter.path);
+        return;
+      }
+      onOpenChapter(chapter);
+    }, [chapter, isSelectionMode, onOpenChapter, onToggleSelected]);
+
+    const handleLongPress = useCallback(
+      () => onToggleSelected(chapter.path),
+      [chapter.path, onToggleSelected],
+    );
+
+    const handleDownloadPress = useCallback(() => {
+      if (isDownloaded) return;
+      if (downloadStatus === "pending" || downloadStatus === "downloading") return;
+      onEnqueueDownload(chapter);
+    }, [chapter, downloadStatus, isDownloaded, onEnqueueDownload]);
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.chapterItem,
+          selected && { backgroundColor: theme.colors.primary + "1A" },
+          { borderBottomColor: theme.colors.divider },
+        ]}
+        onPress={handlePress}
+        onLongPress={handleLongPress}
+        delayLongPress={220}
+      >
+        <View style={styles.chapterLeft}>
+          {isSelectionMode ? (
+            <Ionicons
+              name={selected ? "checkmark-circle" : "ellipse-outline"}
+              size={22}
+              color={selected ? theme.colors.primary : theme.colors.textSecondary}
+            />
+          ) : null}
+
+          <View style={{ flex: 1 }}>
+            <Text
+              style={[
+                styles.chapterTitle,
+                { color: isRead ? theme.colors.textSecondary : theme.colors.text },
+              ]}
+              numberOfLines={2}
+            >
+              {chapter.name}
+            </Text>
+            {!!chapter.releaseTime && (
+              <Text
+                style={[styles.chapterMeta, { color: theme.colors.textSecondary }]}
+                numberOfLines={1}
+              >
+                {chapter.releaseTime}
+              </Text>
+            )}
+          </View>
+        </View>
+
+        {!isSelectionMode ? (
+          <View style={styles.chapterRight}>
+            <TouchableOpacity
+              onPress={handleDownloadPress}
+              style={[
+                styles.chapterIconBtn,
+                (!isInLibrary || isDownloaded) && { opacity: 0.65 },
+              ]}
+              hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+            >
+              {isDownloaded ? (
+                <Ionicons
+                  name="checkmark-circle"
+                  size={20}
+                  color={theme.colors.primary}
+                />
+              ) : downloadStatus === "downloading" ? (
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+              ) : downloadStatus === "pending" ? (
+                <Ionicons
+                  name="time-outline"
+                  size={20}
+                  color={theme.colors.textSecondary}
+                />
+              ) : downloadStatus === "error" ? (
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={20}
+                  color={theme.colors.error}
+                />
+              ) : (
+                <Ionicons
+                  name="download-outline"
+                  size={20}
+                  color={theme.colors.textSecondary}
+                />
+              )}
+            </TouchableOpacity>
+
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={theme.colors.textSecondary}
+            />
+          </View>
+        ) : null}
+      </TouchableOpacity>
+    );
+  },
+  (prev, next) =>
+    prev.chapter === next.chapter &&
+    prev.theme === next.theme &&
+    prev.isSelectionMode === next.isSelectionMode &&
+    prev.selected === next.selected &&
+    prev.isRead === next.isRead &&
+    prev.isInLibrary === next.isInLibrary &&
+    prev.isDownloaded === next.isDownloaded &&
+    prev.downloadStatus === next.downloadStatus &&
+    prev.onToggleSelected === next.onToggleSelected &&
+    prev.onOpenChapter === next.onOpenChapter &&
+    prev.onEnqueueDownload === next.onEnqueueDownload,
+);
+ChapterRow.displayName = "ChapterRow";
 
 export const PluginNovelDetailScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -379,40 +533,58 @@ export const PluginNovelDetailScreen: React.FC = () => {
     return "ongoing";
   }, [status]);
 
-  const buildLibraryNovel = (nextInLibrary: boolean): Novel => {
-    const totalChapters =
-      typeof remoteDetail?.totalChapters === "number"
-        ? remoteDetail.totalChapters
-        : chapters.length || existingNovel?.totalChapters || 0;
-    const lastReadChapter = existingNovel?.lastReadChapter || 0;
-    const unreadChapters =
-      existingNovel?.unreadChapters ??
-      Math.max(0, totalChapters - lastReadChapter);
+  const buildLibraryNovel = useCallback(
+    (nextInLibrary: boolean): Novel => {
+      const totalChapters =
+        typeof remoteDetail?.totalChapters === "number"
+          ? remoteDetail.totalChapters
+          : chapters.length || existingNovel?.totalChapters || 0;
+      const lastReadChapter = existingNovel?.lastReadChapter || 0;
+      const unreadChapters =
+        existingNovel?.unreadChapters ??
+        Math.max(0, totalChapters - lastReadChapter);
 
-    const cacheFromMemory = NovelDetailCache.get(cacheKey);
-    const pluginCache = cacheFromMemory ?? existingNovel?.pluginCache;
+      const cacheFromMemory = NovelDetailCache.get(cacheKey);
+      const pluginCache = cacheFromMemory ?? existingNovel?.pluginCache;
 
-    return {
-      id: stableNumericId,
-      title,
-      author: author || "Unknown",
-      coverUrl: cover || "https://via.placeholder.com/300x450",
-      status: normalizedStatus,
-      source: plugin?.name || pluginId,
-      summary: summary || "",
+      return {
+        id: stableNumericId,
+        title,
+        author: author || "Unknown",
+        coverUrl: cover || "https://via.placeholder.com/300x450",
+        status: normalizedStatus,
+        source: plugin?.name || pluginId,
+        summary: summary || "",
+        genres,
+        totalChapters,
+        unreadChapters: Math.min(unreadChapters, totalChapters),
+        lastReadChapter,
+        lastReadDate: existingNovel?.lastReadDate,
+        isDownloaded: existingNovel?.isDownloaded ?? false,
+        isInLibrary: nextInLibrary,
+        categoryId: existingNovel?.categoryId || "reading",
+        pluginId,
+        pluginNovelPath: novelPath,
+        pluginCache,
+      };
+    },
+    [
+      author,
+      cacheKey,
+      chapters.length,
+      cover,
+      existingNovel,
       genres,
-      totalChapters,
-      unreadChapters: Math.min(unreadChapters, totalChapters),
-      lastReadChapter,
-      lastReadDate: existingNovel?.lastReadDate,
-      isDownloaded: existingNovel?.isDownloaded ?? false,
-      isInLibrary: nextInLibrary,
-      categoryId: existingNovel?.categoryId || "reading",
+      normalizedStatus,
+      novelPath,
+      plugin?.name,
       pluginId,
-      pluginNovelPath: novelPath,
-      pluginCache,
-    };
-  };
+      remoteDetail?.totalChapters,
+      stableNumericId,
+      summary,
+      title,
+    ],
+  );
 
   const categoryChoices = useMemo(() => {
     const list = Array.isArray(categories) ? categories : [];
@@ -433,24 +605,29 @@ export const PluginNovelDetailScreen: React.FC = () => {
     setPendingCategoryId(fallback);
   }, [categoryChoices, existingNovel?.categoryId, isCategoryModalVisible, pendingCategoryId]);
 
-  const upsertLibraryNovel = (nextInLibrary: boolean, categoryId?: string) => {
-    const base = buildLibraryNovel(nextInLibrary);
-    const withCategory = categoryId ? { ...base, categoryId } : base;
+  const upsertLibraryNovel = useCallback(
+    (nextInLibrary: boolean, categoryId?: string) => {
+      const base = buildLibraryNovel(nextInLibrary);
+      const withCategory = categoryId ? { ...base, categoryId } : base;
 
-    if (!existingNovel) {
-      addNovel({ ...withCategory, isInLibrary: true });
-      return;
-    }
-    updateNovel(stableNumericId, withCategory);
-  };
+      if (!existingNovel) {
+        addNovel({ ...withCategory, isInLibrary: true });
+        return;
+      }
+      updateNovel(stableNumericId, withCategory);
+    },
+    [addNovel, buildLibraryNovel, existingNovel, stableNumericId, updateNovel],
+  );
 
-  const handleLibraryToggle = () => {
-    const next = !isInLibrary;
-    setIsInLibrary(next);
-    upsertLibraryNovel(next);
-  };
+  const handleLibraryToggle = useCallback(() => {
+    setIsInLibrary((prev) => {
+      const next = !prev;
+      upsertLibraryNovel(next);
+      return next;
+    });
+  }, [upsertLibraryNovel]);
 
-  const handleAddToLibrary = () => {
+  const handleAddToLibrary = useCallback(() => {
     if (isInLibrary) return;
 
     if (categoryChoices.length === 0) {
@@ -467,12 +644,12 @@ export const PluginNovelDetailScreen: React.FC = () => {
 
     setPendingCategoryId(null);
     setIsCategoryModalVisible(true);
-  };
+  }, [categoryChoices, isInLibrary, upsertLibraryNovel]);
 
-  const handleWebView = () => {
+  const handleWebView = useCallback(() => {
     const url = remoteDetail?.url || plugin?.site || plugin?.url || "";
     if (url) navigation.navigate("WebView", { url });
-  };
+  }, [navigation, plugin?.site, plugin?.url, remoteDetail?.url]);
 
   const chaptersTotal = chapters.length;
   const progressTotal =
@@ -519,6 +696,33 @@ export const PluginNovelDetailScreen: React.FC = () => {
     }
     return map;
   }, [downloadTasks, pluginId, stableNumericId]);
+
+  const chapterReadByPath = useMemo(() => {
+    if (!existingNovel) return new Map<string, boolean>();
+    const map = new Map<string, boolean>();
+    for (let index = 0; index < chapters.length; index++) {
+      const c = chapters[index];
+      if (!c?.path) continue;
+      map.set(
+        c.path,
+        getEffectiveReadForChapter({
+          chapterPath: c.path,
+          index,
+          total: progressTotal,
+          baseReadCount,
+          order: chapterListOrder,
+          readOverrides: existingNovel.chapterReadOverrides,
+        }),
+      );
+    }
+    return map;
+  }, [
+    baseReadCount,
+    chapterListOrder,
+    chapters,
+    existingNovel,
+    progressTotal,
+  ]);
 
   const enqueueChapterDownload = useCallback(
     (chapter: ChapterItem) => {
@@ -789,7 +993,28 @@ export const PluginNovelDetailScreen: React.FC = () => {
     ],
   );
 
-  const handleProgressPress = () => {
+  const openChapter = useCallback(
+    (chapter: ChapterItem) => {
+      if (existingNovel) {
+        navigation.navigate("Reader", {
+          novelId: stableNumericId,
+          chapterId: chapter.path,
+        });
+        return;
+      }
+
+      navigation.navigate("PluginReader", {
+        pluginId,
+        novelId: stableNumericId,
+        novelPath,
+        chapterPath: chapter.path,
+        chapterTitle: chapter.name,
+      });
+    },
+    [existingNovel, navigation, pluginId, novelPath, stableNumericId],
+  );
+
+  const handleProgressPress = useCallback(() => {
     const list = chapters;
     if (list.length === 0) return;
 
@@ -812,23 +1037,8 @@ export const PluginNovelDetailScreen: React.FC = () => {
         : Math.min(list.length - 1, lastRead);
     const target = list[targetIndex] ?? list[0];
     if (!target) return;
-
-    if (existingNovel) {
-      navigation.navigate("Reader", {
-        novelId: stableNumericId,
-        chapterId: target.path,
-      });
-      return;
-    }
-
-    navigation.navigate("PluginReader", {
-      pluginId,
-      novelId: stableNumericId,
-      novelPath,
-      chapterPath: target.path,
-      chapterTitle: target.name,
-    });
-  };
+    openChapter(target);
+  }, [chapters, existingNovel?.lastReadChapter, existingNovel?.totalChapters, existingNovel?.unreadChapters, openChapter]);
 
   const handleHeaderBackPress = useCallback(() => {
     if (isChapterSelectionMode) {
@@ -970,6 +1180,210 @@ export const PluginNovelDetailScreen: React.FC = () => {
 
   const progressPercent = progressTotal > 0 ? (effectiveReadCount / progressTotal) * 100 : 0;
 
+  const chapterDownloaded = existingNovel?.chapterDownloaded;
+
+  const renderChapterItem = useCallback<ListRenderItem<ChapterItem>>(
+    ({ item }) => {
+      const selected = selectedChapterPaths.has(item.path);
+      const isRead = existingNovel ? chapterReadByPath.get(item.path) ?? false : false;
+      const downloadInfo = downloadTaskByPath.get(item.path);
+      const isDownloaded = Boolean(chapterDownloaded?.[item.path]);
+
+      return (
+        <ChapterRow
+          chapter={item}
+          theme={theme}
+          isSelectionMode={isChapterSelectionMode}
+          selected={selected}
+          isRead={isRead}
+          isInLibrary={Boolean(existingNovel)}
+          isDownloaded={isDownloaded}
+          downloadStatus={downloadInfo?.status}
+          onToggleSelected={toggleChapterSelected}
+          onOpenChapter={openChapter}
+          onEnqueueDownload={enqueueChapterDownload}
+        />
+      );
+    },
+    [
+      chapterDownloaded,
+      chapterReadByPath,
+      downloadTaskByPath,
+      enqueueChapterDownload,
+      existingNovel,
+      isChapterSelectionMode,
+      openChapter,
+      selectedChapterPaths,
+      theme,
+      toggleChapterSelected,
+    ],
+  );
+
+  const listHeader = useMemo(
+    () => (
+      <>
+        <View style={styles.headerSection}>
+          <Image
+            source={{
+              uri: cover || "https://via.placeholder.com/300x450",
+            }}
+            style={[styles.cover, { width: coverWidth, height: coverHeight }]}
+          />
+          <View style={styles.headerInfo}>
+            <Text
+              style={[styles.title, { color: theme.colors.text }]}
+              numberOfLines={3}
+            >
+              {title}
+            </Text>
+            <Text
+              style={[styles.author, { color: theme.colors.textSecondary }]}
+              numberOfLines={1}
+            >
+              {author || "Unknown"}
+            </Text>
+            <View style={styles.statusRow}>
+              <View
+                style={[
+                  styles.statusBadge,
+                  {
+                    backgroundColor:
+                      normalizedStatus === "completed"
+                        ? theme.colors.success
+                        : theme.colors.warning,
+                  },
+                ]}
+              >
+                <Text style={styles.statusText}>{normalizedStatus}</Text>
+              </View>
+              <Text
+                style={[styles.source, { color: theme.colors.textSecondary }]}
+                numberOfLines={1}
+              >
+                {plugin?.name || pluginId}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.actionButtons}>
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+            onPress={isInLibrary ? handleLibraryToggle : handleAddToLibrary}
+          >
+            <Text style={styles.actionButtonText}>
+              {isInLibrary ? "In library" : "Add to library"}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.actionButton,
+              {
+                backgroundColor: theme.colors.surface,
+                borderWidth: 1,
+                borderColor: theme.colors.border,
+              },
+            ]}
+            onPress={handleWebView}
+          >
+            <Text style={[styles.actionButtonText, { color: theme.colors.text }]}>
+              WebView
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+            Summary
+          </Text>
+          <Text style={[styles.summary, { color: theme.colors.textSecondary }]}>
+            {summary || "(No summary)"}
+          </Text>
+        </View>
+
+        {genres.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+              Genres
+            </Text>
+            <View style={styles.genresContainer}>
+              {genres.map((g) => (
+                <View
+                  key={g}
+                  style={[
+                    styles.genreTag,
+                    {
+                      backgroundColor: theme.colors.surface,
+                      borderColor: theme.colors.border,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.genreText, { color: theme.colors.primary }]}>
+                    {g}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        <TouchableOpacity
+          style={styles.progressSection}
+          onPress={handleProgressPress}
+          disabled={chapters.length === 0}
+        >
+          <View style={styles.progressInfo}>
+            <Text style={[styles.progressText, { color: theme.colors.text }]}>
+              Progress
+            </Text>
+            <Text style={[styles.progressText, { color: theme.colors.primary }]}>
+              {effectiveReadCount}/{progressTotal}
+            </Text>
+          </View>
+          <View style={[styles.progressBar, { backgroundColor: theme.colors.border }]}>
+            <View
+              style={[
+                styles.progressFill,
+                { backgroundColor: theme.colors.primary, width: `${progressPercent}%` },
+              ]}
+            />
+          </View>
+          <Text style={[styles.chapterCount, { color: theme.colors.textSecondary }]}>
+            {progressTotal} chapters
+          </Text>
+        </TouchableOpacity>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+            Chapters
+          </Text>
+        </View>
+      </>
+    ),
+    [
+      author,
+      chapters.length,
+      cover,
+      coverHeight,
+      coverWidth,
+      effectiveReadCount,
+      genres,
+      handleAddToLibrary,
+      handleLibraryToggle,
+      handleProgressPress,
+      handleWebView,
+      isInLibrary,
+      normalizedStatus,
+      plugin?.name,
+      pluginId,
+      progressPercent,
+      progressTotal,
+      summary,
+      theme,
+      title,
+    ],
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <Header
@@ -1038,327 +1452,15 @@ export const PluginNovelDetailScreen: React.FC = () => {
           </Text>
         </View>
       ) : (
-        <FlatList
+        <FlashList
           data={chapters}
           keyExtractor={(item) => item.path}
           contentContainerStyle={styles.listContent}
-          ListHeaderComponent={
-            <>
-              <View style={styles.headerSection}>
-                <Image
-                  source={{
-                    uri: cover || "https://via.placeholder.com/300x450",
-                  }}
-                  style={[
-                    styles.cover,
-                    { width: coverWidth, height: coverHeight },
-                  ]}
-                />
-                <View style={styles.headerInfo}>
-                  <Text
-                    style={[styles.title, { color: theme.colors.text }]}
-                    numberOfLines={3}
-                  >
-                    {title}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.author,
-                      { color: theme.colors.textSecondary },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {author || "Unknown"}
-                  </Text>
-                  <View style={styles.statusRow}>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        {
-                          backgroundColor:
-                            normalizedStatus === "completed"
-                              ? theme.colors.success
-                              : theme.colors.warning,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.statusText}>
-                        {normalizedStatus}
-                      </Text>
-                    </View>
-                    <Text
-                      style={[
-                        styles.source,
-                        { color: theme.colors.textSecondary },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {plugin?.name || pluginId}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.actionButtons}>
-                <TouchableOpacity
-                  style={[
-                    styles.actionButton,
-                    { backgroundColor: theme.colors.primary },
-                  ]}
-                  onPress={isInLibrary ? handleLibraryToggle : handleAddToLibrary}
-                >
-                  <Text style={styles.actionButtonText}>
-                    {isInLibrary ? "In library" : "Add to library"}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.actionButton,
-                    {
-                      backgroundColor: theme.colors.surface,
-                      borderWidth: 1,
-                      borderColor: theme.colors.border,
-                    },
-                  ]}
-                  onPress={handleWebView}
-                >
-                  <Text
-                    style={[
-                      styles.actionButtonText,
-                      { color: theme.colors.text },
-                    ]}
-                  >
-                    WebView
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                  Summary
-                </Text>
-                <Text
-                  style={[styles.summary, { color: theme.colors.textSecondary }]}
-                >
-                  {summary || "(No summary)"}
-                </Text>
-              </View>
-
-              {genres.length > 0 ? (
-                <View style={styles.section}>
-                  <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                    Genres
-                  </Text>
-                  <View style={styles.genresContainer}>
-                    {genres.map((g) => (
-                      <View
-                        key={g}
-                        style={[
-                          styles.genreTag,
-                          {
-                            backgroundColor: theme.colors.surface,
-                            borderColor: theme.colors.border,
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.genreText,
-                            { color: theme.colors.primary },
-                          ]}
-                        >
-                          {g}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              ) : null}
-
-              <TouchableOpacity
-                style={styles.progressSection}
-                onPress={handleProgressPress}
-                disabled={chapters.length === 0}
-              >
-                <View style={styles.progressInfo}>
-                  <Text style={[styles.progressText, { color: theme.colors.text }]}>
-                    Progress
-                  </Text>
-                  <Text
-                    style={[
-                      styles.progressText,
-                      { color: theme.colors.primary },
-                    ]}
-                  >
-                    {effectiveReadCount}/{progressTotal}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.progressBar,
-                    { backgroundColor: theme.colors.border },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.progressFill,
-                      {
-                        backgroundColor: theme.colors.primary,
-                        width: `${progressPercent}%`,
-                      },
-                    ]}
-                  />
-                </View>
-                <Text
-                  style={[styles.chapterCount, { color: theme.colors.textSecondary }]}
-                >
-                  {progressTotal} chapters
-                </Text>
-              </TouchableOpacity>
-
-              <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                  Chapters
-                </Text>
-              </View>
-            </>
-          }
-          renderItem={({ item, index }) => {
-            const selected = selectedChapterPaths.has(item.path);
-            const isRead = existingNovel
-              ? getEffectiveReadForChapter({
-                  chapterPath: item.path,
-                  index,
-                  total: progressTotal,
-                  baseReadCount,
-                  order: chapterListOrder,
-                  readOverrides: existingNovel.chapterReadOverrides,
-                })
-              : false;
-            const downloadInfo = downloadTaskByPath.get(item.path);
-            const isDownloaded = Boolean(existingNovel?.chapterDownloaded?.[item.path]);
-
-            return (
-            <TouchableOpacity
-              style={[
-                styles.chapterItem,
-                selected && { backgroundColor: theme.colors.primary + "1A" },
-                { borderBottomColor: theme.colors.divider },
-              ]}
-              onPress={() => {
-                if (isChapterSelectionMode) {
-                  toggleChapterSelected(item.path);
-                  return;
-                }
-                if (existingNovel) {
-                  navigation.navigate("Reader", {
-                    novelId: stableNumericId,
-                    chapterId: item.path,
-                  });
-                  return;
-                }
-                navigation.navigate("PluginReader", {
-                  pluginId,
-                  novelId: stableNumericId,
-                  novelPath,
-                  chapterPath: item.path,
-                  chapterTitle: item.name,
-                });
-              }}
-              onLongPress={() => toggleChapterSelected(item.path)}
-              delayLongPress={220}
-            >
-              <View style={styles.chapterLeft}>
-                {isChapterSelectionMode ? (
-                  <Ionicons
-                    name={selected ? "checkmark-circle" : "ellipse-outline"}
-                    size={22}
-                    color={selected ? theme.colors.primary : theme.colors.textSecondary}
-                  />
-                ) : null}
-
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[
-                      styles.chapterTitle,
-                      { color: isRead ? theme.colors.textSecondary : theme.colors.text },
-                    ]}
-                    numberOfLines={2}
-                  >
-                    {item.name}
-                  </Text>
-                  {!!item.releaseTime && (
-                    <Text
-                      style={[
-                        styles.chapterMeta,
-                        { color: theme.colors.textSecondary },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {item.releaseTime}
-                    </Text>
-                  )}
-                </View>
-              </View>
-
-              {!isChapterSelectionMode ? (
-                <View style={styles.chapterRight}>
-                  <TouchableOpacity
-                    onPress={() => {
-                      if (isDownloaded) return;
-                      if (
-                        downloadInfo?.status === "pending" ||
-                        downloadInfo?.status === "downloading"
-                      ) {
-                        return;
-                      }
-                      enqueueChapterDownload(item);
-                    }}
-                    style={[
-                      styles.chapterIconBtn,
-                      (!existingNovel || isDownloaded) && { opacity: 0.65 },
-                    ]}
-                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                  >
-                    {isDownloaded ? (
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={20}
-                        color={theme.colors.primary}
-                      />
-                    ) : downloadInfo?.status === "downloading" ? (
-                      <ActivityIndicator size="small" color={theme.colors.primary} />
-                    ) : downloadInfo?.status === "pending" ? (
-                      <Ionicons
-                        name="time-outline"
-                        size={20}
-                        color={theme.colors.textSecondary}
-                      />
-                    ) : downloadInfo?.status === "error" ? (
-                      <Ionicons
-                        name="alert-circle-outline"
-                        size={20}
-                        color={theme.colors.error}
-                      />
-                    ) : (
-                      <Ionicons
-                        name="download-outline"
-                        size={20}
-                        color={theme.colors.textSecondary}
-                      />
-                    )}
-                  </TouchableOpacity>
-
-                  <Ionicons
-                    name="chevron-forward"
-                    size={20}
-                    color={theme.colors.textSecondary}
-                  />
-                </View>
-              ) : null}
-            </TouchableOpacity>
-            );
-          }}
+          ListHeaderComponent={listHeader}
+          renderItem={renderChapterItem}
+          showsVerticalScrollIndicator={false}
+          removeClippedSubviews={Platform.OS === "android"}
+          extraData={selectedChapterPaths}
         />
       )}
 

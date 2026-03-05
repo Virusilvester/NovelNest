@@ -253,6 +253,38 @@ export const SourceDetailScreen: React.FC = () => {
     });
   }, [displayedNovels]);
 
+  const handleNovelPress = React.useCallback(
+    (novel: Novel) => {
+      if (isSelectionMode) {
+        toggleSelected(novel.id);
+        return;
+      }
+      if (!sourceId) return;
+      navigation.navigate("PluginNovelDetail", {
+        pluginId: sourceId,
+        novelPath: novel.id,
+        novelName: novel.title,
+        coverUrl: novel.coverUrl,
+      });
+    },
+    [isSelectionMode, navigation, sourceId, toggleSelected],
+  );
+
+  const handleNovelLongPress = React.useCallback(
+    (novel: Novel) => {
+      if (!isSelectionMode) {
+        setIsSelectionMode(true);
+        setSelectedIds(new Set([novel.id]));
+        setIsSearchActive(false);
+        setIsFilterVisible(false);
+        setIsMoreVisible(false);
+        return;
+      }
+      toggleSelected(novel.id);
+    },
+    [isSelectionMode, toggleSelected],
+  );
+
   const defaultCategoryId = useMemo(() => {
     const list = Array.isArray(library.categories) ? library.categories : [];
     const choices = list
@@ -518,30 +550,8 @@ export const SourceDetailScreen: React.FC = () => {
           }
           selectionMode={isSelectionMode}
           selectedIds={selectedIds}
-          onNovelPress={(novel) => {
-            if (isSelectionMode) {
-              toggleSelected(novel.id);
-              return;
-            }
-            if (!sourceId) return;
-            navigation.navigate("PluginNovelDetail", {
-              pluginId: sourceId,
-              novelPath: novel.id,
-              novelName: novel.title,
-              coverUrl: novel.coverUrl,
-            });
-          }}
-          onNovelLongPress={(novel) => {
-            if (!isSelectionMode) {
-              setIsSelectionMode(true);
-              setSelectedIds(new Set([novel.id]));
-              setIsSearchActive(false);
-              setIsFilterVisible(false);
-              setIsMoreVisible(false);
-              return;
-            }
-            toggleSelected(novel.id);
-          }}
+          onNovelPress={handleNovelPress}
+          onNovelLongPress={handleNovelLongPress}
         />
       )}
 

@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
+import { FlashList, ListRenderItem } from "@shopify/flash-list";
 import React, { useMemo, useState } from "react";
 import {
-  FlatList,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -43,6 +44,36 @@ export const ChapterDrawer: React.FC<Props> = ({
     if (!q) return chapters;
     return chapters.filter((c) => c.name.toLowerCase().includes(q));
   }, [chapters, query]);
+
+  const renderItem: ListRenderItem<ReaderChapterItem> = ({ item, index }) => {
+    const isActive = item.path === currentPath;
+    return (
+      <TouchableOpacity
+        style={[
+          styles.row,
+          { borderBottomColor: theme.colors.divider },
+          isActive && { backgroundColor: theme.colors.primary + "18" },
+        ]}
+        onPress={() => onSelect(item, index)}
+      >
+        <Text
+          style={[
+            styles.rowText,
+            { color: theme.colors.text },
+            isActive && { fontWeight: "800" },
+          ]}
+          numberOfLines={2}
+        >
+          {item.name || "(untitled)"}
+        </Text>
+        {isActive ? (
+          <Ionicons name="radio-button-on" size={18} color={theme.colors.primary} />
+        ) : (
+          <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -91,39 +122,12 @@ export const ChapterDrawer: React.FC<Props> = ({
             )}
           </View>
 
-          <FlatList
+          <FlashList
             data={filtered}
             keyExtractor={(item, index) => `${item.path}:${index}`}
             keyboardShouldPersistTaps="handled"
-            renderItem={({ item, index }) => {
-              const isActive = item.path === currentPath;
-              return (
-                <TouchableOpacity
-                  style={[
-                    styles.row,
-                    { borderBottomColor: theme.colors.divider },
-                    isActive && { backgroundColor: theme.colors.primary + "18" },
-                  ]}
-                  onPress={() => onSelect(item, index)}
-                >
-                  <Text
-                    style={[
-                      styles.rowText,
-                      { color: theme.colors.text },
-                      isActive && { fontWeight: "800" },
-                    ]}
-                    numberOfLines={2}
-                  >
-                    {item.name || "(untitled)"}
-                  </Text>
-                  {isActive ? (
-                    <Ionicons name="radio-button-on" size={18} color={theme.colors.primary} />
-                  ) : (
-                    <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
-                  )}
-                </TouchableOpacity>
-              );
-            }}
+            renderItem={renderItem}
+            removeClippedSubviews={Platform.OS === "android"}
           />
         </TouchableOpacity>
       </TouchableOpacity>
@@ -185,4 +189,3 @@ const styles = StyleSheet.create({
   },
   rowText: { flex: 1, fontSize: 13, lineHeight: 18 },
 });
-

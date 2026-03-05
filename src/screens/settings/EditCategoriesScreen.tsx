@@ -1,10 +1,11 @@
 // src/screens/settings/EditCategoriesScreen.tsx
 import { Ionicons } from "@expo/vector-icons";
+import { FlashList } from "@shopify/flash-list";
 import { useNavigation } from "@react-navigation/native";
 import React, { useState } from "react";
 import {
   Alert,
-  FlatList,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -103,11 +104,13 @@ export const EditCategoriesScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      <FlatList
+      <FlashList
         data={categories}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        removeClippedSubviews={Platform.OS === "android"}
       />
     </View>
   );

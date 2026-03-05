@@ -50,16 +50,15 @@ export const LibraryScreen: React.FC = () => {
   const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
   const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(null);
 
-  const filteredNovels = getFilteredNovels();
+  const filteredNovels = useMemo(() => getFilteredNovels(), [getFilteredNovels]);
 
-  // Apply search filter
-  const displayedNovels = searchQuery
-    ? filteredNovels.filter(
-        (n) =>
-          n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          n.author.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
-    : filteredNovels;
+  const displayedNovels = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return filteredNovels;
+    return filteredNovels.filter(
+      (n) => n.title.toLowerCase().includes(q) || n.author.toLowerCase().includes(q),
+    );
+  }, [filteredNovels, searchQuery]);
 
   const clearSelection = useCallback(() => {
     setIsSelectionMode(false);
