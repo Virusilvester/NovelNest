@@ -19,6 +19,7 @@ import { useLibrary } from "../../context/LibraryContext";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
 import type { RootStackParamList } from "../../navigation/types";
+import { NovelDetailCache } from "../../services/novelDetailCache";
 import { PluginRuntimeService } from "../../services/pluginRuntime";
 import type { Novel } from "../../types";
 import { clamp } from "../../utils/responsive";
@@ -50,16 +51,57 @@ export const PluginNovelDetailScreen: React.FC = () => {
 
   const { pluginId, novelPath, novelName, coverUrl } = route.params;
 
+  const stableNumericId = useMemo(() => {
+    const input = `${pluginId}:${novelPath}`;
+    let hash = 2166136261;
+    for (let i = 0; i < input.length; i++) {
+      hash ^= input.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return String(hash >>> 0);
+  }, [novelPath, pluginId]);
+
   const installed = settings.extensions.installedPlugins || {};
   const plugin = installed[pluginId];
 
-  const [isLoading, setIsLoading] = useState(true);
+  const cacheKey = useMemo(
+    () => NovelDetailCache.key(pluginId, novelPath),
+    [pluginId, novelPath],
+  );
+
+  const fetchSignature = useMemo(() => {
+    return NovelDetailCache.signature({
+      novelId: stableNumericId,
+      pluginId,
+      novelPath,
+      pluginVersion: plugin?.version,
+      pluginUrl: plugin?.url,
+      pluginLocalPath: plugin?.localPath,
+      userAgent: settings.advanced.userAgent,
+    });
+  }, [
+    novelPath,
+    plugin?.localPath,
+    plugin?.url,
+    plugin?.version,
+    pluginId,
+    settings.advanced.userAgent,
+    stableNumericId,
+  ]);
+
+  const initialCached = useMemo(() => NovelDetailCache.get(cacheKey), [cacheKey]);
+
+  const [isLoading, setIsLoading] = useState(() => !initialCached);
   const [error, setError] = useState<string | null>(null);
-  const [detail, setDetail] = useState<any>(null);
+  const [detail, setDetail] = useState<any>(() => initialCached?.detail ?? null);
   const [isDownloadMenuVisible, setIsDownloadMenuVisible] = useState(false);
   const [isMoreMenuVisible, setIsMoreMenuVisible] = useState(false);
-  const [chaptersPage, setChaptersPage] = useState(1);
-  const [chaptersHasMore, setChaptersHasMore] = useState(false);
+  const [chaptersPage, setChaptersPage] = useState(
+    () => initialCached?.chaptersPage ?? 1,
+  );
+  const [chaptersHasMore, setChaptersHasMore] = useState(
+    () => initialCached?.chaptersHasMore ?? false,
+  );
   const [isChaptersLoadingMore, setIsChaptersLoadingMore] = useState(false);
   const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
   const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(
@@ -83,17 +125,31 @@ export const PluginNovelDetailScreen: React.FC = () => {
 
   useEffect(() => {
     const run = async () => {
-      if (!plugin) {
-        setError("Plugin not installed.");
+      const cached = NovelDetailCache.get(cacheKey);
+      if (cached) {
+        setError(null);
+        setDetail(cached.detail);
+        setChaptersPage(cached.chaptersPage);
+        setChaptersHasMore(cached.chaptersHasMore);
         setIsLoading(false);
+        if (cached.signature === fetchSignature) return;
+      }
+
+      if (!plugin) {
+        if (!cached) {
+          setError("Plugin not installed.");
+          setIsLoading(false);
+        }
         return;
       }
 
       try {
-        setIsLoading(true);
+        if (!cached) setIsLoading(true);
         setError(null);
-        setChaptersPage(1);
-        setChaptersHasMore(false);
+        if (!cached) {
+          setChaptersPage(1);
+          setChaptersHasMore(false);
+        }
         const instance = await PluginRuntimeService.loadLnReaderPlugin(plugin, {
           userAgent: settings.advanced.userAgent,
         });
@@ -111,19 +167,42 @@ export const PluginNovelDetailScreen: React.FC = () => {
         const totalFromDetail =
           typeof data?.totalChapters === "number" ? data.totalChapters : undefined;
         const initialChapters = Array.isArray(data?.chapters) ? data.chapters : [];
-        setChaptersHasMore(
+        const chaptersMapped = initialChapters
+          .filter(isChapterItem)
+          .map((c: any) => ({
+            name: String(c?.name || ""),
+            path: String(c?.path || ""),
+            releaseTime: c?.releaseTime ?? null,
+            chapterNumber:
+              typeof c?.chapterNumber === "number" ? c.chapterNumber : undefined,
+          }));
+
+        const hasMore =
           typeof (instance as any).fetchChaptersPage === "function" &&
             totalFromDetail != null &&
-            initialChapters.length < totalFromDetail,
-        );
+            chaptersMapped.length < totalFromDetail;
+
+        setChaptersPage(1);
+        setChaptersHasMore(hasMore);
+
+        NovelDetailCache.set(cacheKey, {
+          signature: fetchSignature,
+          cachedAt: Date.now(),
+          detail: data,
+          chapters: chaptersMapped,
+          chaptersPage: 1,
+          chaptersHasMore: hasMore,
+        });
       } catch (e: any) {
-        setError(e?.message || "Failed to load novel details.");
+        if (!cached) {
+          setError(e?.message || "Failed to load novel details.");
+        }
       } finally {
         setIsLoading(false);
       }
     };
     run();
-  }, [novelPath, plugin, settings.advanced.userAgent]);
+  }, [cacheKey, fetchSignature, novelPath, plugin, settings.advanced.userAgent]);
 
   useEffect(() => {
     if (!plugin) return;
@@ -153,6 +232,10 @@ export const PluginNovelDetailScreen: React.FC = () => {
       const raw = Array.isArray(res?.chapters) ? res.chapters : [];
       const mapped = raw.filter(isChapterItem);
 
+      const appliedPage = typeof res?.page === "number" ? res.page : nextPage;
+      const explicitHasMore =
+        typeof res?.hasMore === "boolean" ? res.hasMore : undefined;
+
       setDetail((prev: any) => {
         const prevChapters = Array.isArray(prev?.chapters) ? prev.chapters : [];
         const seen = new Set(prevChapters.map((c: any) => String(c?.path || "")));
@@ -160,37 +243,45 @@ export const PluginNovelDetailScreen: React.FC = () => {
         for (const c of mapped) {
           if (!seen.has(c.path)) next.push(c);
         }
-        return { ...(prev || {}), chapters: next };
+
+        const totalFromDetail =
+          typeof prev?.totalChapters === "number" ? prev.totalChapters : undefined;
+        const nextHasMore =
+          typeof explicitHasMore === "boolean"
+            ? explicitHasMore
+            : totalFromDetail != null
+              ? next.length < totalFromDetail
+              : mapped.length > 0;
+
+        setChaptersPage(appliedPage);
+        setChaptersHasMore(nextHasMore);
+
+        const nextDetail = { ...(prev || {}), chapters: next };
+        NovelDetailCache.set(cacheKey, {
+          signature: fetchSignature,
+          cachedAt: Date.now(),
+          detail: nextDetail,
+          chapters: next
+            .filter(isChapterItem)
+            .map((c: any) => ({
+              name: String(c?.name || ""),
+              path: String(c?.path || ""),
+              releaseTime: c?.releaseTime ?? null,
+              chapterNumber:
+                typeof c?.chapterNumber === "number" ? c.chapterNumber : undefined,
+            })),
+          chaptersPage: appliedPage,
+          chaptersHasMore: nextHasMore,
+        });
+
+        return nextDetail;
       });
-
-      const appliedPage = typeof res?.page === "number" ? res.page : nextPage;
-      setChaptersPage(appliedPage);
-
-      if (typeof res?.hasMore === "boolean") {
-        setChaptersHasMore(res.hasMore);
-      } else {
-        const total =
-          typeof detail?.totalChapters === "number" ? detail.totalChapters : undefined;
-        setChaptersHasMore(
-          total != null ? chapters.length + mapped.length < total : mapped.length > 0,
-        );
-      }
     } catch {
       // ignore
     } finally {
       setIsChaptersLoadingMore(false);
     }
   };
-
-  const stableNumericId = useMemo(() => {
-    const input = `${pluginId}:${novelPath}`;
-    let hash = 2166136261;
-    for (let i = 0; i < input.length; i++) {
-      hash ^= input.charCodeAt(i);
-      hash = Math.imul(hash, 16777619);
-    }
-    return String(hash >>> 0);
-  }, [novelPath, pluginId]);
 
   const existingNovel = useMemo(
     () => novels.find((n) => n.id === stableNumericId),

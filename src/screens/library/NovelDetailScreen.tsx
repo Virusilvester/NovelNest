@@ -18,6 +18,7 @@ import { PopupMenu } from "../../components/common/PopupMenu";
 import { useLibrary } from "../../context/LibraryContext";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
+import { NovelDetailCache } from "../../services/novelDetailCache";
 import { PluginRuntimeService } from "../../services/pluginRuntime";
 import { Novel } from "../../types";
 import { clamp } from "../../utils/responsive";
@@ -52,17 +53,56 @@ export const NovelDetailScreen: React.FC = () => {
     return settings.extensions.installedPlugins?.[novel.pluginId];
   }, [novel?.pluginId, settings.extensions.installedPlugins]);
 
+  const cacheKey = useMemo(() => {
+    if (!novel?.pluginId || !novel?.pluginNovelPath) return null;
+    return NovelDetailCache.key(novel.pluginId, novel.pluginNovelPath);
+  }, [novel?.pluginId, novel?.pluginNovelPath]);
+
+  const fetchSignature = useMemo(() => {
+    if (!novel?.pluginId || !novel?.pluginNovelPath) return null;
+    return NovelDetailCache.signature({
+      novelId: novel.id,
+      pluginId: novel.pluginId,
+      novelPath: novel.pluginNovelPath,
+      pluginVersion: linkedPlugin?.version,
+      pluginUrl: linkedPlugin?.url,
+      pluginLocalPath: linkedPlugin?.localPath,
+      userAgent: settings.advanced.userAgent,
+    });
+  }, [
+    linkedPlugin?.localPath,
+    linkedPlugin?.url,
+    linkedPlugin?.version,
+    novel?.id,
+    novel?.pluginId,
+    novel?.pluginNovelPath,
+    settings.advanced.userAgent,
+  ]);
+
+  const initialCached = useMemo(() => {
+    if (!cacheKey) return undefined;
+    return NovelDetailCache.get(cacheKey);
+  }, [cacheKey]);
+
   const [isDownloadMenuVisible, setIsDownloadMenuVisible] = useState(false);
   const [isMoreMenuVisible, setIsMoreMenuVisible] = useState(false);
   const [isInLibrary, setIsInLibrary] = useState(Boolean(novel?.isInLibrary));
 
-  const [remoteDetail, setRemoteDetail] = useState<any>(null);
-  const [remoteChapters, setRemoteChapters] = useState<PluginChapterItem[]>([]);
+  const [remoteDetail, setRemoteDetail] = useState<any>(
+    () => initialCached?.detail ?? null,
+  );
+  const [remoteChapters, setRemoteChapters] = useState<PluginChapterItem[]>(
+    () => initialCached?.chapters ?? [],
+  );
   const [isRemoteLoading, setIsRemoteLoading] = useState(false);
   const [remoteError, setRemoteError] = useState<string | null>(null);
-  const lastFetchKeyRef = useRef<string | null>(null);
-  const [chaptersPage, setChaptersPage] = useState(1);
-  const [chaptersHasMore, setChaptersHasMore] = useState(false);
+  const lastFetchKeyRef = useRef<string | null>(initialCached?.signature ?? null);
+  const [chaptersPage, setChaptersPage] = useState(
+    () => initialCached?.chaptersPage ?? 1,
+  );
+  const [chaptersHasMore, setChaptersHasMore] = useState(
+    () => initialCached?.chaptersHasMore ?? false,
+  );
   const [isChaptersLoadingMore, setIsChaptersLoadingMore] = useState(false);
 
   useEffect(() => {
@@ -112,6 +152,68 @@ export const NovelDetailScreen: React.FC = () => {
   useEffect(() => {
     const run = async () => {
       if (!novel?.pluginId || !novel?.pluginNovelPath) return;
+
+      const stableKey =
+        cacheKey ?? NovelDetailCache.key(novel.pluginId, novel.pluginNovelPath);
+      const cached = NovelDetailCache.get(stableKey);
+
+      if (cached) {
+        setRemoteError(null);
+        setRemoteDetail(cached.detail);
+        setRemoteChapters(cached.chapters);
+        setChaptersPage(cached.chaptersPage);
+        setChaptersHasMore(cached.chaptersHasMore);
+
+        if (cached.detail) {
+          const resolvedTitle = String(cached.detail?.name || novel.title);
+          const resolvedAuthor = String(
+            cached.detail?.author || novel.author || "Unknown",
+          );
+          const resolvedCover = String(cached.detail?.cover || novel.coverUrl);
+          const resolvedSummary = String(cached.detail?.summary || novel.summary || "");
+          const resolvedGenres = Array.isArray(cached.detail?.genres)
+            ? cached.detail.genres.map((g: any) => String(g))
+            : novel.genres;
+          const resolvedTotalChapters =
+            typeof cached.detail?.totalChapters === "number"
+              ? cached.detail.totalChapters
+              : undefined;
+
+          const updates: Partial<Novel> = {};
+          if (resolvedTitle && resolvedTitle !== novel.title) updates.title = resolvedTitle;
+          if (resolvedAuthor && resolvedAuthor !== novel.author) updates.author = resolvedAuthor;
+          if (resolvedCover && resolvedCover !== novel.coverUrl) updates.coverUrl = resolvedCover;
+          if (resolvedSummary !== novel.summary) updates.summary = resolvedSummary;
+          if (
+            Array.isArray(cached.detail?.genres) &&
+            (novel.genres.length !== resolvedGenres.length ||
+              novel.genres.some((g, idx) => g !== resolvedGenres[idx]))
+          ) {
+            updates.genres = resolvedGenres;
+          }
+          if (
+            resolvedTotalChapters != null &&
+            resolvedTotalChapters !== novel.totalChapters
+          ) {
+            updates.totalChapters = resolvedTotalChapters;
+          }
+
+          if (Object.keys(updates).length > 0) {
+            updateNovel(novel.id, updates);
+          }
+        }
+
+        if (fetchSignature && cached.signature === fetchSignature) {
+          lastFetchKeyRef.current = fetchSignature;
+          return;
+        }
+      } else {
+        setRemoteDetail(null);
+        setRemoteChapters([]);
+        setChaptersPage(1);
+        setChaptersHasMore(false);
+      }
+
       const plugin = linkedPlugin;
       if (!plugin) {
         setRemoteError("Source plugin is not installed.");
@@ -122,26 +224,25 @@ export const NovelDetailScreen: React.FC = () => {
         return;
       }
 
-      const fetchKey = [
-        novel.id,
-        novel.pluginId,
-        novel.pluginNovelPath,
-        plugin.version,
-        plugin.url,
-        plugin.localPath || "",
-        settings.advanced.userAgent,
-      ].join("|");
+      const signature =
+        fetchSignature ||
+        NovelDetailCache.signature({
+          novelId: novel.id,
+          pluginId: novel.pluginId,
+          novelPath: novel.pluginNovelPath,
+          pluginVersion: plugin.version,
+          pluginUrl: plugin.url,
+          pluginLocalPath: plugin.localPath,
+          userAgent: settings.advanced.userAgent,
+        });
 
       // Prevent infinite refresh loops: `updateNovel()` changes library state which re-renders this screen.
       // We only refetch when the novel/plugin reference or runtime inputs change.
-      if (lastFetchKeyRef.current === fetchKey) return;
-      lastFetchKeyRef.current = fetchKey;
+      if (lastFetchKeyRef.current === signature) return;
+      lastFetchKeyRef.current = signature;
 
       setRemoteError(null);
-      setRemoteDetail(null);
-      setRemoteChapters([]);
       setChaptersPage(1);
-      setChaptersHasMore(false);
 
       try {
         setIsRemoteLoading(true);
@@ -179,6 +280,17 @@ export const NovelDetailScreen: React.FC = () => {
             hasMoreFromTotal,
         );
 
+        NovelDetailCache.set(stableKey, {
+          signature,
+          cachedAt: Date.now(),
+          detail: data,
+          chapters: chaptersMapped,
+          chaptersPage: 1,
+          chaptersHasMore:
+            typeof (instance as any).fetchChaptersPage === "function" &&
+            hasMoreFromTotal,
+        });
+
         updateNovel(novel.id, {
           title: String(data?.name || novel.title),
           author: String(data?.author || novel.author || "Unknown"),
@@ -215,6 +327,8 @@ export const NovelDetailScreen: React.FC = () => {
     linkedPlugin?.url,
     linkedPlugin?.localPath,
     updateNovel,
+    cacheKey,
+    fetchSignature,
   ]);
 
   const displayTitle = remoteDetail?.name || novel?.title || "Novel";
@@ -339,6 +453,26 @@ export const NovelDetailScreen: React.FC = () => {
 
       const raw = Array.isArray(res?.chapters) ? res.chapters : [];
       const mapped = raw.filter(isPluginChapterItem);
+      const appliedPage = typeof res?.page === "number" ? res.page : nextPage;
+      const explicitHasMore =
+        typeof res?.hasMore === "boolean" ? res.hasMore : undefined;
+      const totalFromDetail =
+        typeof remoteDetail?.totalChapters === "number"
+          ? remoteDetail.totalChapters
+          : undefined;
+      const stableKey =
+        cacheKey ?? NovelDetailCache.key(novel.pluginId, novel.pluginNovelPath);
+      const signature =
+        fetchSignature ||
+        NovelDetailCache.signature({
+          novelId: novel.id,
+          pluginId: novel.pluginId,
+          novelPath: novel.pluginNovelPath,
+          pluginVersion: linkedPlugin?.version,
+          pluginUrl: linkedPlugin?.url,
+          pluginLocalPath: linkedPlugin?.localPath,
+          userAgent: settings.advanced.userAgent,
+        });
 
       setRemoteChapters((prev) => {
         const seen = new Set(prev.map((c) => c.path));
@@ -346,24 +480,30 @@ export const NovelDetailScreen: React.FC = () => {
         for (const c of mapped) {
           if (!seen.has(c.path)) next.push(c);
         }
+
+        const nextHasMore =
+          typeof explicitHasMore === "boolean"
+            ? explicitHasMore
+            : totalFromDetail != null
+              ? next.length < totalFromDetail
+              : mapped.length > 0;
+
+        setChaptersPage(appliedPage);
+        setChaptersHasMore(nextHasMore);
+
+        const cacheDetail =
+          remoteDetail ?? NovelDetailCache.get(stableKey)?.detail ?? null;
+        NovelDetailCache.set(stableKey, {
+          signature,
+          cachedAt: Date.now(),
+          detail: cacheDetail,
+          chapters: next,
+          chaptersPage: appliedPage,
+          chaptersHasMore: nextHasMore,
+        });
+
         return next;
       });
-
-      const appliedPage =
-        typeof res?.page === "number" ? res.page : nextPage;
-      setChaptersPage(appliedPage);
-
-      if (typeof res?.hasMore === "boolean") {
-        setChaptersHasMore(res.hasMore);
-      } else {
-        const total =
-          typeof remoteDetail?.totalChapters === "number"
-            ? remoteDetail.totalChapters
-            : undefined;
-        setChaptersHasMore(
-          total != null ? remoteChapters.length + mapped.length < total : mapped.length > 0,
-        );
-      }
     } catch {
       // ignore
     } finally {
@@ -424,7 +564,7 @@ export const NovelDetailScreen: React.FC = () => {
             </View>
           ) : null}
 
-          {isRemoteLoading ? (
+          {isRemoteLoading && !remoteDetail && remoteChapters.length === 0 ? (
             <View style={styles.loadingCenter}>
               <ActivityIndicator />
               <Text style={[styles.centerText, { color: theme.colors.textSecondary }]}>
