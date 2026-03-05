@@ -54,11 +54,20 @@ export const ReaderScreen: React.FC = () => {
   }, [cached?.chapters, novel?.pluginCache?.chapters]);
 
   const initialChapter = useMemo(() => {
-    const numeric = Number(chapterId);
-    if (Number.isFinite(numeric) && numeric > 0 && chapters.length > 0) {
-      const idx = Math.min(chapters.length - 1, Math.max(0, Math.floor(numeric) - 1));
-      return { path: chapters[idx].path, title: chapters[idx].name };
+    if (chapters.length > 0) {
+      const matched = chapters.find((c) => c.path === chapterId);
+      if (matched) return { path: matched.path, title: matched.name };
+
+      const numeric = Number(chapterId);
+      if (Number.isFinite(numeric) && numeric > 0) {
+        const idx = Math.min(
+          chapters.length - 1,
+          Math.max(0, Math.floor(numeric) - 1),
+        );
+        return { path: chapters[idx].path, title: chapters[idx].name };
+      }
     }
+
     return { path: chapterId, title: undefined };
   }, [chapterId, chapters]);
 
@@ -112,6 +121,34 @@ export const ReaderScreen: React.FC = () => {
     updateNovel(novelId, { lastReadDate: new Date() });
   }, [novelId, updateNovel]);
 
+  const handleMarkRead = useCallback(() => {
+    if (!novel) return;
+    const total = novel.totalChapters > 0 ? novel.totalChapters : chapters.length;
+    updateNovel(novel.id, {
+      unreadChapters: 0,
+      lastReadChapter: total,
+      lastReadDate: new Date(),
+    });
+  }, [chapters.length, novel, updateNovel]);
+
+  const handleMarkUnread = useCallback(() => {
+    if (!novel) return;
+    const total = novel.totalChapters > 0 ? novel.totalChapters : chapters.length;
+    updateNovel(novel.id, {
+      unreadChapters: total,
+      lastReadChapter: 0,
+      lastReadDate: undefined,
+    });
+  }, [chapters.length, novel, updateNovel]);
+
+  const extraMenuItems = useMemo(
+    () => [
+      { id: "markRead", label: "Mark as read", onPress: handleMarkRead },
+      { id: "markUnread", label: "Mark as unread", onPress: handleMarkUnread },
+    ],
+    [handleMarkRead, handleMarkUnread],
+  );
+
   const handleOpenWeb = useCallback(
     (path: string) => {
       const url =
@@ -162,6 +199,7 @@ export const ReaderScreen: React.FC = () => {
       onOpenWeb={handleOpenWeb}
       onChapterChange={handleChapterChange}
       onChapterRead={handleChapterRead}
+      extraMenuItems={extraMenuItems}
     />
   );
 };

@@ -109,6 +109,36 @@ export const PluginReaderScreen: React.FC = () => {
     updateNovel(novelId, { lastReadDate: new Date() });
   }, [novelId, updateNovel]);
 
+  const extraMenuItems = useMemo(() => {
+    if (!libraryNovel) return undefined;
+    const total =
+      libraryNovel.totalChapters > 0
+        ? libraryNovel.totalChapters
+        : chapters.length;
+    return [
+      {
+        id: "markRead",
+        label: "Mark as read",
+        onPress: () =>
+          updateNovel(libraryNovel.id, {
+            unreadChapters: 0,
+            lastReadChapter: total,
+            lastReadDate: new Date(),
+          }),
+      },
+      {
+        id: "markUnread",
+        label: "Mark as unread",
+        onPress: () =>
+          updateNovel(libraryNovel.id, {
+            unreadChapters: total,
+            lastReadChapter: 0,
+            lastReadDate: undefined,
+          }),
+      },
+    ];
+  }, [chapters.length, libraryNovel, updateNovel]);
+
   const handleOpenWeb = useCallback(
     (path: string) => {
       const url =
@@ -133,6 +163,7 @@ export const PluginReaderScreen: React.FC = () => {
       onOpenWeb={handleOpenWeb}
       onChapterChange={handleChapterChange}
       onChapterRead={handleChapterRead}
+      extraMenuItems={extraMenuItems}
     />
   );
 };

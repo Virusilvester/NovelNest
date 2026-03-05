@@ -437,14 +437,43 @@ export const PluginNovelDetailScreen: React.FC = () => {
   };
 
   const handleProgressPress = () => {
-    const first = chapters[0];
-    if (!first) return;
+    const list = chapters;
+    if (list.length === 0) return;
+
+    const total =
+      (existingNovel?.totalChapters && existingNovel.totalChapters > 0
+        ? existingNovel.totalChapters
+        : list.length) || list.length;
+    const lastRead = Math.max(
+      0,
+      Math.min(total, Math.floor(existingNovel?.lastReadChapter || 0)),
+    );
+    const unread = Math.max(
+      0,
+      Math.min(total, Math.floor(existingNovel?.unreadChapters ?? total)),
+    );
+
+    const targetIndex =
+      unread === 0
+        ? Math.max(0, Math.min(list.length - 1, lastRead - 1))
+        : Math.min(list.length - 1, lastRead);
+    const target = list[targetIndex] ?? list[0];
+    if (!target) return;
+
+    if (existingNovel) {
+      navigation.navigate("Reader", {
+        novelId: stableNumericId,
+        chapterId: target.path,
+      });
+      return;
+    }
+
     navigation.navigate("PluginReader", {
       pluginId,
       novelId: stableNumericId,
       novelPath,
-      chapterPath: first.path,
-      chapterTitle: first.name,
+      chapterPath: target.path,
+      chapterTitle: target.name,
     });
   };
 
@@ -463,7 +492,37 @@ export const PluginNovelDetailScreen: React.FC = () => {
     },
   ];
 
-  const moreOptions = [{ id: "openWeb", label: "Open website", onPress: handleWebView }];
+  const handleMarkRead = () => {
+    if (!existingNovel) return;
+    const total =
+      existingNovel.totalChapters > 0 ? existingNovel.totalChapters : chapters.length;
+    updateNovel(existingNovel.id, {
+      unreadChapters: 0,
+      lastReadChapter: total,
+      lastReadDate: new Date(),
+    });
+  };
+
+  const handleMarkUnread = () => {
+    if (!existingNovel) return;
+    const total =
+      existingNovel.totalChapters > 0 ? existingNovel.totalChapters : chapters.length;
+    updateNovel(existingNovel.id, {
+      unreadChapters: total,
+      lastReadChapter: 0,
+      lastReadDate: undefined,
+    });
+  };
+
+  const moreOptions = [
+    { id: "openWeb", label: "Open website", onPress: handleWebView },
+    ...(existingNovel
+      ? [
+          { id: "markRead", label: "Mark as read", onPress: handleMarkRead },
+          { id: "markUnread", label: "Mark as unread", onPress: handleMarkUnread },
+        ]
+      : []),
+  ];
 
   const progressTotal = chapters.length || existingNovel?.totalChapters || 0;
   const progressUnread = existingNovel?.unreadChapters ?? progressTotal;
@@ -723,13 +782,18 @@ export const PluginNovelDetailScreen: React.FC = () => {
                 { borderBottomColor: theme.colors.divider },
               ]}
               onPress={() =>
-                navigation.navigate("PluginReader", {
-                  pluginId,
-                  novelId: stableNumericId,
-                  novelPath,
-                  chapterPath: item.path,
-                  chapterTitle: item.name,
-                })
+                existingNovel
+                  ? navigation.navigate("Reader", {
+                      novelId: stableNumericId,
+                      chapterId: item.path,
+                    })
+                  : navigation.navigate("PluginReader", {
+                      pluginId,
+                      novelId: stableNumericId,
+                      novelPath,
+                      chapterPath: item.path,
+                      chapterTitle: item.name,
+                    })
               }
             >
               <View style={{ flex: 1 }}>

@@ -444,11 +444,6 @@ export const NovelDetailScreen: React.FC = () => {
     },
   ];
 
-  const moreOptions = [
-    { id: "editInfo", label: "Edit info", onPress: () => {} },
-    { id: "editCover", label: "Edit cover", onPress: () => {} },
-  ];
-
   const handleShare = () => {};
   const handleEpubExport = () => {};
 
@@ -461,6 +456,34 @@ export const NovelDetailScreen: React.FC = () => {
       `https://example.com/novel/${novel?.id || ""}`;
     (navigation as any).navigate("WebView", { url });
   };
+
+  const handleMarkRead = () => {
+    if (!novel) return;
+    const total = novel.totalChapters > 0 ? novel.totalChapters : chaptersTotal;
+    updateNovel(novel.id, {
+      unreadChapters: 0,
+      lastReadChapter: total,
+      lastReadDate: new Date(),
+    });
+  };
+
+  const handleMarkUnread = () => {
+    if (!novel) return;
+    const total = novel.totalChapters > 0 ? novel.totalChapters : chaptersTotal;
+    updateNovel(novel.id, {
+      unreadChapters: total,
+      lastReadChapter: 0,
+      lastReadDate: undefined,
+    });
+  };
+
+  const moreOptions = [
+    { id: "openWeb", label: "Open website", onPress: handleWebView },
+    { id: "markRead", label: "Mark as read", onPress: handleMarkRead },
+    { id: "markUnread", label: "Mark as unread", onPress: handleMarkUnread },
+    { id: "editInfo", label: "Edit info", onPress: () => {} },
+    { id: "editCover", label: "Edit cover", onPress: () => {} },
+  ];
 
   const handleLibraryToggle = () => {
     if (!novel) return;
@@ -495,12 +518,9 @@ export const NovelDetailScreen: React.FC = () => {
 
   const handlePluginChapterPress = (c: PluginChapterItem) => {
     if (!novel?.pluginId) return;
-    (navigation as any).navigate("PluginReader", {
-      pluginId: novel.pluginId,
+    (navigation as any).navigate("Reader", {
       novelId: novel.id,
-      novelPath: novel.pluginNovelPath,
-      chapterPath: c.path,
-      chapterTitle: c.name,
+      chapterId: c.path,
     });
   };
 
@@ -592,10 +612,27 @@ export const NovelDetailScreen: React.FC = () => {
   };
 
   const handleProgressPress = () => {
-    if (novel?.pluginId && remoteChapters.length > 0) {
-      handlePluginChapterPress(remoteChapters[0]);
-      return;
-    }
+    if (!novel?.pluginId) return;
+    if (remoteChapters.length === 0) return;
+
+    const total =
+      novel.totalChapters > 0 ? novel.totalChapters : remoteChapters.length;
+    const lastRead = Math.max(
+      0,
+      Math.min(total, Math.floor(novel.lastReadChapter || 0)),
+    );
+    const unread = Math.max(
+      0,
+      Math.min(total, Math.floor(novel.unreadChapters || 0)),
+    );
+
+    const targetIndex =
+      unread === 0
+        ? Math.max(0, Math.min(remoteChapters.length - 1, lastRead - 1))
+        : Math.min(remoteChapters.length - 1, lastRead);
+
+    const target = remoteChapters[targetIndex];
+    if (target) handlePluginChapterPress(target);
   };
 
   return (

@@ -29,6 +29,12 @@ type Props = {
   onOpenWeb?: (chapterPath: string) => void;
   onChapterChange?: (chapter: ReaderChapterItem, index: number) => void;
   onChapterRead?: (chapter: ReaderChapterItem, index: number) => void;
+  extraMenuItems?: {
+    id: string;
+    label: string;
+    onPress: () => void;
+    isDestructive?: boolean;
+  }[];
 };
 
 type WebMsg =
@@ -114,6 +120,7 @@ export const ChapterReader: React.FC<Props> = ({
   onOpenWeb,
   onChapterChange,
   onChapterRead,
+  extraMenuItems,
 }) => {
   const navigation = useNavigation();
   const { theme } = useTheme();
@@ -365,14 +372,19 @@ export const ChapterReader: React.FC<Props> = ({
         setReloadToken((prev) => prev + 1);
       }},
     ];
+
+    const withExtras =
+      Array.isArray(extraMenuItems) && extraMenuItems.length
+        ? [...extraMenuItems, ...items]
+        : items;
     if (onOpenWeb)
-      items.unshift({
+      withExtras.unshift({
         id: "openWeb",
         label: "Open website",
         onPress: () => onOpenWeb(currentPath),
       });
-    return items;
-  }, [currentPath, navigation, onOpenWeb]);
+    return withExtras;
+  }, [currentPath, extraMenuItems, navigation, onOpenWeb]);
 
   const effectiveBaseUrl = useMemo(() => {
     if (isAbsoluteUrl(currentPath)) return currentPath;
