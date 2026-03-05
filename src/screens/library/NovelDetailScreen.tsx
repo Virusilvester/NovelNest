@@ -5,9 +5,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Image,
   Modal,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -491,6 +491,29 @@ export const NovelDetailScreen: React.FC = () => {
   ]);
 
   const progressPercent = progressTotal > 0 ? (effectiveReadCount / progressTotal) * 100 : 0;
+
+  const readStatusByPath = useMemo(() => {
+    const map = new Map<string, boolean>();
+    if (!novel) return map;
+    remoteChapters.forEach((c, index) => {
+      const isRead = getEffectiveReadForChapter({
+        chapterPath: c.path,
+        index,
+        total: progressTotal,
+        baseReadCount,
+        order: chapterListOrder,
+        readOverrides: novel.chapterReadOverrides,
+      });
+      map.set(c.path, isRead);
+    });
+    return map;
+  }, [
+    baseReadCount,
+    chapterListOrder,
+    novel,
+    progressTotal,
+    remoteChapters,
+  ]);
 
   const downloadTaskByPath = useMemo(() => {
     const map = new Map<string, { id: string; status: string }>();
@@ -1063,6 +1086,359 @@ export const NovelDetailScreen: React.FC = () => {
     }
   }, [clearChapterSelection, isChapterSelectionMode, navigation]);
 
+  const renderChapterItem = useCallback(
+    ({ item, index }: { item: PluginChapterItem; index: number }) => {
+      const c = item;
+      const selected = selectedChapterPaths.has(c.path);
+      const isRead = readStatusByPath.get(c.path) ?? false;
+      const downloadInfo = downloadTaskByPath.get(c.path);
+      const isDownloaded = Boolean(novel?.chapterDownloaded?.[c.path]);
+
+      return (
+        <TouchableOpacity
+          key={c.path}
+          style={[
+            styles.chapterItem,
+            selected && {
+              backgroundColor: theme.colors.primary + "1A",
+            },
+            { borderBottomColor: theme.colors.divider },
+          ]}
+          onPress={() => {
+            if (isChapterSelectionMode) {
+              toggleChapterSelected(c.path);
+              return;
+            }
+            handlePluginChapterPress(c);
+          }}
+          onLongPress={() => toggleChapterSelected(c.path)}
+          delayLongPress={220}
+        >
+          <View style={styles.chapterLeft}>
+            {isChapterSelectionMode ? (
+              <Ionicons
+                name={selected ? "checkmark-circle" : "ellipse-outline"}
+                size={22}
+                color={selected ? theme.colors.primary : theme.colors.textSecondary}
+              />
+            ) : null}
+            <Text
+              style={[
+                styles.chapterTitle,
+                { color: isRead ? theme.colors.textSecondary : theme.colors.text },
+              ]}
+              numberOfLines={2}
+            >
+              {c.name}
+            </Text>
+          </View>
+          {!isChapterSelectionMode ? (
+            <View style={styles.chapterRight}>
+              <TouchableOpacity
+                onPress={() => {
+                  if (isDownloaded) return;
+                  if (
+                    downloadInfo?.status === "pending" ||
+                    downloadInfo?.status === "downloading"
+                  ) {
+                    return;
+                  }
+                  enqueueChapterDownload(c);
+                }}
+                style={[styles.chapterIconBtn, isDownloaded && { opacity: 0.65 }]}
+                hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+              >
+                {isDownloaded ? (
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={20}
+                    color={theme.colors.primary}
+                  />
+                ) : downloadInfo?.status === "downloading" ? (
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                ) : downloadInfo?.status === "pending" ? (
+                  <Ionicons
+                    name="time-outline"
+                    size={20}
+                    color={theme.colors.textSecondary}
+                  />
+                ) : downloadInfo?.status === "error" ? (
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={20}
+                    color={theme.colors.error}
+                  />
+                ) : (
+                  <Ionicons
+                    name="download-outline"
+                    size={20}
+                    color={theme.colors.textSecondary}
+                  />
+                )}
+              </TouchableOpacity>
+
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={theme.colors.textSecondary}
+              />
+            </View>
+          ) : null}
+        </TouchableOpacity>
+      );
+    },
+    [
+      downloadTaskByPath,
+      enqueueChapterDownload,
+      isChapterSelectionMode,
+      novel?.chapterDownloaded,
+      readStatusByPath,
+      selectedChapterPaths,
+      theme.colors.error,
+      theme.colors.primary,
+      theme.colors.text,
+      theme.colors.textSecondary,
+      theme.colors.divider,
+      toggleChapterSelected,
+      handlePluginChapterPress,
+    ],
+  );
+
+  const listHeader = useMemo(
+    () => (
+      <>
+        {remoteError ? (
+          <View style={styles.section}>
+            <Text style={[styles.summary, { color: theme.colors.error }]}>
+              {remoteError}
+            </Text>
+          </View>
+        ) : null}
+
+        {isRemoteLoading && !remoteDetail && remoteChapters.length === 0 ? (
+          <View style={styles.loadingCenter}>
+            <ActivityIndicator />
+            <Text
+              style={[
+                styles.centerText,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              Loading details...
+            </Text>
+          </View>
+        ) : null}
+
+        <View style={styles.headerSection}>
+          <Image
+            source={{ uri: displayCover }}
+            style={[styles.cover, { width: coverWidth, height: coverHeight }]}
+          />
+          <View style={styles.headerInfo}>
+            <Text
+              style={[styles.title, { color: theme.colors.text }]}
+              numberOfLines={3}
+            >
+              {displayTitle}
+            </Text>
+            <Text
+              style={[styles.author, { color: theme.colors.textSecondary }]}
+              numberOfLines={1}
+            >
+              {displayAuthor}
+            </Text>
+            <View style={styles.statusRow}>
+              <View
+                style={[
+                  styles.statusBadge,
+                  {
+                    backgroundColor:
+                      displayStatus === "completed"
+                        ? theme.colors.success
+                        : theme.colors.warning,
+                  },
+                ]}
+              >
+                <Text style={styles.statusText}>{displayStatus}</Text>
+              </View>
+              <Text
+                style={[styles.source, { color: theme.colors.textSecondary }]}
+                numberOfLines={1}
+              >
+                {novel?.source}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.actionButtons}>
+          <TouchableOpacity
+            style={[
+              styles.actionButton,
+              isInLibrary
+                ? {
+                    backgroundColor: theme.colors.surface,
+                    borderWidth: 1,
+                    borderColor: theme.colors.border,
+                  }
+                : { backgroundColor: theme.colors.primary },
+            ]}
+            onPress={handleLibraryToggle}
+          >
+            <Text
+              style={[
+                styles.actionButtonText,
+                { color: isInLibrary ? theme.colors.text : "#FFF" },
+              ]}
+            >
+              {isInLibrary ? "In library" : "Add to library"}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.actionButton,
+              {
+                backgroundColor: theme.colors.surface,
+                borderWidth: 1,
+                borderColor: theme.colors.border,
+              },
+            ]}
+            onPress={handleWebView}
+          >
+            <Text
+              style={[styles.actionButtonText, { color: theme.colors.text }]}
+            >
+              WebView
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+            Summary
+          </Text>
+          <Text
+            style={[styles.summary, { color: theme.colors.textSecondary }]}
+          >
+            {displaySummary || "(No summary)"}
+          </Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+            Genres
+          </Text>
+          <View style={styles.genresContainer}>
+            {displayGenres.map((genre) => (
+              <TouchableOpacity
+                key={genre}
+                style={[
+                  styles.genreTag,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+                onPress={() => handleGenrePress(genre)}
+              >
+                <Text
+                  style={[styles.genreText, { color: theme.colors.primary }]}
+                >
+                  {genre}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={styles.progressSection}
+          onPress={handleProgressPress}
+        >
+          <View style={styles.progressInfo}>
+            <Text style={[styles.progressText, { color: theme.colors.text }]}>
+              Progress
+            </Text>
+            <Text
+              style={[styles.progressText, { color: theme.colors.primary }]}
+            >
+              {effectiveReadCount} / {progressTotal}
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.progressBar,
+              { backgroundColor: theme.colors.border },
+            ]}
+          >
+            <View
+              style={[
+                styles.progressFill,
+                {
+                  backgroundColor: theme.colors.primary,
+                  width: `${progressPercent}%`,
+                },
+              ]}
+            />
+          </View>
+          <Text
+            style={[
+              styles.chapterCount,
+              { color: theme.colors.textSecondary },
+            ]}
+          >
+            {progressTotal} chapters
+          </Text>
+        </TouchableOpacity>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+            Chapters
+          </Text>
+          {(!novel?.pluginId || remoteChapters.length === 0) && (
+            <Text
+              style={[styles.summary, { color: theme.colors.textSecondary }]}
+            >
+              Chapters are not available for this item yet.
+            </Text>
+          )}
+        </View>
+      </>
+    ),
+    [
+      coverHeight,
+      coverWidth,
+      displayAuthor,
+      displayCover,
+      displayGenres,
+      displayStatus,
+      displaySummary,
+      displayTitle,
+      effectiveReadCount,
+      handleGenrePress,
+      handleLibraryToggle,
+      handleProgressPress,
+      handleWebView,
+      isInLibrary,
+      isRemoteLoading,
+      novel?.pluginId,
+      novel?.source,
+      progressPercent,
+      progressTotal,
+      remoteChapters.length,
+      remoteDetail,
+      remoteError,
+      theme.colors.border,
+      theme.colors.error,
+      theme.colors.primary,
+      theme.colors.success,
+      theme.colors.surface,
+      theme.colors.text,
+      theme.colors.textSecondary,
+      theme.colors.warning,
+    ],
+  );
+
   return (
     <View
       style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -1131,330 +1507,39 @@ export const NovelDetailScreen: React.FC = () => {
           </Text>
         </View>
       ) : (
-        <ScrollView style={styles.content}>
-          {remoteError ? (
-            <View style={styles.section}>
-              <Text style={[styles.summary, { color: theme.colors.error }]}>
-                {remoteError}
-              </Text>
-            </View>
-          ) : null}
-
-          {isRemoteLoading && !remoteDetail && remoteChapters.length === 0 ? (
-            <View style={styles.loadingCenter}>
-              <ActivityIndicator />
-              <Text
-                style={[
-                  styles.centerText,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                Loading details...
-              </Text>
-            </View>
-          ) : null}
-
-          <View style={styles.headerSection}>
-            <Image
-              source={{ uri: displayCover }}
-              style={[styles.cover, { width: coverWidth, height: coverHeight }]}
-            />
-            <View style={styles.headerInfo}>
-              <Text
-                style={[styles.title, { color: theme.colors.text }]}
-                numberOfLines={3}
-              >
-                {displayTitle}
-              </Text>
-              <Text
-                style={[styles.author, { color: theme.colors.textSecondary }]}
-                numberOfLines={1}
-              >
-                {displayAuthor}
-              </Text>
-              <View style={styles.statusRow}>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    {
-                      backgroundColor:
-                        displayStatus === "completed"
-                          ? theme.colors.success
-                          : theme.colors.warning,
-                    },
-                  ]}
-                >
-                  <Text style={styles.statusText}>{displayStatus}</Text>
-                </View>
-                <Text
-                  style={[styles.source, { color: theme.colors.textSecondary }]}
-                  numberOfLines={1}
-                >
-                  {novel.source}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={[
-                styles.actionButton,
-                isInLibrary
-                  ? {
-                      backgroundColor: theme.colors.surface,
-                      borderWidth: 1,
-                      borderColor: theme.colors.border,
-                    }
-                  : { backgroundColor: theme.colors.primary },
-              ]}
-              onPress={handleLibraryToggle}
-            >
-              <Text
-                style={[
-                  styles.actionButtonText,
-                  { color: isInLibrary ? theme.colors.text : "#FFF" },
-                ]}
-              >
-                {isInLibrary ? "In library" : "Add to library"}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.actionButton,
-                {
-                  backgroundColor: theme.colors.surface,
-                  borderWidth: 1,
-                  borderColor: theme.colors.border,
-                },
-              ]}
-              onPress={handleWebView}
-            >
-              <Text
-                style={[styles.actionButtonText, { color: theme.colors.text }]}
-              >
-                WebView
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Summary
-            </Text>
-            <Text
-              style={[styles.summary, { color: theme.colors.textSecondary }]}
-            >
-              {displaySummary || "(No summary)"}
-            </Text>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Genres
-            </Text>
-            <View style={styles.genresContainer}>
-              {displayGenres.map((genre) => (
+        <FlatList
+          data={novel.pluginId ? remoteChapters : []}
+          keyExtractor={(item) => item.path}
+          renderItem={renderChapterItem}
+          ListHeaderComponent={listHeader}
+          ListFooterComponent={
+            novel.pluginId && chaptersHasMore ? (
+              <View style={styles.section}>
                 <TouchableOpacity
-                  key={genre}
                   style={[
-                    styles.genreTag,
+                    styles.loadMoreButton,
                     {
-                      backgroundColor: theme.colors.surface,
-                      borderColor: theme.colors.border,
+                      backgroundColor: isChaptersLoadingMore
+                        ? theme.colors.border
+                        : theme.colors.primary,
                     },
                   ]}
-                  onPress={() => handleGenrePress(genre)}
+                  disabled={isChaptersLoadingMore}
+                  onPress={loadMoreChapters}
                 >
-                  <Text
-                    style={[styles.genreText, { color: theme.colors.primary }]}
-                  >
-                    {genre}
+                  <Text style={styles.loadMoreText}>
+                    {isChaptersLoadingMore ? "Loading..." : "Load more chapters"}
                   </Text>
                 </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={styles.progressSection}
-            onPress={handleProgressPress}
-          >
-            <View style={styles.progressInfo}>
-              <Text style={[styles.progressText, { color: theme.colors.text }]}>
-                Progress
-              </Text>
-              <Text
-                style={[styles.progressText, { color: theme.colors.primary }]}
-              >
-                {effectiveReadCount} / {progressTotal}
-              </Text>
-            </View>
-            <View
-              style={[
-                styles.progressBar,
-                { backgroundColor: theme.colors.border },
-              ]}
-            >
-              <View
-                style={[
-                  styles.progressFill,
-                  {
-                    backgroundColor: theme.colors.primary,
-                    width: `${progressPercent}%`,
-                  },
-                ]}
-              />
-            </View>
-            <Text
-              style={[
-                styles.chapterCount,
-                { color: theme.colors.textSecondary },
-              ]}
-            >
-              {progressTotal} chapters
-            </Text>
-          </TouchableOpacity>
-
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Chapters
-            </Text>
-            {novel.pluginId && remoteChapters.length > 0 ? (
-              remoteChapters.map((c, index) => {
-                const selected = selectedChapterPaths.has(c.path);
-                const isRead = getEffectiveReadForChapter({
-                  chapterPath: c.path,
-                  index,
-                  total: progressTotal,
-                  baseReadCount,
-                  order: chapterListOrder,
-                  readOverrides: novel.chapterReadOverrides,
-                });
-                const downloadInfo = downloadTaskByPath.get(c.path);
-                const isDownloaded = Boolean(novel.chapterDownloaded?.[c.path]);
-
-                return (
-                <TouchableOpacity
-                  key={c.path}
-                  style={[
-                    styles.chapterItem,
-                    selected && {
-                      backgroundColor: theme.colors.primary + "1A",
-                    },
-                    { borderBottomColor: theme.colors.divider },
-                  ]}
-                  onPress={() => {
-                    if (isChapterSelectionMode) {
-                      toggleChapterSelected(c.path);
-                      return;
-                    }
-                    handlePluginChapterPress(c);
-                  }}
-                  onLongPress={() => toggleChapterSelected(c.path)}
-                  delayLongPress={220}
-                >
-                  <View style={styles.chapterLeft}>
-                    {isChapterSelectionMode ? (
-                      <Ionicons
-                        name={selected ? "checkmark-circle" : "ellipse-outline"}
-                        size={22}
-                        color={selected ? theme.colors.primary : theme.colors.textSecondary}
-                      />
-                    ) : null}
-                    <Text
-                      style={[
-                        styles.chapterTitle,
-                        { color: isRead ? theme.colors.textSecondary : theme.colors.text },
-                      ]}
-                      numberOfLines={2}
-                   >
-                     {c.name}
-                   </Text>
-                  </View>
-                  {!isChapterSelectionMode ? (
-                    <View style={styles.chapterRight}>
-                      <TouchableOpacity
-                        onPress={() => {
-                          if (isDownloaded) return;
-                          if (
-                            downloadInfo?.status === "pending" ||
-                            downloadInfo?.status === "downloading"
-                          ) {
-                            return;
-                          }
-                          enqueueChapterDownload(c);
-                        }}
-                        style={[styles.chapterIconBtn, isDownloaded && { opacity: 0.65 }]}
-                        hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                      >
-                        {isDownloaded ? (
-                          <Ionicons
-                            name="checkmark-circle"
-                            size={20}
-                            color={theme.colors.primary}
-                          />
-                        ) : downloadInfo?.status === "downloading" ? (
-                          <ActivityIndicator size="small" color={theme.colors.primary} />
-                        ) : downloadInfo?.status === "pending" ? (
-                          <Ionicons
-                            name="time-outline"
-                            size={20}
-                            color={theme.colors.textSecondary}
-                          />
-                        ) : downloadInfo?.status === "error" ? (
-                          <Ionicons
-                            name="alert-circle-outline"
-                            size={20}
-                            color={theme.colors.error}
-                          />
-                        ) : (
-                          <Ionicons
-                            name="download-outline"
-                            size={20}
-                            color={theme.colors.textSecondary}
-                          />
-                        )}
-                      </TouchableOpacity>
-
-                      <Ionicons
-                        name="chevron-forward"
-                        size={20}
-                        color={theme.colors.textSecondary}
-                      />
-                    </View>
-                  ) : null}
-                </TouchableOpacity>
-                );
-              })
-            ) : (
-              <Text
-                style={[styles.summary, { color: theme.colors.textSecondary }]}
-              >
-                Chapters are not available for this item yet.
-              </Text>
-            )}
-
-            {novel.pluginId && chaptersHasMore ? (
-              <TouchableOpacity
-                style={[
-                  styles.loadMoreButton,
-                  {
-                    backgroundColor: isChaptersLoadingMore
-                      ? theme.colors.border
-                      : theme.colors.primary,
-                  },
-                ]}
-                disabled={isChaptersLoadingMore}
-                onPress={loadMoreChapters}
-              >
-                <Text style={styles.loadMoreText}>
-                  {isChaptersLoadingMore ? "Loading..." : "Load more chapters"}
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        </ScrollView>
+              </View>
+            ) : null
+          }
+          contentContainerStyle={styles.listContent}
+          initialNumToRender={30}
+          maxToRenderPerBatch={40}
+          windowSize={10}
+          removeClippedSubviews
+        />
       )}
 
       <PopupMenu
@@ -1776,6 +1861,9 @@ const styles = StyleSheet.create({
   loadMoreText: {
     fontWeight: "800",
     color: "#FFF",
+  },
+  listContent: {
+    flexGrow: 1,
   },
   modalOverlay: {
     flex: 1,
