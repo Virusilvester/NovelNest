@@ -31,6 +31,8 @@ const createRequireShim = (opts: { userAgent?: string }): RequireShim => {
     "https://github.com/lnreader/lnreader-plugins/blob/master/public/static/coverNotAvailable.webp?raw=true";
 
   const fetchApi = async (url: string, init?: RequestInit) => {
+    const normalizedUrl =
+      typeof url === "string" && url.startsWith("//") ? `https:${url}` : url;
     const headers: Record<string, string> = {
       Accept: "text/html,application/json;q=0.9,*/*;q=0.8",
       ...(init?.headers as any),
@@ -41,7 +43,15 @@ const createRequireShim = (opts: { userAgent?: string }): RequireShim => {
       headers["User-Agent"] = opts.userAgent;
     }
 
-    return fetch(url, { ...init, headers });
+    try {
+      return await fetch(normalizedUrl, { ...init, headers });
+    } catch (e: any) {
+      const message =
+        typeof e?.message === "string" && e.message.trim()
+          ? e.message
+          : String(e);
+      throw new Error(`Network request failed (${normalizedUrl}): ${message}`);
+    }
   };
 
   const libs = {
@@ -409,6 +419,20 @@ export const PluginRuntimeService = {
           return (original as any).call(instance, pageNo, normalized);
         }) as any;
       }
+
+      const bindMethod = (key: keyof LnReaderPlugin) => {
+        const fn = (instance as any)[key];
+        if (typeof fn !== "function") return;
+        (instance as any)[key] = (...args: any[]) => fn.apply(instance, args);
+      };
+
+      // Some consumers (and some compiled plugins) pass methods around; binding prevents
+      // `this`-related crashes like `this.getCheerio is not a function`.
+      bindMethod("parseNovel");
+      bindMethod("parseNovelAndChapters");
+      bindMethod("parseChapter");
+      bindMethod("searchNovels");
+      bindMethod("fetchChaptersPage");
 
       return instance;
     })();

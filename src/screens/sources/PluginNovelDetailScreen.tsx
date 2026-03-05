@@ -229,7 +229,7 @@ export const PluginNovelDetailScreen: React.FC = () => {
           throw new Error("This plugin does not support novel details.");
         }
 
-        const data = await parseNovel(novelPath);
+        const data = await (parseNovel as any).call(instance, novelPath);
         const normalizedDetail = normalizePluginDetailForCache(data);
         setRemoteDetail(normalizedDetail);
 

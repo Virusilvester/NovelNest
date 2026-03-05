@@ -115,7 +115,7 @@ export const ReaderScreen: React.FC = () => {
       if (typeof parseChapter !== "function") {
         throw new Error("This plugin does not support chapters.");
       }
-      return (await parseChapter(path)) || "";
+      return (await parseChapter.call(instance, path)) || "";
     },
     [novel?.chapterDownloaded, novelId, plugin, pluginId, settings.advanced.userAgent],
   );

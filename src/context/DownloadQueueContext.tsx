@@ -308,7 +308,8 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
           throw new Error("This plugin does not support chapters.");
         }
 
-        const html = ((await parseChapter(task.chapterPath)) as string) || "";
+        const html =
+          ((await parseChapter.call(instance, task.chapterPath)) as string) || "";
 
         if (canceledRef.current.has(task.id)) {
           return;

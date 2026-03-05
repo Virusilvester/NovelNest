@@ -83,7 +83,7 @@ export const PluginReaderScreen: React.FC = () => {
       if (typeof parseChapter !== "function") {
         throw new Error("This plugin does not support chapters.");
       }
-      return (await parseChapter(path)) || "";
+      return (await parseChapter.call(instance, path)) || "";
     },
     [plugin, settings.advanced.userAgent],
   );
