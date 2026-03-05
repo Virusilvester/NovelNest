@@ -10,6 +10,8 @@ interface NovelGridProps {
   displayMode: DisplayMode;
   showDownloadBadges: boolean;
   showUnreadBadges: boolean;
+  selectionMode?: boolean;
+  selectedIds?: Set<string>;
   onNovelPress: (novel: Novel) => void;
   onNovelLongPress?: (novel: Novel) => void;
   onEndReached?: () => void;
@@ -26,6 +28,8 @@ export const NovelGrid: React.FC<NovelGridProps> = ({
   displayMode,
   showDownloadBadges,
   showUnreadBadges,
+  selectionMode = false,
+  selectedIds,
   onNovelPress,
   onNovelLongPress,
   onEndReached,
@@ -50,6 +54,8 @@ export const NovelGrid: React.FC<NovelGridProps> = ({
             displayMode="list"
             showDownloadBadge={showDownloadBadges}
             showUnreadBadge={showUnreadBadges}
+            isSelectionMode={selectionMode}
+            isSelected={Boolean(selectedIds?.has(item.id))}
             onPress={() => onNovelPress(item)}
             onLongPress={() => onNovelLongPress?.(item)}
           />
@@ -81,16 +87,18 @@ export const NovelGrid: React.FC<NovelGridProps> = ({
           },
         ]}
       >
-      <NovelCard
-        novel={item}
-        displayMode="compactGrid"
-        showDownloadBadge={showDownloadBadges}
-        showUnreadBadge={showUnreadBadges}
-        onPress={() => onNovelPress(item)}
-        onLongPress={() => onNovelLongPress?.(item)}
-      />
-    </View>
-  );
+        <NovelCard
+          novel={item}
+          displayMode="compactGrid"
+          showDownloadBadge={showDownloadBadges}
+          showUnreadBadge={showUnreadBadges}
+          isSelectionMode={selectionMode}
+          isSelected={Boolean(selectedIds?.has(item.id))}
+          onPress={() => onNovelPress(item)}
+          onLongPress={() => onNovelLongPress?.(item)}
+        />
+      </View>
+    );
   };
 
   return (

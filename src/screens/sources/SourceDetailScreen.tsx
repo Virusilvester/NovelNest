@@ -4,6 +4,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -12,6 +13,7 @@ import {
 import { Header } from "../../components/common/Header";
 import { PopupMenu } from "../../components/common/PopupMenu";
 import { NovelGrid } from "../../components/library/NovelGrid";
+import { useLibrary } from "../../context/LibraryContext";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
 import type { RootStackParamList } from "../../navigation/types";
@@ -30,6 +32,7 @@ export const SourceDetailScreen: React.FC = () => {
   const route = useRoute<RouteProp<RootStackParamList, "SourceDetail">>();
   const { theme } = useTheme();
   const { settings } = useSettings();
+  const library = useLibrary();
 
   const { sourceId, sourceName, genre } = route.params;
   const headerTitle = sourceName || genre || "Source";
@@ -45,6 +48,8 @@ export const SourceDetailScreen: React.FC = () => {
   const [displayMode, setDisplayMode] = useState<"compactGrid" | "list">(
     "compactGrid",
   );
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -215,6 +220,132 @@ export const SourceDetailScreen: React.FC = () => {
     }));
   }, [displayedResults, headerTitle, plugin?.name]);
 
+  const clearSelection = React.useCallback(() => {
+    setIsSelectionMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const toggleSelected = React.useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      if (next.size === 0) setIsSelectionMode(false);
+      return next;
+    });
+  }, []);
+
+  const selectAllDisplayed = React.useCallback(() => {
+    if (displayedNovels.length === 0) return;
+    setIsSelectionMode(true);
+    setSelectedIds(new Set(displayedNovels.map((n) => n.id)));
+  }, [displayedNovels]);
+
+  const invertSelection = React.useCallback(() => {
+    setIsSelectionMode(true);
+    setSelectedIds((prev) => {
+      const next = new Set<string>();
+      for (const n of displayedNovels) {
+        if (!prev.has(n.id)) next.add(n.id);
+      }
+      if (next.size === 0) setIsSelectionMode(false);
+      return next;
+    });
+  }, [displayedNovels]);
+
+  const defaultCategoryId = useMemo(() => {
+    const list = Array.isArray(library.categories) ? library.categories : [];
+    const choices = list
+      .filter((c) => c && c.id && c.id !== "all")
+      .slice()
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    if (choices.some((c) => c.id === "reading")) return "reading";
+    return choices[0]?.id || "all";
+  }, [library.categories]);
+
+  const stablePluginNovelId = React.useCallback((pluginId: string, novelPath: string) => {
+    const input = `${pluginId}:${novelPath}`;
+    let hash = 2166136261;
+    for (let i = 0; i < input.length; i++) {
+      hash ^= input.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return String(hash >>> 0);
+  }, []);
+
+  const addSelectedToLibrary = React.useCallback(() => {
+    if (!sourceId) return;
+    if (!plugin) {
+      Alert.alert("Cannot add", "Source plugin is not installed.");
+      return;
+    }
+    if (!plugin.enabled) {
+      Alert.alert("Cannot add", "Source plugin is disabled.");
+      return;
+    }
+    if (selectedIds.size === 0) return;
+
+    const sourceLabel = plugin?.name || headerTitle;
+    const selected = displayedNovels.filter((n) => selectedIds.has(n.id));
+    const libraryMap = new Map(library.novels.map((n) => [n.id, n]));
+
+    for (const n of selected) {
+      const stableId = stablePluginNovelId(sourceId, n.id);
+      const existing = libraryMap.get(stableId);
+      const base = {
+        title: n.title,
+        coverUrl: n.coverUrl,
+        source: sourceLabel,
+        pluginId: sourceId,
+        pluginNovelPath: n.id,
+        isInLibrary: true,
+      } satisfies Partial<Novel>;
+
+      if (existing) {
+        const categoryId =
+          !existing.categoryId || existing.categoryId === "all"
+            ? defaultCategoryId
+            : undefined;
+        library.updateNovel(stableId, { ...base, ...(categoryId ? { categoryId } : {}) });
+        continue;
+      }
+
+      const toAdd: Novel = {
+        id: stableId,
+        title: n.title,
+        author: "Unknown",
+        coverUrl: n.coverUrl || "https://via.placeholder.com/300x450",
+        status: "ongoing",
+        source: sourceLabel,
+        summary: "",
+        genres: [],
+        totalChapters: 0,
+        unreadChapters: 0,
+        lastReadChapter: 0,
+        lastReadDate: undefined,
+        isDownloaded: false,
+        isInLibrary: true,
+        categoryId: defaultCategoryId,
+        pluginId: sourceId,
+        pluginNovelPath: n.id,
+      };
+      library.addNovel(toAdd);
+      libraryMap.set(stableId, toAdd);
+    }
+
+    clearSelection();
+  }, [
+    clearSelection,
+    defaultCategoryId,
+    displayedNovels,
+    headerTitle,
+    library,
+    plugin,
+    selectedIds,
+    sourceId,
+    stablePluginNovelId,
+  ]);
+
   const handleOpenWeb = () => {
     if (plugin?.site) navigation.navigate("WebView", { url: plugin.site });
   };
@@ -253,48 +384,68 @@ export const SourceDetailScreen: React.FC = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <Header
-        title={headerTitle}
-        onBackPress={() => navigation.goBack()}
-        isSearchActive={isSearchActive}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        onSearchSubmit={() => runSearch(searchQuery)}
-        onSearchClose={() => {
-          setIsSearchActive(false);
-          setSearchQuery("");
-          lastSubmittedQueryRef.current = "";
-          setResults([]);
-          setError(null);
-        }}
-        rightButtons={
-          !isSearchActive ? (
+      {isSelectionMode ? (
+        <Header
+          title={`${selectedIds.size} selected`}
+          onBackPress={clearSelection}
+          rightButtons={
             <>
-              <TouchableOpacity
-                onPress={() => setIsSearchActive(true)}
-                style={styles.iconButton}
-              >
-                <Ionicons name="search" size={24} color={theme.colors.text} />
+              <TouchableOpacity onPress={selectAllDisplayed} style={styles.iconButton}>
+                <Ionicons name="checkbox-outline" size={24} color={theme.colors.text} />
               </TouchableOpacity>
-              <TouchableOpacity onPress={refresh} style={styles.iconButton}>
-                <Ionicons name="refresh" size={24} color={theme.colors.text} />
+              <TouchableOpacity onPress={invertSelection} style={styles.iconButton}>
+                <Ionicons name="swap-horizontal" size={24} color={theme.colors.text} />
               </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setIsFilterVisible(true)}
-                style={styles.iconButton}
-              >
-                <Ionicons name="filter" size={24} color={theme.colors.text} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setIsMoreVisible(true)}
-                style={styles.iconButton}
-              >
-                <Ionicons name="ellipsis-vertical" size={24} color={theme.colors.text} />
+              <TouchableOpacity onPress={addSelectedToLibrary} style={styles.iconButton}>
+                <Ionicons name="bookmark-outline" size={24} color={theme.colors.text} />
               </TouchableOpacity>
             </>
-          ) : null
-        }
-      />
+          }
+        />
+      ) : (
+        <Header
+          title={headerTitle}
+          onBackPress={() => navigation.goBack()}
+          isSearchActive={isSearchActive}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onSearchSubmit={() => runSearch(searchQuery)}
+          onSearchClose={() => {
+            setIsSearchActive(false);
+            setSearchQuery("");
+            lastSubmittedQueryRef.current = "";
+            setResults([]);
+            setError(null);
+          }}
+          rightButtons={
+            !isSearchActive ? (
+              <>
+                <TouchableOpacity
+                  onPress={() => setIsSearchActive(true)}
+                  style={styles.iconButton}
+                >
+                  <Ionicons name="search" size={24} color={theme.colors.text} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={refresh} style={styles.iconButton}>
+                  <Ionicons name="refresh" size={24} color={theme.colors.text} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setIsFilterVisible(true)}
+                  style={styles.iconButton}
+                >
+                  <Ionicons name="filter" size={24} color={theme.colors.text} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setIsMoreVisible(true)}
+                  style={styles.iconButton}
+                >
+                  <Ionicons name="ellipsis-vertical" size={24} color={theme.colors.text} />
+                </TouchableOpacity>
+              </>
+            ) : null
+          }
+        />
+      )}
 
       {!plugin ? (
         <View style={styles.banner}>
@@ -365,7 +516,13 @@ export const SourceDetailScreen: React.FC = () => {
               </View>
             ) : null
           }
+          selectionMode={isSelectionMode}
+          selectedIds={selectedIds}
           onNovelPress={(novel) => {
+            if (isSelectionMode) {
+              toggleSelected(novel.id);
+              return;
+            }
             if (!sourceId) return;
             navigation.navigate("PluginNovelDetail", {
               pluginId: sourceId,
@@ -373,6 +530,17 @@ export const SourceDetailScreen: React.FC = () => {
               novelName: novel.title,
               coverUrl: novel.coverUrl,
             });
+          }}
+          onNovelLongPress={(novel) => {
+            if (!isSelectionMode) {
+              setIsSelectionMode(true);
+              setSelectedIds(new Set([novel.id]));
+              setIsSearchActive(false);
+              setIsFilterVisible(false);
+              setIsMoreVisible(false);
+              return;
+            }
+            toggleSelected(novel.id);
           }}
         />
       )}

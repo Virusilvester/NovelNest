@@ -16,6 +16,8 @@ interface NovelCardProps {
   displayMode: DisplayMode;
   showDownloadBadge?: boolean;
   showUnreadBadge?: boolean;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
   onPress: () => void;
   onLongPress?: () => void;
 }
@@ -25,6 +27,8 @@ export const NovelCard: React.FC<NovelCardProps> = ({
   displayMode,
   showDownloadBadge = true,
   showUnreadBadge = true,
+  isSelectionMode = false,
+  isSelected = false,
   onPress,
   onLongPress,
 }) => {
@@ -36,7 +40,11 @@ export const NovelCard: React.FC<NovelCardProps> = ({
       <TouchableOpacity
         style={[
           styles.listContainer,
-          { backgroundColor: theme.colors.surface },
+          {
+            backgroundColor: theme.colors.surface,
+            borderWidth: isSelectionMode ? 2 : 0,
+            borderColor: isSelected ? theme.colors.primary : theme.colors.border,
+          },
         ]}
         onPress={onPress}
         onLongPress={onLongPress}
@@ -49,6 +57,24 @@ export const NovelCard: React.FC<NovelCardProps> = ({
             style={styles.listCover}
             resizeMode="cover"
           />
+          {isSelectionMode ? (
+            <View
+              style={[
+                styles.selectionIndicator,
+                isSelected
+                  ? { backgroundColor: theme.colors.primary, borderWidth: 0 }
+                  : {
+                      backgroundColor: "rgba(0,0,0,0.35)",
+                      borderWidth: 1,
+                      borderColor: "rgba(255,255,255,0.9)",
+                    },
+              ]}
+            >
+              {isSelected ? (
+                <Ionicons name="checkmark" size={16} color="#FFF" />
+              ) : null}
+            </View>
+          ) : null}
           {/* Status indicator on cover */}
           {novel.status === "completed" && (
             <View
@@ -194,12 +220,39 @@ export const NovelCard: React.FC<NovelCardProps> = ({
       onLongPress={onLongPress}
       activeOpacity={0.7}
     >
-      <View style={styles.gridCoverContainer}>
+      <View
+        style={[
+          styles.gridCoverContainer,
+          isSelectionMode && {
+            borderWidth: 2,
+            borderColor: isSelected ? theme.colors.primary : theme.colors.border,
+          },
+        ]}
+      >
         <Image
           source={{ uri: novel.coverUrl }}
           style={styles.gridCover}
           resizeMode="cover"
         />
+
+        {isSelectionMode ? (
+          <View
+            style={[
+              styles.selectionIndicator,
+              isSelected
+                ? { backgroundColor: theme.colors.primary, borderWidth: 0 }
+                : {
+                    backgroundColor: "rgba(0,0,0,0.35)",
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.9)",
+                  },
+            ]}
+          >
+            {isSelected ? (
+              <Ionicons name="checkmark" size={16} color="#FFF" />
+            ) : null}
+          </View>
+        ) : null}
 
         {/* Unread Badge */}
         {showUnreadBadge && novel.unreadChapters > 0 && (
@@ -214,7 +267,7 @@ export const NovelCard: React.FC<NovelCardProps> = ({
         )}
 
         {/* Download Badge */}
-        {showDownloadBadge && novel.isDownloaded && (
+        {!isSelectionMode && showDownloadBadge && novel.isDownloaded && (
           <View
             style={[
               styles.gridDownloadBadge,
@@ -281,6 +334,17 @@ const formatLastRead = (date: Date): string => {
 };
 
 const styles = StyleSheet.create({
+  selectionIndicator: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 5,
+  },
   // GRID MODE STYLES
   gridContainer: {
     width: "100%",
