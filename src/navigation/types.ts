@@ -15,6 +15,8 @@ export type RootStackParamList = {
   };
   PluginReader: {
     pluginId: string;
+    novelId?: string;
+    novelPath?: string;
     chapterPath: string;
     chapterTitle?: string;
   };

@@ -497,6 +497,8 @@ export const NovelDetailScreen: React.FC = () => {
     if (!novel?.pluginId) return;
     (navigation as any).navigate("PluginReader", {
       pluginId: novel.pluginId,
+      novelId: novel.id,
+      novelPath: novel.pluginNovelPath,
       chapterPath: c.path,
       chapterTitle: c.name,
     });

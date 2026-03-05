@@ -441,6 +441,8 @@ export const PluginNovelDetailScreen: React.FC = () => {
     if (!first) return;
     navigation.navigate("PluginReader", {
       pluginId,
+      novelId: stableNumericId,
+      novelPath,
       chapterPath: first.path,
       chapterTitle: first.name,
     });
@@ -723,6 +725,8 @@ export const PluginNovelDetailScreen: React.FC = () => {
               onPress={() =>
                 navigation.navigate("PluginReader", {
                   pluginId,
+                  novelId: stableNumericId,
+                  novelPath,
                   chapterPath: item.path,
                   chapterTitle: item.name,
                 })
