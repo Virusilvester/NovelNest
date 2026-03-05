@@ -1,13 +1,15 @@
 import type { RouteProp } from "@react-navigation/native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { ChapterReader } from "../../components/reader/ChapterReader";
 import type { ReaderChapterItem } from "../../components/reader/ChapterDrawer";
+import { useHistory } from "../../context/HistoryContext";
 import { useLibrary } from "../../context/LibraryContext";
 import { useSettings } from "../../context/SettingsContext";
 import type { RootStackParamList } from "../../navigation/types";
 import { NovelDetailCache } from "../../services/novelDetailCache";
 import { PluginRuntimeService } from "../../services/pluginRuntime";
+import type { Chapter } from "../../types";
 
 const isAbsoluteUrl = (url: string) => {
   if (!url) return false;
@@ -20,6 +22,7 @@ export const PluginReaderScreen: React.FC = () => {
   const route = useRoute<RouteProp<RootStackParamList, "PluginReader">>();
   const { settings } = useSettings();
   const { novels, updateNovel } = useLibrary();
+  const { historyEntries, upsertHistoryEntry } = useHistory();
 
   const { pluginId, novelId, novelPath, chapterPath, chapterTitle } = route.params;
 
@@ -100,14 +103,117 @@ export const PluginReaderScreen: React.FC = () => {
         unreadChapters: nextUnread,
         lastReadDate: new Date(),
       });
+
+      const chapter: Chapter = {
+        id: _chapter.path,
+        novelId: novel.id,
+        title: _chapter.name || "Chapter",
+        number: index + 1,
+        isRead: true,
+        isDownloaded: false,
+        releaseDate: new Date(),
+      };
+      const totalChaptersRead = Math.max(0, total - nextUnread);
+      const progress = total > 0 ? (totalChaptersRead / total) * 100 : 0;
+      const existing = historyEntries.find((e) => e.id === novel.id);
+
+      upsertHistoryEntry({
+        id: novel.id,
+        novel: { ...novel, pluginCache: undefined } as any,
+        lastReadChapter: chapter,
+        progress,
+        totalChaptersRead,
+        lastReadDate: new Date(),
+        timeSpentReading: existing?.timeSpentReading || 0,
+      });
     },
-    [chapters.length, libraryNovel, updateNovel],
+    [chapters.length, historyEntries, libraryNovel, updateNovel, upsertHistoryEntry],
   );
 
-  const handleChapterChange = useCallback(() => {
-    if (!novelId) return;
-    updateNovel(novelId, { lastReadDate: new Date() });
-  }, [novelId, updateNovel]);
+  const lastChapterRef = useRef<{ chapter: ReaderChapterItem; index: number } | null>(null);
+  const sessionStartRef = useRef<number>(Date.now());
+  const historyEntriesRef = useRef(historyEntries);
+  const novelRef = useRef(libraryNovel);
+
+  useEffect(() => {
+    historyEntriesRef.current = historyEntries;
+  }, [historyEntries]);
+
+  useEffect(() => {
+    novelRef.current = libraryNovel;
+  }, [libraryNovel]);
+
+  const handleChapterChange = useCallback(
+    (chapter: ReaderChapterItem, index: number) => {
+      lastChapterRef.current = { chapter, index };
+      if (novelId) updateNovel(novelId, { lastReadDate: new Date() });
+
+      const novel = libraryNovel;
+      if (!novel) return;
+      const total = novel.totalChapters > 0 ? novel.totalChapters : chapters.length;
+      const totalChaptersRead = Math.max(0, total - (novel.unreadChapters || 0));
+      const progress = total > 0 ? (totalChaptersRead / total) * 100 : 0;
+      const existing = historyEntries.find((e) => e.id === novel.id);
+
+      const historyChapter: Chapter = {
+        id: chapter.path,
+        novelId: novel.id,
+        title: chapter.name || "Chapter",
+        number: index + 1,
+        isRead: false,
+        isDownloaded: false,
+        releaseDate: new Date(),
+      };
+
+      upsertHistoryEntry({
+        id: novel.id,
+        novel: { ...novel, pluginCache: undefined } as any,
+        lastReadChapter: historyChapter,
+        progress,
+        totalChaptersRead,
+        lastReadDate: new Date(),
+        timeSpentReading: existing?.timeSpentReading || 0,
+      });
+    },
+    [chapters.length, historyEntries, libraryNovel, novelId, updateNovel, upsertHistoryEntry],
+  );
+
+  useEffect(() => {
+    sessionStartRef.current = Date.now();
+    return () => {
+      const novel = novelRef.current;
+      if (!novel) return;
+      const last = lastChapterRef.current;
+      if (!last) return;
+      const elapsedMs = Date.now() - sessionStartRef.current;
+      const minutes = Math.max(0, Math.round(elapsedMs / 60000));
+      if (minutes <= 0) return;
+
+      const existing = historyEntriesRef.current.find((e) => e.id === novel.id);
+      const total = novel.totalChapters > 0 ? novel.totalChapters : chapters.length;
+      const totalChaptersRead = Math.max(0, total - (novel.unreadChapters || 0));
+      const progress = total > 0 ? (totalChaptersRead / total) * 100 : 0;
+      const historyChapter: Chapter = {
+        id: last.chapter.path,
+        novelId: novel.id,
+        title: last.chapter.name || "Chapter",
+        number: last.index + 1,
+        isRead: false,
+        isDownloaded: false,
+        releaseDate: new Date(),
+      };
+
+      upsertHistoryEntry({
+        id: novel.id,
+        novel: { ...novel, pluginCache: undefined } as any,
+        lastReadChapter: historyChapter,
+        progress,
+        totalChaptersRead,
+        lastReadDate: new Date(),
+        timeSpentReading: (existing?.timeSpentReading || 0) + minutes,
+      });
+    };
+  }, [chapters.length, novelId, upsertHistoryEntry]);
 
   const extraMenuItems = useMemo(() => {
     if (!libraryNovel) return undefined;

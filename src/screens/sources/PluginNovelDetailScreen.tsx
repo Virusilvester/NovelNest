@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { RouteProp } from "@react-navigation/native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   Modal,
@@ -127,6 +128,19 @@ export const PluginNovelDetailScreen: React.FC = () => {
     null,
   );
 
+  const [selectedChapterPaths, setSelectedChapterPaths] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [isChapterSelectionMenuVisible, setIsChapterSelectionMenuVisible] =
+    useState(false);
+  const isChapterSelectionMode = selectedChapterPaths.size > 0;
+
+  useEffect(() => {
+    if (selectedChapterPaths.size === 0 && isChapterSelectionMenuVisible) {
+      setIsChapterSelectionMenuVisible(false);
+    }
+  }, [isChapterSelectionMenuVisible, selectedChapterPaths.size]);
+
   const title = remoteDetail?.name || novelName || "Novel";
   const cover = remoteDetail?.cover || coverUrl;
   const author = remoteDetail?.author || "";
@@ -137,6 +151,15 @@ export const PluginNovelDetailScreen: React.FC = () => {
     [remoteDetail],
   );
   const chapters: ChapterItem[] = remoteChapters;
+
+  useEffect(() => {
+    setSelectedChapterPaths((prev) => {
+      if (prev.size === 0) return prev;
+      const available = new Set(chapters.map((c) => c.path));
+      const next = new Set([...prev].filter((id) => available.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [chapters]);
 
   useEffect(() => {
     const run = async () => {
@@ -436,6 +459,162 @@ export const PluginNovelDetailScreen: React.FC = () => {
     if (url) navigation.navigate("WebView", { url });
   };
 
+  const chapterListOrder = useMemo<"asc" | "desc">(() => {
+    const first = chapters[0]?.chapterNumber;
+    const last = chapters[chapters.length - 1]?.chapterNumber;
+    if (typeof first === "number" && typeof last === "number" && first !== last) {
+      return first > last ? "desc" : "asc";
+    }
+    return "desc";
+  }, [chapters]);
+
+  const clearChapterSelection = useCallback(() => {
+    setIsChapterSelectionMenuVisible(false);
+    setSelectedChapterPaths(new Set());
+  }, []);
+
+  const toggleChapterSelected = useCallback((path: string) => {
+    setSelectedChapterPaths((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  }, []);
+
+  const selectAllChapters = useCallback(() => {
+    if (chapters.length === 0) return;
+    setSelectedChapterPaths(new Set(chapters.map((c) => c.path)));
+  }, [chapters]);
+
+  const invertChapterSelection = useCallback(() => {
+    if (chapters.length === 0) return;
+    setSelectedChapterPaths((prev) => {
+      const next = new Set<string>();
+      for (const c of chapters) {
+        if (!prev.has(c.path)) next.add(c.path);
+      }
+      return next;
+    });
+  }, [chapters]);
+
+  const getSelectedIndexRange = useCallback(() => {
+    let min = Number.POSITIVE_INFINITY;
+    let max = -1;
+    for (let i = 0; i < chapters.length; i++) {
+      if (selectedChapterPaths.has(chapters[i].path)) {
+        min = Math.min(min, i);
+        max = Math.max(max, i);
+      }
+    }
+    return { min, max, any: max >= 0 };
+  }, [chapters, selectedChapterPaths]);
+
+  const markSelectedChaptersRead = useCallback(() => {
+    if (!existingNovel) {
+      Alert.alert("Not in library", "Add this novel to your library to track progress.");
+      return;
+    }
+
+    const { min, max, any } = getSelectedIndexRange();
+    if (!any) return;
+
+    const total = existingNovel.totalChapters > 0 ? existingNovel.totalChapters : chapters.length;
+    const currentUnread = Math.max(0, Math.min(total, existingNovel.unreadChapters ?? total));
+    const currentRead = Math.max(0, total - currentUnread);
+
+    let nextUnread = currentUnread;
+    if (chapterListOrder === "asc") {
+      const nextRead = Math.max(currentRead, max + 1);
+      nextUnread = Math.max(0, total - nextRead);
+    } else {
+      nextUnread = Math.max(0, Math.min(currentUnread, min));
+    }
+
+    const nextRead = Math.max(0, total - nextUnread);
+    updateNovel(existingNovel.id, {
+      unreadChapters: nextUnread,
+      lastReadChapter: nextRead,
+      lastReadDate: new Date(),
+    });
+    clearChapterSelection();
+  }, [
+    chapterListOrder,
+    chapters.length,
+    clearChapterSelection,
+    existingNovel,
+    getSelectedIndexRange,
+    updateNovel,
+  ]);
+
+  const markSelectedChaptersUnread = useCallback(() => {
+    if (!existingNovel) {
+      Alert.alert("Not in library", "Add this novel to your library to track progress.");
+      return;
+    }
+
+    const { min, max, any } = getSelectedIndexRange();
+    if (!any) return;
+
+    const total = existingNovel.totalChapters > 0 ? existingNovel.totalChapters : chapters.length;
+    const currentUnread = Math.max(0, Math.min(total, existingNovel.unreadChapters ?? total));
+    const currentRead = Math.max(0, total - currentUnread);
+
+    let nextRead = currentRead;
+    if (chapterListOrder === "asc") {
+      nextRead = Math.max(0, Math.min(currentRead, min));
+    } else {
+      const nextUnread = Math.min(total, Math.max(currentUnread, max + 1));
+      nextRead = Math.max(0, total - nextUnread);
+    }
+
+    const nextUnread = Math.max(0, total - nextRead);
+    updateNovel(existingNovel.id, {
+      unreadChapters: nextUnread,
+      lastReadChapter: nextRead,
+      lastReadDate: nextRead === 0 ? undefined : existingNovel.lastReadDate,
+    });
+    clearChapterSelection();
+  }, [
+    chapterListOrder,
+    chapters.length,
+    clearChapterSelection,
+    existingNovel,
+    getSelectedIndexRange,
+    updateNovel,
+  ]);
+
+  const deleteSelectedChapterDownloads = useCallback(() => {
+    const count = selectedChapterPaths.size;
+    if (count === 0) return;
+    Alert.alert("Delete downloads", "Chapter downloads aren't implemented yet.", [
+      { text: "OK" },
+    ]);
+    clearChapterSelection();
+  }, [clearChapterSelection, selectedChapterPaths.size]);
+
+  const chapterSelectionMenuItems = useMemo(
+    () => [
+      { id: "selectAll", label: "Select all", onPress: selectAllChapters },
+      { id: "invert", label: "Select inverse", onPress: invertChapterSelection },
+      { id: "read", label: "Mark as read", onPress: markSelectedChaptersRead },
+      { id: "unread", label: "Mark as unread", onPress: markSelectedChaptersUnread },
+      {
+        id: "delete",
+        label: "Delete",
+        isDestructive: true,
+        onPress: deleteSelectedChapterDownloads,
+      },
+    ],
+    [
+      deleteSelectedChapterDownloads,
+      invertChapterSelection,
+      markSelectedChaptersRead,
+      markSelectedChaptersUnread,
+      selectAllChapters,
+    ],
+  );
+
   const handleProgressPress = () => {
     const list = chapters;
     if (list.length === 0) return;
@@ -476,6 +655,14 @@ export const PluginNovelDetailScreen: React.FC = () => {
       chapterTitle: target.name,
     });
   };
+
+  const handleHeaderBackPress = useCallback(() => {
+    if (isChapterSelectionMode) {
+      clearChapterSelection();
+      return;
+    }
+    navigation.goBack();
+  }, [clearChapterSelection, isChapterSelectionMode, navigation]);
 
   const downloadOptions = [
     { id: "next", label: "Next chapter", onPress: () => {} },
@@ -534,45 +721,54 @@ export const PluginNovelDetailScreen: React.FC = () => {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <Header
-        title=""
-        onBackPress={() => navigation.goBack()}
+        title={isChapterSelectionMode ? `${selectedChapterPaths.size} selected` : ""}
+        onBackPress={handleHeaderBackPress}
         rightButtons={
-          <>
-            <TouchableOpacity onPress={() => {}} style={styles.iconButton}>
-              <Ionicons
-                name="document-text"
-                size={24}
-                color={theme.colors.text}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => {}} style={styles.iconButton}>
-              <Ionicons
-                name="share-outline"
-                size={24}
-                color={theme.colors.text}
-              />
-            </TouchableOpacity>
+          isChapterSelectionMode ? (
             <TouchableOpacity
-              onPress={() => setIsDownloadMenuVisible(true)}
+              onPress={() => setIsChapterSelectionMenuVisible(true)}
               style={styles.iconButton}
             >
-              <Ionicons
-                name="download-outline"
-                size={24}
-                color={theme.colors.text}
-              />
+              <Ionicons name="ellipsis-vertical" size={24} color={theme.colors.text} />
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setIsMoreMenuVisible(true)}
-              style={styles.iconButton}
-            >
-              <Ionicons
-                name="ellipsis-vertical"
-                size={24}
-                color={theme.colors.text}
-              />
-            </TouchableOpacity>
-          </>
+          ) : (
+            <>
+              <TouchableOpacity onPress={() => {}} style={styles.iconButton}>
+                <Ionicons
+                  name="document-text"
+                  size={24}
+                  color={theme.colors.text}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => {}} style={styles.iconButton}>
+                <Ionicons
+                  name="share-outline"
+                  size={24}
+                  color={theme.colors.text}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setIsDownloadMenuVisible(true)}
+                style={styles.iconButton}
+              >
+                <Ionicons
+                  name="download-outline"
+                  size={24}
+                  color={theme.colors.text}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setIsMoreMenuVisible(true)}
+                style={styles.iconButton}
+              >
+                <Ionicons
+                  name="ellipsis-vertical"
+                  size={24}
+                  color={theme.colors.text}
+                />
+              </TouchableOpacity>
+            </>
+          )
         }
       />
 
@@ -775,53 +971,94 @@ export const PluginNovelDetailScreen: React.FC = () => {
               </View>
             </>
           }
-          renderItem={({ item }) => (
+          renderItem={({ item, index }) => {
+            const selected = selectedChapterPaths.has(item.path);
+            const total =
+              (existingNovel?.totalChapters && existingNovel.totalChapters > 0
+                ? existingNovel.totalChapters
+                : chapters.length) || chapters.length;
+            const unread = existingNovel?.unreadChapters ?? total;
+            const readCount = existingNovel ? Math.max(0, total - unread) : 0;
+            const isRead =
+              existingNovel && readCount > 0
+                ? chapterListOrder === "asc"
+                  ? index < readCount
+                  : index >= Math.max(0, chapters.length - readCount)
+                : false;
+
+            return (
             <TouchableOpacity
               style={[
                 styles.chapterItem,
+                selected && { backgroundColor: theme.colors.primary + "1A" },
                 { borderBottomColor: theme.colors.divider },
               ]}
-              onPress={() =>
-                existingNovel
-                  ? navigation.navigate("Reader", {
-                      novelId: stableNumericId,
-                      chapterId: item.path,
-                    })
-                  : navigation.navigate("PluginReader", {
-                      pluginId,
-                      novelId: stableNumericId,
-                      novelPath,
-                      chapterPath: item.path,
-                      chapterTitle: item.name,
-                    })
-              }
+              onPress={() => {
+                if (isChapterSelectionMode) {
+                  toggleChapterSelected(item.path);
+                  return;
+                }
+                if (existingNovel) {
+                  navigation.navigate("Reader", {
+                    novelId: stableNumericId,
+                    chapterId: item.path,
+                  });
+                  return;
+                }
+                navigation.navigate("PluginReader", {
+                  pluginId,
+                  novelId: stableNumericId,
+                  novelPath,
+                  chapterPath: item.path,
+                  chapterTitle: item.name,
+                });
+              }}
+              onLongPress={() => toggleChapterSelected(item.path)}
+              delayLongPress={220}
             >
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={[styles.chapterTitle, { color: theme.colors.text }]}
-                  numberOfLines={2}
-                >
-                  {item.name}
-                </Text>
-                {!!item.releaseTime && (
+              <View style={styles.chapterLeft}>
+                {isChapterSelectionMode ? (
+                  <Ionicons
+                    name={selected ? "checkmark-circle" : "ellipse-outline"}
+                    size={22}
+                    color={selected ? theme.colors.primary : theme.colors.textSecondary}
+                  />
+                ) : null}
+
+                <View style={{ flex: 1 }}>
                   <Text
                     style={[
-                      styles.chapterMeta,
-                      { color: theme.colors.textSecondary },
+                      styles.chapterTitle,
+                      { color: isRead ? theme.colors.textSecondary : theme.colors.text },
                     ]}
-                    numberOfLines={1}
+                    numberOfLines={2}
                   >
-                    {item.releaseTime}
+                    {item.name}
                   </Text>
-                )}
+                  {!!item.releaseTime && (
+                    <Text
+                      style={[
+                        styles.chapterMeta,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {item.releaseTime}
+                    </Text>
+                  )}
+                </View>
               </View>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={theme.colors.textSecondary}
-              />
+
+              {!isChapterSelectionMode ? (
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={theme.colors.textSecondary}
+                />
+              ) : null}
             </TouchableOpacity>
-          )}
+            );
+          }}
         />
       )}
 
@@ -850,6 +1087,12 @@ export const PluginNovelDetailScreen: React.FC = () => {
         visible={isDownloadMenuVisible}
         onClose={() => setIsDownloadMenuVisible(false)}
         items={downloadOptions}
+      />
+
+      <PopupMenu
+        visible={isChapterSelectionMenuVisible}
+        onClose={() => setIsChapterSelectionMenuVisible(false)}
+        items={chapterSelectionMenuItems}
       />
 
       <PopupMenu
@@ -1103,6 +1346,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
+  },
+  chapterLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+    paddingRight: 10,
   },
   chapterTitle: {
     fontSize: 14,

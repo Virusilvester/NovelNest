@@ -413,7 +413,10 @@ export const DatabaseService = {
         }
       })
       .filter((h): h is HistoryEntry => h != null)
-      .sort((a, b) => parseInt(b.id) - parseInt(a.id));
+      .sort(
+        (a, b) =>
+          (b.lastReadDate?.getTime() || 0) - (a.lastReadDate?.getTime() || 0),
+      );
   },
 
   async seedIfEmpty(seed: {

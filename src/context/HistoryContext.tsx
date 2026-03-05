@@ -14,6 +14,7 @@ interface HistoryContextType {
   historyEntries: HistoryEntry[];
   removeFromHistory: (entryId: string) => void;
   clearHistory: () => void;
+  upsertHistoryEntry: (entry: HistoryEntry) => void;
   updateProgress: (
     entryId: string,
     chapterId: string,
@@ -74,6 +75,25 @@ export const HistoryProvider: React.FC<{ children: React.ReactNode }> = ({
     void DatabaseService.clearHistory();
   }, []);
 
+  const upsertHistoryEntry = useCallback((entry: HistoryEntry) => {
+    setHistoryEntries((prev) => {
+      const existingIndex = prev.findIndex((e) => e.id === entry.id);
+      let next: HistoryEntry[];
+      if (existingIndex >= 0) {
+        next = prev.slice();
+        next[existingIndex] = entry;
+      } else {
+        next = [...prev, entry];
+      }
+      next.sort(
+        (a, b) =>
+          (b.lastReadDate?.getTime() || 0) - (a.lastReadDate?.getTime() || 0),
+      );
+      return next;
+    });
+    void DatabaseService.upsertHistoryEntry(entry);
+  }, []);
+
   const updateProgress = useCallback(
     (entryId: string, chapterId: string, progress: number) => {
       setHistoryEntries((prev) =>
@@ -116,11 +136,12 @@ export const HistoryProvider: React.FC<{ children: React.ReactNode }> = ({
         updateProgress,
         getTotalReadingTime,
         getTotalChaptersRead,
-        reloadFromDatabase,
-      }}
-    >
-      {children}
-    </HistoryContext.Provider>
+      reloadFromDatabase,
+      upsertHistoryEntry,
+    }}
+  >
+    {children}
+  </HistoryContext.Provider>
   );
 };
 
@@ -129,4 +150,3 @@ export const useHistory = () => {
   if (!context) throw new Error("useHistory must be used within HistoryProvider");
   return context;
 };
-
