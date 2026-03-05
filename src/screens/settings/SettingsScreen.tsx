@@ -1,11 +1,12 @@
 // src/screens/settings/SettingsScreen.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import React, { useState } from "react";
 import {
-  // Alert,
+  Alert,
   Linking,
+  Platform,
   ScrollView,
   StyleSheet,
   Switch,
@@ -128,16 +129,19 @@ export const SettingsScreen: React.FC = () => {
 
   const handleSelectDownloadLocation = async () => {
     try {
-      // Note: On mobile, we use a different approach
-      // This is a simplified version for test only
-      const result = await DocumentPicker.getDocumentAsync({
-        type: "*/*",
-        copyToCacheDirectory: false,
-      });
-
-      if (result.canceled === false && result.assets && result.assets[0]) {
-        await setDownloadLocation(result.assets[0].uri);
+      if (Platform.OS === "android" && FileSystem.StorageAccessFramework) {
+        const perm =
+          await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+        if (perm.granted) {
+          await setDownloadLocation(perm.directoryUri);
+        }
+        return;
       }
+
+      Alert.alert(
+        "Not supported",
+        "Custom download location is only supported on Android. Downloads will be stored internally.",
+      );
     } catch (err) {
       console.error("Error selecting download location:", err);
     }
@@ -208,7 +212,13 @@ export const SettingsScreen: React.FC = () => {
           />
           <SettingsItem
             title="Download location"
-            subtitle={settings.general.downloadLocation || "Default"}
+            subtitle={
+              !settings.general.downloadLocation
+                ? "Internal (default)"
+                : settings.general.downloadLocation.startsWith("content://")
+                  ? "Custom folder (Android)"
+                  : settings.general.downloadLocation
+            }
             onPress={handleSelectDownloadLocation}
           />
         </SettingsSection>

@@ -99,7 +99,12 @@ export const ReaderScreen: React.FC = () => {
       if (!plugin.enabled) throw new Error("Plugin is disabled.");
 
       if (novel?.chapterDownloaded?.[path]) {
-        const cached = await ChapterDownloads.readChapterHtml(pluginId, novelId, path);
+        const cached = await ChapterDownloads.readChapterHtml(
+          pluginId,
+          novelId,
+          path,
+          settings.general.downloadLocation,
+        );
         if (cached != null) return cached;
       }
 

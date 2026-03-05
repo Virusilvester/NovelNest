@@ -602,7 +602,12 @@ export const NovelDetailScreen: React.FC = () => {
               cancelNovelTasks(novel.id);
               await Promise.all(
                 paths.map((p) =>
-                  ChapterDownloads.deleteChapterHtml(novel.pluginId as string, novel.id, p),
+                  ChapterDownloads.deleteChapterHtml(
+                    novel.pluginId as string,
+                    novel.id,
+                    p,
+                    settings.general.downloadLocation,
+                  ),
                 ),
               );
               updateNovel(novel.id, {
@@ -614,7 +619,7 @@ export const NovelDetailScreen: React.FC = () => {
         },
       ],
     );
-  }, [cancelNovelTasks, novel, updateNovel]);
+  }, [cancelNovelTasks, novel, settings.general.downloadLocation, updateNovel]);
 
   const downloadOptions = [
     { id: "next", label: "Next chapter", onPress: () => handleDownloadUnread(1) },
@@ -804,7 +809,12 @@ export const NovelDetailScreen: React.FC = () => {
 
               await Promise.all(
                 paths.map((p) =>
-                  ChapterDownloads.deleteChapterHtml(pluginId, novelId, p),
+                  ChapterDownloads.deleteChapterHtml(
+                    pluginId,
+                    novelId,
+                    p,
+                    settings.general.downloadLocation,
+                  ),
                 ),
               );
 
@@ -831,6 +841,7 @@ export const NovelDetailScreen: React.FC = () => {
     downloadTasks,
     novel,
     selectedChapterPaths,
+    settings.general.downloadLocation,
     updateNovel,
   ]);
 

@@ -90,6 +90,7 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const inflightRef = useRef(new Set<string>());
   const canceledRef = useRef(new Set<string>());
+  const activePluginsRef = useRef(new Set<string>());
 
   useEffect(() => {
     let cancelled = false;
@@ -105,20 +106,33 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
         const nextTasks = Array.isArray(parsed?.tasks) ? parsed.tasks : [];
         setTasks(
           nextTasks
-            .map((t: any) => ({
-              id: String(t?.id || ""),
-              pluginId: String(t?.pluginId || ""),
-              pluginName: t?.pluginName != null ? String(t.pluginName) : undefined,
-              novelId: String(t?.novelId || ""),
-              novelTitle: String(t?.novelTitle || ""),
-              chapterPath: String(t?.chapterPath || ""),
-              chapterTitle: String(t?.chapterTitle || ""),
-              createdAt: Number(t?.createdAt || Date.now()),
-              status: (t?.status as DownloadTaskStatus) || "pending",
-              progress: clampProgress(Number(t?.progress ?? 0)),
-              errorMessage: t?.errorMessage != null ? String(t.errorMessage) : undefined,
-            }))
-            .filter((t: DownloadTask) => t.id && t.pluginId && t.novelId && t.chapterPath),
+            .map((t: any) => {
+              const rawStatus = (t?.status as DownloadTaskStatus) || "pending";
+              const status: DownloadTaskStatus =
+                rawStatus === "downloading" ? "pending" : rawStatus;
+
+              return {
+                id: String(t?.id || ""),
+                pluginId: String(t?.pluginId || ""),
+                pluginName: t?.pluginName != null ? String(t.pluginName) : undefined,
+                novelId: String(t?.novelId || ""),
+                novelTitle: String(t?.novelTitle || ""),
+                chapterPath: String(t?.chapterPath || ""),
+                chapterTitle: String(t?.chapterTitle || ""),
+                createdAt: Number(t?.createdAt || Date.now()),
+                status,
+                progress: clampProgress(Number(t?.progress ?? 0)),
+                errorMessage: t?.errorMessage != null ? String(t.errorMessage) : undefined,
+              };
+            })
+            .filter(
+              (t: DownloadTask) =>
+                t.id &&
+                t.pluginId &&
+                t.novelId &&
+                t.chapterPath &&
+                t.status !== "canceled",
+            ),
         );
         setPaused(Boolean(parsed?.paused));
       } catch (e) {
@@ -152,6 +166,7 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
       for (const item of list) {
         if (!item || !item.pluginId || !item.novelId || !item.chapterPath) continue;
         const id = taskIdFor(item);
+        canceledRef.current.delete(id);
         const existing = byId.get(id);
         if (existing) {
           if (existing.status === "completed") continue;
@@ -199,24 +214,23 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const cancelTask = useCallback((taskId: string) => {
     if (!taskId) return;
-    setTasks((prev) =>
-      prev.map((t) => {
-        if (t.id !== taskId) return t;
-        if (t.status === "downloading") canceledRef.current.add(taskId);
-        return { ...t, status: "canceled", errorMessage: undefined };
-      }),
-    );
+    canceledRef.current.add(taskId);
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
   }, []);
 
   const cancelNovelTasks = useCallback((novelId: string) => {
     if (!novelId) return;
-    setTasks((prev) =>
-      prev.map((t) => {
-        if (t.novelId !== novelId) return t;
-        if (t.status === "downloading") canceledRef.current.add(t.id);
-        return { ...t, status: "canceled", errorMessage: undefined };
-      }),
-    );
+    setTasks((prev) => {
+      const next: DownloadTask[] = [];
+      for (const task of prev) {
+        if (task.novelId !== novelId) {
+          next.push(task);
+          continue;
+        }
+        canceledRef.current.add(task.id);
+      }
+      return next;
+    });
   }, []);
 
   const retryTask = useCallback((taskId: string) => {
@@ -247,39 +261,40 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
     async (task: DownloadTask) => {
       if (!task?.id) return;
       if (inflightRef.current.has(task.id)) return;
+      if (activePluginsRef.current.has(task.pluginId)) return;
 
       inflightRef.current.add(task.id);
+      activePluginsRef.current.add(task.pluginId);
 
-      const started = (() => {
-        let didStart = false;
-        setTasks((prev) => {
-          const existing = prev.find((t) => t.id === task.id);
-          if (!existing || existing.status !== "pending") return prev;
-          const hasActiveForSource = prev.some(
-            (t) => t.pluginId === task.pluginId && t.status === "downloading",
-          );
-          if (hasActiveForSource) return prev;
-          didStart = true;
-          return prev.map((t) =>
-            t.id === task.id
-              ? {
-                  ...t,
-                  status: "downloading",
-                  progress: 0,
-                  errorMessage: undefined,
-                }
-              : t,
-          );
-        });
-        return didStart;
-      })();
+      let started = false;
+      setTasks((prev) => {
+        const existing = prev.find((t) => t.id === task.id);
+        if (!existing || existing.status !== "pending") return prev;
+        started = true;
+        return prev.map((t) =>
+          t.id === task.id
+            ? {
+                ...t,
+                status: "downloading",
+                progress: 0,
+                errorMessage: undefined,
+              }
+            : t,
+        );
+      });
 
       if (!started) {
         inflightRef.current.delete(task.id);
+        activePluginsRef.current.delete(task.pluginId);
         return;
       }
 
+      const downloadLocation = settings.general.downloadLocation;
+      let wroteFile = false;
+
       try {
+        if (canceledRef.current.has(task.id)) return;
+
         const installed = settings.extensions.installedPlugins || {};
         const plugin = installed[task.pluginId];
         if (!plugin) throw new Error("Plugin not installed.");
@@ -304,17 +319,15 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
           task.novelId,
           task.chapterPath,
           html,
+          downloadLocation,
         );
+        wroteFile = true;
 
         if (canceledRef.current.has(task.id)) {
-          await ChapterDownloads.deleteChapterHtml(
-            task.pluginId,
-            task.novelId,
-            task.chapterPath,
-          );
           return;
         }
 
+        if (canceledRef.current.has(task.id)) return;
         const novel = novelsRef.current.find((n) => n.id === task.novelId);
         if (novel) {
           updateNovel(task.novelId, {
@@ -326,13 +339,9 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
           });
         }
 
-        setTasks((prev) =>
-          prev.map((t) =>
-            t.id === task.id
-              ? { ...t, status: "completed", progress: 100, errorMessage: undefined }
-              : t,
-          ),
-        );
+        if (canceledRef.current.has(task.id)) return;
+
+        setTasks((prev) => prev.filter((t) => t.id !== task.id));
       } catch (e: any) {
         const message = e?.message ? String(e.message) : "Download failed.";
         setTasks((prev) =>
@@ -344,11 +353,40 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
         );
       } finally {
         inflightRef.current.delete(task.id);
+        activePluginsRef.current.delete(task.pluginId);
+
+        const wasCanceled = canceledRef.current.has(task.id);
+        canceledRef.current.delete(task.id);
+
+        if (wasCanceled) {
+          if (wroteFile) {
+            await ChapterDownloads.deleteChapterHtml(
+              task.pluginId,
+              task.novelId,
+              task.chapterPath,
+              downloadLocation,
+            );
+          }
+
+          const novel = novelsRef.current.find((n) => n.id === task.novelId);
+          if (novel?.chapterDownloaded?.[task.chapterPath]) {
+            const next = { ...(novel.chapterDownloaded || {}) };
+            delete next[task.chapterPath];
+            const keys = Object.keys(next);
+            updateNovel(task.novelId, {
+              chapterDownloaded: keys.length ? next : undefined,
+              isDownloaded: keys.length > 0,
+            });
+          }
+
+          setTasks((prev) => prev.filter((t) => t.id !== task.id));
+        }
       }
     },
     [
       settings.advanced.userAgent,
       settings.extensions.installedPlugins,
+      settings.general.downloadLocation,
       updateNovel,
     ],
   );
@@ -357,16 +395,14 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
     if (!hydrated) return;
     if (paused) return;
 
-    const activeByPlugin = new Set<string>();
     const pendingByPlugin = new Set<string>();
 
     for (const t of tasks) {
-      if (t.status === "downloading") activeByPlugin.add(t.pluginId);
       if (t.status === "pending") pendingByPlugin.add(t.pluginId);
     }
 
     for (const pluginId of pendingByPlugin) {
-      if (activeByPlugin.has(pluginId)) continue;
+      if (activePluginsRef.current.has(pluginId)) continue;
       const next = tasks
         .filter((t) => t.pluginId === pluginId && t.status === "pending")
         .sort((a, b) => a.createdAt - b.createdAt)[0];
@@ -412,4 +448,3 @@ export const useDownloadQueue = () => {
   }
   return ctx;
 };
-
