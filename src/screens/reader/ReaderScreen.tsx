@@ -8,6 +8,7 @@ import { useHistory } from "../../context/HistoryContext";
 import { useLibrary } from "../../context/LibraryContext";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
+import { ChapterDownloads } from "../../services/chapterDownloads";
 import { NovelDetailCache } from "../../services/novelDetailCache";
 import { PluginRuntimeService } from "../../services/pluginRuntime";
 import type { Chapter } from "../../types";
@@ -97,6 +98,11 @@ export const ReaderScreen: React.FC = () => {
       if (!plugin) throw new Error("Plugin not installed.");
       if (!plugin.enabled) throw new Error("Plugin is disabled.");
 
+      if (novel?.chapterDownloaded?.[path]) {
+        const cached = await ChapterDownloads.readChapterHtml(pluginId, novelId, path);
+        if (cached != null) return cached;
+      }
+
       const instance = await PluginRuntimeService.loadLnReaderPlugin(plugin, {
         userAgent: settings.advanced.userAgent,
       });
@@ -106,7 +112,7 @@ export const ReaderScreen: React.FC = () => {
       }
       return (await parseChapter(path)) || "";
     },
-    [plugin, pluginId, settings.advanced.userAgent],
+    [novel?.chapterDownloaded, novelId, plugin, pluginId, settings.advanced.userAgent],
   );
 
   const handleChapterRead = useCallback(

@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { RouteProp } from "@react-navigation/native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,10 +16,12 @@ import {
 } from "react-native";
 import { Header } from "../../components/common/Header";
 import { PopupMenu } from "../../components/common/PopupMenu";
+import { useDownloadQueue } from "../../context/DownloadQueueContext";
 import { useLibrary } from "../../context/LibraryContext";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
 import type { RootStackParamList } from "../../navigation/types";
+import { ChapterDownloads } from "../../services/chapterDownloads";
 import {
   NovelDetailCache,
   normalizePluginDetailForCache,
@@ -27,6 +29,12 @@ import {
 import { PluginRuntimeService } from "../../services/pluginRuntime";
 import type { CachedPluginNovelDetail, Novel } from "../../types";
 import { clamp } from "../../utils/responsive";
+import {
+  computeTotalEffectiveReadCount,
+  detectChapterListOrder,
+  getEffectiveReadForChapter,
+  updateReadOverridesForSelection,
+} from "../../utils/chapterState";
 
 type ChapterItem = {
   name: string;
@@ -48,6 +56,8 @@ export const PluginNovelDetailScreen: React.FC = () => {
   const { theme } = useTheme();
   const { settings } = useSettings();
   const { novels, addNovel, updateNovel, categories } = useLibrary();
+  const { tasks: downloadTasks, enqueue, cancelTask, cancelNovelTasks } =
+    useDownloadQueue();
   const { width } = useWindowDimensions();
 
   const coverWidth = clamp(Math.round(Math.min(width * 0.28, 160)), 96, 160);
@@ -69,6 +79,11 @@ export const PluginNovelDetailScreen: React.FC = () => {
     () => novels.find((n) => n.id === stableNumericId),
     [novels, stableNumericId],
   );
+
+  const existingNovelRef = useRef<Novel | undefined>(undefined);
+  useEffect(() => {
+    existingNovelRef.current = existingNovel || undefined;
+  }, [existingNovel]);
 
   const installed = settings.extensions.installedPlugins || {};
   const plugin = installed[pluginId];
@@ -459,14 +474,91 @@ export const PluginNovelDetailScreen: React.FC = () => {
     if (url) navigation.navigate("WebView", { url });
   };
 
-  const chapterListOrder = useMemo<"asc" | "desc">(() => {
-    const first = chapters[0]?.chapterNumber;
-    const last = chapters[chapters.length - 1]?.chapterNumber;
-    if (typeof first === "number" && typeof last === "number" && first !== last) {
-      return first > last ? "desc" : "asc";
+  const chaptersTotal = chapters.length;
+  const progressTotal =
+    (existingNovel?.totalChapters && existingNovel.totalChapters > 0
+      ? existingNovel.totalChapters
+      : chaptersTotal) || chaptersTotal;
+
+  const chapterListOrder = useMemo(() => detectChapterListOrder(chapters), [chapters]);
+
+  const baseReadCount = useMemo(() => {
+    if (!existingNovel) return 0;
+    return Math.max(0, Math.min(progressTotal, Math.floor(existingNovel.lastReadChapter || 0)));
+  }, [existingNovel, progressTotal]);
+
+  const effectiveReadCount = useMemo(() => {
+    if (!existingNovel) return 0;
+    return computeTotalEffectiveReadCount({
+      total: progressTotal,
+      baseReadCount,
+      order: chapterListOrder,
+      chapters,
+      readOverrides: existingNovel.chapterReadOverrides,
+    });
+  }, [
+    baseReadCount,
+    chapterListOrder,
+    chapters,
+    existingNovel,
+    progressTotal,
+  ]);
+
+  const downloadTaskByPath = useMemo(() => {
+    const map = new Map<string, { id: string; status: string }>();
+    for (const task of downloadTasks) {
+      if (task.pluginId !== pluginId) continue;
+      if (task.novelId !== stableNumericId) continue;
+      if (
+        task.status === "pending" ||
+        task.status === "downloading" ||
+        task.status === "error"
+      ) {
+        map.set(task.chapterPath, { id: task.id, status: task.status });
+      }
     }
-    return "desc";
-  }, [chapters]);
+    return map;
+  }, [downloadTasks, pluginId, stableNumericId]);
+
+  const enqueueChapterDownload = useCallback(
+    (chapter: ChapterItem) => {
+      if (!chapter?.path) return;
+      if (!existingNovel) {
+        Alert.alert("Not in library", "Add this novel to your library to download chapters.");
+        return;
+      }
+      enqueue({
+        pluginId,
+        pluginName: plugin?.name || pluginId,
+        novelId: existingNovel.id,
+        novelTitle: existingNovel.title,
+        chapterPath: chapter.path,
+        chapterTitle: chapter.name,
+      });
+    },
+    [existingNovel, enqueue, plugin?.name, pluginId],
+  );
+
+  const enqueueManyChapterDownloads = useCallback(
+    (items: ChapterItem[]) => {
+      if (!existingNovel) {
+        Alert.alert("Not in library", "Add this novel to your library to download chapters.");
+        return;
+      }
+      if (!Array.isArray(items) || items.length === 0) return;
+      enqueue(
+        items.map((c) => ({
+          pluginId,
+          pluginName: plugin?.name || pluginId,
+          novelId: existingNovel.id,
+          novelTitle: existingNovel.title,
+          chapterPath: c.path,
+          chapterTitle: c.name,
+        })),
+      );
+    },
+    [enqueue, existingNovel, plugin?.name, pluginId],
+  );
 
   const clearChapterSelection = useCallback(() => {
     setIsChapterSelectionMenuVisible(false);
@@ -498,52 +590,57 @@ export const PluginNovelDetailScreen: React.FC = () => {
     });
   }, [chapters]);
 
-  const getSelectedIndexRange = useCallback(() => {
-    let min = Number.POSITIVE_INFINITY;
-    let max = -1;
-    for (let i = 0; i < chapters.length; i++) {
-      if (selectedChapterPaths.has(chapters[i].path)) {
-        min = Math.min(min, i);
-        max = Math.max(max, i);
-      }
-    }
-    return { min, max, any: max >= 0 };
-  }, [chapters, selectedChapterPaths]);
-
   const markSelectedChaptersRead = useCallback(() => {
     if (!existingNovel) {
       Alert.alert("Not in library", "Add this novel to your library to track progress.");
       return;
     }
+    if (selectedChapterPaths.size === 0) return;
 
-    const { min, max, any } = getSelectedIndexRange();
-    if (!any) return;
-
-    const total = existingNovel.totalChapters > 0 ? existingNovel.totalChapters : chapters.length;
-    const currentUnread = Math.max(0, Math.min(total, existingNovel.unreadChapters ?? total));
-    const currentRead = Math.max(0, total - currentUnread);
-
-    let nextUnread = currentUnread;
-    if (chapterListOrder === "asc") {
-      const nextRead = Math.max(currentRead, max + 1);
-      nextUnread = Math.max(0, total - nextRead);
-    } else {
-      nextUnread = Math.max(0, Math.min(currentUnread, min));
+    if (chapters.length > 0 && selectedChapterPaths.size === chapters.length) {
+      updateNovel(existingNovel.id, {
+        unreadChapters: 0,
+        lastReadChapter: progressTotal,
+        lastReadDate: new Date(),
+        chapterReadOverrides: undefined,
+      });
+      clearChapterSelection();
+      return;
     }
 
-    const nextRead = Math.max(0, total - nextUnread);
-    updateNovel(existingNovel.id, {
-      unreadChapters: nextUnread,
-      lastReadChapter: nextRead,
-      lastReadDate: new Date(),
+    const nextOverrides = updateReadOverridesForSelection({
+      total: progressTotal,
+      baseReadCount,
+      order: chapterListOrder,
+      chapters,
+      selectedPaths: selectedChapterPaths,
+      readOverrides: existingNovel.chapterReadOverrides,
+      markAs: "read",
     });
+
+    const nextReadCount = computeTotalEffectiveReadCount({
+      total: progressTotal,
+      baseReadCount,
+      order: chapterListOrder,
+      chapters,
+      readOverrides: nextOverrides,
+    });
+
+    updateNovel(existingNovel.id, {
+      unreadChapters: Math.max(0, progressTotal - nextReadCount),
+      lastReadDate: new Date(),
+      chapterReadOverrides: nextOverrides,
+    });
+
     clearChapterSelection();
   }, [
+    baseReadCount,
     chapterListOrder,
-    chapters.length,
+    chapters,
     clearChapterSelection,
     existingNovel,
-    getSelectedIndexRange,
+    progressTotal,
+    selectedChapterPaths,
     updateNovel,
   ]);
 
@@ -552,46 +649,117 @@ export const PluginNovelDetailScreen: React.FC = () => {
       Alert.alert("Not in library", "Add this novel to your library to track progress.");
       return;
     }
+    if (selectedChapterPaths.size === 0) return;
 
-    const { min, max, any } = getSelectedIndexRange();
-    if (!any) return;
-
-    const total = existingNovel.totalChapters > 0 ? existingNovel.totalChapters : chapters.length;
-    const currentUnread = Math.max(0, Math.min(total, existingNovel.unreadChapters ?? total));
-    const currentRead = Math.max(0, total - currentUnread);
-
-    let nextRead = currentRead;
-    if (chapterListOrder === "asc") {
-      nextRead = Math.max(0, Math.min(currentRead, min));
-    } else {
-      const nextUnread = Math.min(total, Math.max(currentUnread, max + 1));
-      nextRead = Math.max(0, total - nextUnread);
+    if (chapters.length > 0 && selectedChapterPaths.size === chapters.length) {
+      updateNovel(existingNovel.id, {
+        unreadChapters: progressTotal,
+        lastReadChapter: 0,
+        lastReadDate: undefined,
+        chapterReadOverrides: undefined,
+      });
+      clearChapterSelection();
+      return;
     }
 
-    const nextUnread = Math.max(0, total - nextRead);
-    updateNovel(existingNovel.id, {
-      unreadChapters: nextUnread,
-      lastReadChapter: nextRead,
-      lastReadDate: nextRead === 0 ? undefined : existingNovel.lastReadDate,
+    const nextOverrides = updateReadOverridesForSelection({
+      total: progressTotal,
+      baseReadCount,
+      order: chapterListOrder,
+      chapters,
+      selectedPaths: selectedChapterPaths,
+      readOverrides: existingNovel.chapterReadOverrides,
+      markAs: "unread",
     });
+
+    const nextReadCount = computeTotalEffectiveReadCount({
+      total: progressTotal,
+      baseReadCount,
+      order: chapterListOrder,
+      chapters,
+      readOverrides: nextOverrides,
+    });
+
+    updateNovel(existingNovel.id, {
+      unreadChapters: Math.max(0, progressTotal - nextReadCount),
+      lastReadDate: nextReadCount === 0 ? undefined : existingNovel.lastReadDate,
+      chapterReadOverrides: nextOverrides,
+    });
+
     clearChapterSelection();
   }, [
+    baseReadCount,
     chapterListOrder,
-    chapters.length,
+    chapters,
     clearChapterSelection,
     existingNovel,
-    getSelectedIndexRange,
+    progressTotal,
+    selectedChapterPaths,
     updateNovel,
   ]);
 
   const deleteSelectedChapterDownloads = useCallback(() => {
+    if (!existingNovel) {
+      Alert.alert("Not in library", "Add this novel to your library to manage downloads.");
+      return;
+    }
     const count = selectedChapterPaths.size;
     if (count === 0) return;
-    Alert.alert("Delete downloads", "Chapter downloads aren't implemented yet.", [
-      { text: "OK" },
-    ]);
-    clearChapterSelection();
-  }, [clearChapterSelection, selectedChapterPaths.size]);
+
+    Alert.alert(
+      "Delete downloads",
+      `Delete ${count} downloaded chapter${count === 1 ? "" : "s"}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              const novelId = existingNovel.id;
+              const paths = Array.from(selectedChapterPaths);
+
+              for (const task of downloadTasks) {
+                if (task.pluginId !== pluginId) continue;
+                if (task.novelId !== novelId) continue;
+                if (!selectedChapterPaths.has(task.chapterPath)) continue;
+                if (task.status === "pending" || task.status === "downloading") {
+                  cancelTask(task.id);
+                }
+              }
+
+              await Promise.all(
+                paths.map((p) =>
+                  ChapterDownloads.deleteChapterHtml(pluginId, novelId, p),
+                ),
+              );
+
+              const current = existingNovelRef.current;
+              const base = current?.chapterDownloaded || {};
+              const next = { ...base };
+              for (const p of paths) delete next[p];
+              const keys = Object.keys(next);
+
+              updateNovel(novelId, {
+                chapterDownloaded: keys.length ? next : undefined,
+                isDownloaded: keys.length > 0,
+              });
+
+              clearChapterSelection();
+            })();
+          },
+        },
+      ],
+    );
+  }, [
+    cancelTask,
+    clearChapterSelection,
+    downloadTasks,
+    existingNovel,
+    pluginId,
+    selectedChapterPaths,
+    updateNovel,
+  ]);
 
   const chapterSelectionMenuItems = useMemo(
     () => [
@@ -664,18 +832,90 @@ export const PluginNovelDetailScreen: React.FC = () => {
     navigation.goBack();
   }, [clearChapterSelection, isChapterSelectionMode, navigation]);
 
+  const handleDownloadUnread = useCallback(
+    (limit?: number) => {
+      if (!existingNovel) {
+        Alert.alert("Not in library", "Add this novel to your library to download chapters.");
+        return;
+      }
+      if (chapters.length === 0) return;
+      const unread = chapters.filter((c, index) => {
+        const isRead = getEffectiveReadForChapter({
+          chapterPath: c.path,
+          index,
+          total: progressTotal,
+          baseReadCount,
+          order: chapterListOrder,
+          readOverrides: existingNovel.chapterReadOverrides,
+        });
+        return !isRead;
+      });
+      enqueueManyChapterDownloads(typeof limit === "number" ? unread.slice(0, limit) : unread);
+    },
+    [
+      baseReadCount,
+      chapterListOrder,
+      chapters,
+      enqueueManyChapterDownloads,
+      existingNovel,
+      progressTotal,
+    ],
+  );
+
+  const handleDownloadAll = useCallback(() => {
+    enqueueManyChapterDownloads(chapters);
+  }, [chapters, enqueueManyChapterDownloads]);
+
+  const handleDeleteAllDownloads = useCallback(() => {
+    if (!existingNovel) {
+      Alert.alert("Not in library", "Add this novel to your library to manage downloads.");
+      return;
+    }
+
+    const current = existingNovelRef.current;
+    const downloaded = current?.chapterDownloaded || {};
+    const paths = Object.keys(downloaded);
+    if (paths.length === 0) return;
+
+    Alert.alert(
+      "Delete downloads",
+      `Delete ${paths.length} downloaded chapter${paths.length === 1 ? "" : "s"}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              cancelNovelTasks(existingNovel.id);
+              await Promise.all(
+                paths.map((p) =>
+                  ChapterDownloads.deleteChapterHtml(pluginId, existingNovel.id, p),
+                ),
+              );
+              updateNovel(existingNovel.id, {
+                chapterDownloaded: undefined,
+                isDownloaded: false,
+              });
+            })();
+          },
+        },
+      ],
+    );
+  }, [cancelNovelTasks, existingNovel, pluginId, updateNovel]);
+
   const downloadOptions = [
-    { id: "next", label: "Next chapter", onPress: () => {} },
-    { id: "next5", label: "Next 5 chapters", onPress: () => {} },
-    { id: "next10", label: "Next 10 chapters", onPress: () => {} },
+    { id: "next", label: "Next chapter", onPress: () => handleDownloadUnread(1) },
+    { id: "next5", label: "Next 5 chapters", onPress: () => handleDownloadUnread(5) },
+    { id: "next10", label: "Next 10 chapters", onPress: () => handleDownloadUnread(10) },
     { id: "custom", label: "Custom", onPress: () => {} },
-    { id: "unread", label: "Unread", onPress: () => {} },
-    { id: "all", label: "All", onPress: () => {} },
+    { id: "unread", label: "Unread", onPress: () => handleDownloadUnread() },
+    { id: "all", label: "All", onPress: handleDownloadAll },
     {
       id: "delete",
       label: "Delete downloads",
       isDestructive: true,
-      onPress: () => {},
+      onPress: handleDeleteAllDownloads,
     },
   ];
 
@@ -711,12 +951,7 @@ export const PluginNovelDetailScreen: React.FC = () => {
       : []),
   ];
 
-  const progressTotal = chapters.length || existingNovel?.totalChapters || 0;
-  const progressUnread = existingNovel?.unreadChapters ?? progressTotal;
-  const progressPercent =
-    progressTotal > 0
-      ? ((progressTotal - progressUnread) / progressTotal) * 100
-      : 0;
+  const progressPercent = progressTotal > 0 ? (effectiveReadCount / progressTotal) * 100 : 0;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -938,7 +1173,7 @@ export const PluginNovelDetailScreen: React.FC = () => {
                       { color: theme.colors.primary },
                     ]}
                   >
-                    {progressTotal - progressUnread}/{progressTotal}
+                    {effectiveReadCount}/{progressTotal}
                   </Text>
                 </View>
                 <View
@@ -973,18 +1208,18 @@ export const PluginNovelDetailScreen: React.FC = () => {
           }
           renderItem={({ item, index }) => {
             const selected = selectedChapterPaths.has(item.path);
-            const total =
-              (existingNovel?.totalChapters && existingNovel.totalChapters > 0
-                ? existingNovel.totalChapters
-                : chapters.length) || chapters.length;
-            const unread = existingNovel?.unreadChapters ?? total;
-            const readCount = existingNovel ? Math.max(0, total - unread) : 0;
-            const isRead =
-              existingNovel && readCount > 0
-                ? chapterListOrder === "asc"
-                  ? index < readCount
-                  : index >= Math.max(0, chapters.length - readCount)
-                : false;
+            const isRead = existingNovel
+              ? getEffectiveReadForChapter({
+                  chapterPath: item.path,
+                  index,
+                  total: progressTotal,
+                  baseReadCount,
+                  order: chapterListOrder,
+                  readOverrides: existingNovel.chapterReadOverrides,
+                })
+              : false;
+            const downloadInfo = downloadTaskByPath.get(item.path);
+            const isDownloaded = Boolean(existingNovel?.chapterDownloaded?.[item.path]);
 
             return (
             <TouchableOpacity
@@ -1050,11 +1285,59 @@ export const PluginNovelDetailScreen: React.FC = () => {
               </View>
 
               {!isChapterSelectionMode ? (
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={theme.colors.textSecondary}
-                />
+                <View style={styles.chapterRight}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (isDownloaded) return;
+                      if (
+                        downloadInfo?.status === "pending" ||
+                        downloadInfo?.status === "downloading"
+                      ) {
+                        return;
+                      }
+                      enqueueChapterDownload(item);
+                    }}
+                    style={[
+                      styles.chapterIconBtn,
+                      (!existingNovel || isDownloaded) && { opacity: 0.65 },
+                    ]}
+                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                  >
+                    {isDownloaded ? (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={20}
+                        color={theme.colors.primary}
+                      />
+                    ) : downloadInfo?.status === "downloading" ? (
+                      <ActivityIndicator size="small" color={theme.colors.primary} />
+                    ) : downloadInfo?.status === "pending" ? (
+                      <Ionicons
+                        name="time-outline"
+                        size={20}
+                        color={theme.colors.textSecondary}
+                      />
+                    ) : downloadInfo?.status === "error" ? (
+                      <Ionicons
+                        name="alert-circle-outline"
+                        size={20}
+                        color={theme.colors.error}
+                      />
+                    ) : (
+                      <Ionicons
+                        name="download-outline"
+                        size={20}
+                        color={theme.colors.textSecondary}
+                      />
+                    )}
+                  </TouchableOpacity>
+
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={theme.colors.textSecondary}
+                  />
+                </View>
               ) : null}
             </TouchableOpacity>
             );
@@ -1353,6 +1636,15 @@ const styles = StyleSheet.create({
     gap: 10,
     flex: 1,
     paddingRight: 10,
+  },
+  chapterRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  chapterIconBtn: {
+    padding: 4,
+    borderRadius: 8,
   },
   chapterTitle: {
     fontSize: 14,

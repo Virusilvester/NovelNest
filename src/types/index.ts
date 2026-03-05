@@ -21,6 +21,11 @@ export interface Novel {
   pluginNovelPath?: string;
   // Cached plugin metadata + chapters for offline/fast reload (included in DB backups).
   pluginCache?: CachedPluginNovelDetail;
+  // Per-chapter state overrides (only for chapters the user interacted with).
+  // If a chapter path is present, its value overrides the inferred read/unread state.
+  chapterReadOverrides?: Record<string, boolean>;
+  // Downloaded chapter files (keyed by chapter path).
+  chapterDownloaded?: Record<string, boolean>;
 }
 
 export type CachedPluginChapter = {

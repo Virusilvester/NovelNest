@@ -4,6 +4,7 @@ import React from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "./src/components/common/ErrorBoundary";
+import { DownloadQueueProvider } from "./src/context/DownloadQueueContext";
 import { HistoryProvider } from "./src/context/HistoryContext";
 import { LibraryProvider } from "./src/context/LibraryContext";
 import { SettingsProvider } from "./src/context/SettingsContext";
@@ -17,12 +18,14 @@ export default function App() {
         <SettingsProvider>
           <ThemeProvider>
             <LibraryProvider>
-              <HistoryProvider>
-                <StatusBar style="auto" />
-                <ErrorBoundary>
-                  <AppNavigator />
-                </ErrorBoundary>
-              </HistoryProvider>
+              <DownloadQueueProvider>
+                <HistoryProvider>
+                  <StatusBar style="auto" />
+                  <ErrorBoundary>
+                    <AppNavigator />
+                  </ErrorBoundary>
+                </HistoryProvider>
+              </DownloadQueueProvider>
             </LibraryProvider>
           </ThemeProvider>
         </SettingsProvider>
