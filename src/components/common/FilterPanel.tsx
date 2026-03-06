@@ -1,22 +1,22 @@
 // src/components/common/FilterPanel.tsx
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TouchableOpacity,
-  useWindowDimensions,
-  View,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TouchableOpacity,
+    useWindowDimensions,
+    View,
 } from "react-native";
 import { LIBRARY_SORT_OPTIONS } from "../../constants";
 import { useTheme } from "../../context/ThemeContext";
 import {
-  DisplayMode,
-  LibraryFilterOption,
-  LibrarySortOption,
+    DisplayMode,
+    LibraryFilterOption,
+    LibrarySortOption,
 } from "../../types";
 
 interface FilterPanelProps {
@@ -245,6 +245,35 @@ const FilterSwitch: React.FC<{
   isLast?: boolean;
 }> = ({ label, value, onChange, isLast }) => {
   const { theme } = useTheme();
+  const [localValue, setLocalValue] = useState(value);
+  const timeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  const handleValueChange = useCallback((newValue: boolean) => {
+    // Clear any pending timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    
+    // Update local state immediately for responsive UI
+    setLocalValue(newValue);
+    
+    // Debounce the onChange call to prevent rapid toggling
+    timeoutRef.current = setTimeout(() => {
+      onChange(newValue);
+    }, 100);
+  }, [onChange]);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <View
@@ -260,10 +289,11 @@ const FilterSwitch: React.FC<{
         {label}
       </Text>
       <Switch
-        value={value}
-        onValueChange={onChange}
+        value={localValue}
+        onValueChange={handleValueChange}
         trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
-        thumbColor={value ? "#FFF" : "#f4f3f4"}
+        thumbColor={localValue ? "#FFF" : "#f4f3f4"}
+        ios_backgroundColor={theme.colors.border}
       />
     </View>
   );

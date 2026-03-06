@@ -1,17 +1,17 @@
 // src/navigation/CustomDrawerContent.tsx
 import {
-  DrawerContentComponentProps,
-  DrawerContentScrollView,
-  DrawerItemList,
+    DrawerContentComponentProps,
+    DrawerContentScrollView,
+    DrawerItemList,
 } from "@react-navigation/drawer";
 import React from "react";
 import {
-  Image,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  useWindowDimensions,
-  View,
+    Image,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    useWindowDimensions,
+    View,
 } from "react-native";
 import { useTheme } from "../context/ThemeContext";
 

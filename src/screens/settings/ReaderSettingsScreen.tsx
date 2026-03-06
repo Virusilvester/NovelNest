@@ -1,8 +1,9 @@
 // src/screens/settings/ReaderSettingsScreen.tsx
 import { useNavigation } from "@react-navigation/native";
 import React from "react";
-import { ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Header } from "../../components/common/Header";
+import { ImprovedSwitch } from "../../components/common/ImprovedSwitch";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
 
@@ -23,10 +24,9 @@ const SettingsItem: React.FC<SettingsItemProps> = ({
       <Text style={[styles.itemTitle, { color: theme.colors.text }]}>
         {title}
       </Text>
-      <Switch
+      <ImprovedSwitch
         value={value}
         onValueChange={onValueChange}
-        trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
       />
     </View>
   );

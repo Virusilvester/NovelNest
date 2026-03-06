@@ -3,6 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { createDrawerNavigator } from "@react-navigation/drawer";
 import React from "react";
 import { useWindowDimensions } from "react-native";
+import { useTheme } from "../context/ThemeContext";
 import { DownloadQueueScreen } from "../screens/DownloadQueueScreen";
 import { ExtensionsScreen } from "../screens/main/ExtensionsScreen";
 import { HistoryScreen } from "../screens/main/HistoryScreen";
@@ -10,14 +11,15 @@ import { LibraryScreen } from "../screens/main/LibraryScreen";
 import { SourcesScreen } from "../screens/main/SourcesScreen";
 import { UpdatesScreen } from "../screens/main/UpdatesScreen";
 import { SettingsScreen } from "../screens/settings/SettingsScreen";
+import { getDrawerWidth } from "../utils/responsive";
 import { CustomDrawerContent } from "./CustomDrawerContent";
 import { MainDrawerParamList } from "./types";
-import { getDrawerWidth } from "../utils/responsive";
 
 const Drawer = createDrawerNavigator<MainDrawerParamList>();
 
 export const MainDrawer: React.FC = () => {
   const { width, height } = useWindowDimensions();
+  const { theme } = useTheme();
   const drawerWidth = getDrawerWidth(width, height);
 
   return (
@@ -27,7 +29,13 @@ export const MainDrawer: React.FC = () => {
         headerShown: false,
         drawerType: "front",
         overlayColor: "rgba(0,0,0,0.5)",
-        drawerStyle: { width: drawerWidth },
+        drawerStyle: { 
+          width: drawerWidth,
+          backgroundColor: theme.colors.background 
+        },
+        drawerActiveTintColor: theme.colors.primary,
+        drawerInactiveTintColor: theme.colors.text,
+        drawerActiveBackgroundColor: theme.colors.primary + '20'
       }}
     >
       <Drawer.Screen

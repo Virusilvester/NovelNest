@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { FlashList } from "@shopify/flash-list";
 import { useNavigation } from "@react-navigation/native";
+import { FlashList } from "@shopify/flash-list";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -9,11 +9,10 @@ import {
   Modal,
   Platform,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { Header } from "../../components/common/Header";
 import { PopupMenu } from "../../components/common/PopupMenu";
@@ -22,6 +21,7 @@ import { useTheme } from "../../context/ThemeContext";
 import type { MainDrawerNavigationProp } from "../../navigation/navigationTypes";
 import { ExtensionsService } from "../../services/extensions";
 import type { ExtensionRepoPlugin } from "../../types";
+import { ImprovedSwitch } from "@/src/components/common/ImprovedSwitch";
 
 type RepoPlugin = ExtensionRepoPlugin & { repoUrl: string };
 type SortOption = "az" | "za" | "installed";
@@ -262,13 +262,9 @@ export const ExtensionsScreen: React.FC = () => {
 
         <View style={styles.actionsContainer}>
           {isInstalled && (
-            <Switch
+            <ImprovedSwitch
               value={isEnabled}
               onValueChange={(v) => setExtensionPluginEnabled(item.id, v)}
-              trackColor={{
-                false: theme.colors.border,
-                true: theme.colors.primary,
-              }}
             />
           )}
           <TouchableOpacity

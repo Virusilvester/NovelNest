@@ -4,17 +4,17 @@ import { useNavigation } from "@react-navigation/native";
 import * as FileSystem from "expo-file-system/legacy";
 import React, { useState } from "react";
 import {
-  Alert,
-  Linking,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    Linking,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { Header } from "../../components/common/Header";
+import { ImprovedSwitch } from "../../components/common/ImprovedSwitch";
 import { SelectionModal } from "../../components/common/SelectionModal";
 import { START_SCREENS, UPDATE_FREQUENCIES } from "../../constants";
 import { useSettings } from "../../context/SettingsContext";
@@ -229,15 +229,11 @@ export const SettingsScreen: React.FC = () => {
             title="App Theme"
             subtitle={settings.display.theme === "dark" ? "Dark" : "Light"}
             rightElement={
-              <Switch
+              <ImprovedSwitch
                 value={settings.display.theme === "dark"}
                 onValueChange={(v) =>
                   updateDisplaySettings("theme", v ? "dark" : "light")
                 }
-                trackColor={{
-                  false: theme.colors.border,
-                  true: theme.colors.primary,
-                }}
               />
             }
             showArrow={false}
@@ -249,15 +245,11 @@ export const SettingsScreen: React.FC = () => {
           <SettingsItem
             title="Download new chapters"
             rightElement={
-              <Switch
+              <ImprovedSwitch
                 value={settings.autoDownload.downloadNewChapters}
                 onValueChange={(v) =>
                   updateAutoDownloadSettings("downloadNewChapters", v)
                 }
-                trackColor={{
-                  false: theme.colors.border,
-                  true: theme.colors.primary,
-                }}
               />
             }
             showArrow={false}
@@ -282,15 +274,11 @@ export const SettingsScreen: React.FC = () => {
           <SettingsItem
             title="Only update ongoing"
             rightElement={
-              <Switch
+              <ImprovedSwitch
                 value={settings.updates.onlyUpdateOngoing}
                 onValueChange={(v) =>
                   updateUpdatesSettings("onlyUpdateOngoing", v)
                 }
-                trackColor={{
-                  false: theme.colors.border,
-                  true: theme.colors.primary,
-                }}
               />
             }
             showArrow={false}
