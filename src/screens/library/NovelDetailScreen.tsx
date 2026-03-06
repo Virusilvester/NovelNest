@@ -300,6 +300,19 @@ export const NovelDetailScreen: React.FC = () => {
       }
 
       const data = await parseNovel(novel.pluginNovelPath);
+      
+      // Debug logging for genres
+      console.log('NovelDetailScreen - Raw plugin data:', {
+        name: data?.name,
+        author: data?.author,
+        genres: data?.genres,
+        status: data?.status,
+        summary: data?.summary,
+        totalChapters: data?.totalChapters,
+        hasGenres: Array.isArray(data?.genres),
+        genresLength: data?.genres?.length
+      });
+      
       const normalizedDetail = normalizePluginDetailForCache(data);
       setRemoteDetail(normalizedDetail);
 
@@ -579,6 +592,19 @@ export const NovelDetailScreen: React.FC = () => {
         }
 
         const data = await parseNovel(novel.pluginNovelPath);
+        
+        // Debug logging for genres
+        console.log('NovelDetailScreen - Refresh - Raw plugin data:', {
+          name: data?.name,
+          author: data?.author,
+          genres: data?.genres,
+          status: data?.status,
+          summary: data?.summary,
+          totalChapters: data?.totalChapters,
+          hasGenres: Array.isArray(data?.genres),
+          genresLength: data?.genres?.length
+        });
+        
         const normalizedDetail = normalizePluginDetailForCache(data);
         setRemoteDetail(normalizedDetail);
 
@@ -1542,18 +1568,21 @@ export const NovelDetailScreen: React.FC = () => {
               styles.actionButton,
               isInLibrary
                 ? {
+                    backgroundColor: theme.colors.primary,
+                    borderWidth: 0,
+                  }
+                : {
                     backgroundColor: theme.colors.surface,
                     borderWidth: 1,
                     borderColor: theme.colors.border,
-                  }
-                : { backgroundColor: theme.colors.primary },
+                  },
             ]}
             onPress={handleLibraryToggle}
           >
             <Text
               style={[
                 styles.actionButtonText,
-                { color: isInLibrary ? theme.colors.text : "#FFF" },
+                { color: isInLibrary ? "#FFF" : theme.colors.text },
               ]}
             >
               {isInLibrary ? "In library" : "Add to library"}

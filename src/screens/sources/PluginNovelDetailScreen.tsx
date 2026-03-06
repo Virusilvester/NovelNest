@@ -4,16 +4,16 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { FlashList, ListRenderItem } from "@shopify/flash-list";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Modal,
-    Platform,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    useWindowDimensions,
-    View
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View
 } from "react-native";
 import { Header } from "../../components/common/Header";
 import { PopupMenu } from "../../components/common/PopupMenu";
@@ -24,17 +24,17 @@ import { useTheme } from "../../context/ThemeContext";
 import type { RootStackParamList } from "../../navigation/types";
 import { ChapterDownloads } from "../../services/chapterDownloads";
 import {
-    normalizePluginDetailForCache,
-    NovelDetailCache,
+  normalizePluginDetailForCache,
+  NovelDetailCache,
 } from "../../services/novelDetailCache";
 import { PluginRuntimeService } from "../../services/pluginRuntime";
 import type { Theme } from "../../theme";
 import type { CachedPluginNovelDetail, Novel } from "../../types";
 import {
-    computeTotalEffectiveReadCount,
-    detectChapterListOrder,
-    getEffectiveReadForChapter,
-    updateReadOverridesForSelection,
+  computeTotalEffectiveReadCount,
+  detectChapterListOrder,
+  getEffectiveReadForChapter,
+  updateReadOverridesForSelection,
 } from "../../utils/chapterState";
 import { clamp } from "../../utils/responsive";
 
@@ -405,6 +405,19 @@ export const PluginNovelDetailScreen: React.FC = () => {
 
         const data = await (parseNovel as any).call(instance, novelPath);
         if (isStale()) return;
+        
+        // Debug logging for genres
+        console.log('PluginNovelDetailScreen - Raw plugin data:', {
+          name: data?.name,
+          author: data?.author,
+          genres: data?.genres,
+          status: data?.status,
+          summary: data?.summary,
+          totalChapters: data?.totalChapters,
+          hasGenres: Array.isArray(data?.genres),
+          genresLength: data?.genres?.length
+        });
+        
         const normalizedDetail = normalizePluginDetailForCache(data);
         setRemoteDetail(normalizedDetail);
 
@@ -1414,10 +1427,22 @@ export const PluginNovelDetailScreen: React.FC = () => {
 
         <View style={styles.actionButtons}>
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+            style={[
+              styles.actionButton,
+              isInLibrary
+                ? {
+                    backgroundColor: theme.colors.primary,
+                    borderWidth: 0,
+                  }
+                : {
+                    backgroundColor: theme.colors.surface,
+                    borderWidth: 1,
+                    borderColor: theme.colors.border,
+                  },
+            ]}
             onPress={isInLibrary ? handleLibraryToggle : handleAddToLibrary}
           >
-            <Text style={styles.actionButtonText}>
+            <Text style={[styles.actionButtonText, { color: isInLibrary ? "#FFF" : theme.colors.text }]}>
               {isInLibrary ? "In library" : "Add to library"}
             </Text>
           </TouchableOpacity>
