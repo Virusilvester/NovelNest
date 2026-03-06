@@ -246,7 +246,7 @@ const FilterSwitch: React.FC<{
 }> = ({ label, value, onChange, isLast }) => {
   const { theme } = useTheme();
   const [localValue, setLocalValue] = useState(value);
-  const timeoutRef = useRef<number | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | number | null>(null);
 
   useEffect(() => {
     setLocalValue(value);

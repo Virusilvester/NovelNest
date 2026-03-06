@@ -1,5 +1,5 @@
 // src/components/common/ImprovedSwitch.tsx
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Switch, View } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 
@@ -16,7 +16,7 @@ export const ImprovedSwitch: React.FC<ImprovedSwitchProps> = ({
 }) => {
   const { theme } = useTheme();
   const [localValue, setLocalValue] = useState(value);
-  const timeoutRef = useRef<number | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | number | null>(null);
 
   useEffect(() => {
     setLocalValue(value);
