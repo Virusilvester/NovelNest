@@ -83,7 +83,7 @@ const loadChapterContent = async (
   pluginId: string,
   novelId: string,
   settings: any,
-  novels: any[],
+  getNovels: () => any[], // Function to get latest novels
 ): Promise<string> => {
   console.log('📖 Loading chapter content for download:', { chapterPath, pluginId, novelId });
 
@@ -102,6 +102,7 @@ const loadChapterContent = async (
   }
 
   // If not in file system, check novel state to avoid re-downloading
+  const novels = getNovels(); // Get latest novels
   const novel = novels.find((n) => n.id === novelId);
   if (novel?.chapterDownloaded?.[chapterPath]) {
     console.log('⚠️ Chapter marked as downloaded but file not found, fetching from plugin');
@@ -324,13 +325,24 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
     );
   }, []);
 
+  // Helper to clean up refs - MUST be called in all exit paths
+  const cleanupTaskRefs = useCallback((taskId: string, pluginId: string) => {
+    inflightRef.current.delete(taskId);
+    activePluginsRef.current.delete(pluginId);
+    console.log('🧹 Cleaned up refs for task:', { taskId, pluginId, remainingInflight: inflightRef.current.size, remainingActivePlugins: activePluginsRef.current.size });
+  }, []);
+
   const startTask = useCallback(
     async (task: DownloadTask) => {
       if (!task?.id) return;
+      
+      // Check if already processing this exact task
       if (inflightRef.current.has(task.id)) {
         console.log('❌ Task already in flight:', task.id);
         return;
       }
+      
+      // Check if plugin is busy with another task
       if (activePluginsRef.current.has(task.pluginId)) {
         console.log('❌ Plugin already active:', task.pluginId);
         return;
@@ -361,10 +373,16 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       }
 
+      // Add to tracking refs BEFORE any async operations
       inflightRef.current.add(task.id);
       activePluginsRef.current.add(task.pluginId);
 
       let started = false;
+      
+      // CRITICAL FIX: Check if task still exists and is pending
+      // Use a local variable to track if we should proceed
+      let shouldProceed = false;
+      
       setTasks((prev) => {
         const existing = prev.find((t) => t.id === task.id);
         console.log('🔍 Checking task status:', { 
@@ -373,15 +391,23 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
           expectedStatus: 'pending' 
         });
         
-        if (!existing || existing.status !== "pending") {
-          console.log('❌ Task not found or not pending:', { 
+        // CRITICAL FIX: Also allow 'downloading' status in case of retry
+        if (!existing || (existing.status !== "pending" && existing.status !== "downloading")) {
+          console.log('❌ Task not found or not pending/downloading:', { 
             found: !!existing, 
             status: existing?.status 
           });
           return prev;
         }
         
+        // Check if already being processed by another instance
+        if (existing.status === "downloading" && !inflightRef.current.has(task.id)) {
+          console.log('❌ Task is downloading but not in inflightRef (stale state)');
+          return prev;
+        }
+        
         started = true;
+        shouldProceed = true;
         console.log('✅ Task status changed to downloading');
         return prev.map((t) =>
           t.id === task.id
@@ -395,10 +421,9 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
         );
       });
 
-      if (!started) {
-        console.log('❌ Task was not started - already running or not pending');
-        inflightRef.current.delete(task.id);
-        activePluginsRef.current.delete(task.pluginId);
+      if (!shouldProceed || !started) {
+        console.log('❌ Task was not started - cleaning up refs');
+        cleanupTaskRefs(task.id, task.pluginId);
         return;
       }
 
@@ -406,20 +431,22 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
       let wroteFile = false;
 
       try {
+        // Check cancellation immediately after state update
         if (canceledRef.current.has(task.id)) {
           console.log('❌ Task was cancelled before execution');
           return;
         }
 
-        console.log('� Loading chapter content for download');
+        console.log('📖 Loading chapter content for download');
         const html = await loadChapterContent(
           task.chapterPath,
           task.pluginId,
           task.novelId,
           settings,
-          novelsRef.current,
+          () => novelsRef.current, // Pass getter function instead of snapshot
         );
 
+        // Check cancellation after loading
         if (canceledRef.current.has(task.id)) {
           console.log('❌ Task was cancelled after loading content');
           return;
@@ -439,13 +466,13 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
         wroteFile = true;
         console.log('✅ Chapter file written successfully');
 
+        // Check cancellation after writing
         if (canceledRef.current.has(task.id)) {
           console.log('❌ Task was cancelled after writing file');
           return;
         }
 
         console.log('📚 Updating novel state');
-        if (canceledRef.current.has(task.id)) return;
         const novel = novelsRef.current.find((n) => n.id === task.novelId);
         if (novel) {
           console.log('Download completed, updating novel:', { 
@@ -469,51 +496,60 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
           console.log('❌ Novel not found for ID:', task.novelId);
         }
 
+        // Final cancellation check before marking complete
         if (canceledRef.current.has(task.id)) return;
 
-        console.log('🗑️ Marking task as completed');
+        console.log('✅ Marking task as completed');
         setTasks((prev) => {
-          console.log('🔄 Updating tasks state from:', prev.map(t => ({ id: t.id, status: t.status })));
           const updated = prev.map((t) =>
             t.id === task.id
               ? { ...t, status: "completed" as const, progress: 100 }
               : t,
           );
-          console.log('🔄 Updated tasks state to:', updated.map(t => ({ id: t.id, status: t.status })));
+          console.log('🔄 Updated tasks state:', updated.map(t => ({ id: t.id, status: t.status })));
           return updated;
         });
         
         // Small delay to ensure state update propagates
         await new Promise(resolve => setTimeout(resolve, 100));
         console.log('✅ Task completion finalized');
+        
       } catch (e: any) {
         console.log('❌ Download failed with error:', e);
         const message = e?.message ? String(e.message) : "Download failed.";
         console.log('📝 Error message:', message);
-        setTasks((prev) =>
-          prev.map((t) =>
-            t.id === task.id
-              ? { ...t, status: "error", errorMessage: message, progress: 0 }
-              : t,
-          ),
-        );
+        
+        // Only update to error if not canceled
+        if (!canceledRef.current.has(task.id)) {
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === task.id
+                ? { ...t, status: "error", errorMessage: message, progress: 0 }
+                : t,
+            ),
+          );
+        }
       } finally {
-        console.log('🧹 Cleaning up task resources');
-        inflightRef.current.delete(task.id);
-        activePluginsRef.current.delete(task.pluginId);
+        console.log('🧹 Cleaning up task resources for:', task.id);
+        
+        // CRITICAL FIX: Always clean up refs, even on early returns
+        cleanupTaskRefs(task.id, task.pluginId);
 
         const wasCanceled = canceledRef.current.has(task.id);
-        canceledRef.current.delete(task.id);
-
+        
         if (wasCanceled) {
           console.log('🚫 Task was cancelled, cleaning up files');
           if (wroteFile) {
-            await ChapterDownloads.deleteChapterHtml(
-              task.pluginId,
-              task.novelId,
-              task.chapterPath,
-              downloadLocation,
-            );
+            try {
+              await ChapterDownloads.deleteChapterHtml(
+                task.pluginId,
+                task.novelId,
+                task.chapterPath,
+                downloadLocation,
+              );
+            } catch (deleteError) {
+              console.log('⚠️ Failed to delete canceled download file:', deleteError);
+            }
           }
 
           const novel = novelsRef.current.find((n) => n.id === task.novelId);
@@ -530,12 +566,16 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
           console.log('🗑️ Removing cancelled task from queue');
           setTasks((prev) => prev.filter((t) => t.id !== task.id));
         }
+        
+        // Always remove from canceled ref
+        canceledRef.current.delete(task.id);
         console.log('✅ Task cleanup completed');
       }
     },
     [
       settings,
       updateNovel,
+      cleanupTaskRefs,
     ],
   );
 
@@ -570,6 +610,12 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
     for (const [pluginId, task] of pendingByPlugin.entries()) {
       if (downloadingByPlugin.has(pluginId)) {
         console.log('⏸️ Skipping task for busy plugin:', { pluginId, taskId: task.id });
+        continue;
+      }
+      
+      // CRITICAL FIX: Also check inflightRef to prevent duplicate starts
+      if (inflightRef.current.has(task.id)) {
+        console.log('⏸️ Task already in inflightRef:', { taskId: task.id });
         continue;
       }
       
