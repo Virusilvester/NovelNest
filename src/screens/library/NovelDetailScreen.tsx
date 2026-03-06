@@ -724,6 +724,71 @@ export const NovelDetailScreen: React.FC = () => {
     ],
   );
 
+  const handleDownloadNext = useCallback(
+    (limit: number) => {
+      if (!novel?.pluginId) return;
+      if (remoteChapters.length === 0) return;
+      
+      // Find next undownloaded chapters
+      const undownloaded = remoteChapters.filter((c) => {
+        const isDownloaded = Boolean(novel?.chapterDownloaded?.[c.path]);
+        return !isDownloaded;
+      });
+      
+      // Take only the specified number of next undownloaded chapters
+      const nextToDownload = undownloaded.slice(0, limit);
+      
+      if (nextToDownload.length === 0) {
+        Alert.alert("No New Chapters", "All chapters are already downloaded.");
+        return;
+      }
+      
+      console.log(`📚 Downloading next ${limit} chapters (${nextToDownload.length} undownloaded found)`);
+      enqueueManyChapterDownloads(nextToDownload);
+    },
+    [enqueueManyChapterDownloads, novel?.chapterDownloaded, novel?.pluginId, remoteChapters],
+  );
+
+  const handleCustomDownload = useCallback(() => {
+    if (!novel?.pluginId) return;
+    if (remoteChapters.length === 0) return;
+    
+    // Find undownloaded chapters
+    const undownloaded = remoteChapters.filter((c) => {
+      const isDownloaded = Boolean(novel?.chapterDownloaded?.[c.path]);
+      return !isDownloaded;
+    });
+    
+    if (undownloaded.length === 0) {
+      Alert.alert("No New Chapters", "All chapters are already downloaded.");
+      return;
+    }
+    
+    Alert.prompt(
+      "Custom Download",
+      `How many chapters would you like to download? (${undownloaded.length} undownloaded available)`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Download",
+          onPress: (count) => {
+            const num = parseInt(count || "0");
+            if (num > 0 && num <= undownloaded.length) {
+              console.log(`📚 Custom downloading ${num} chapters`);
+              enqueueManyChapterDownloads(undownloaded.slice(0, num));
+            } else if (num > undownloaded.length) {
+              Alert.alert("Too Many", `Only ${undownloaded.length} chapters are available.`);
+            } else {
+              Alert.alert("Invalid Number", "Please enter a valid number.");
+            }
+          },
+        },
+      ],
+      "plain-text",
+      Math.min(10, undownloaded.length).toString(),
+    );
+  }, [enqueueManyChapterDownloads, novel?.chapterDownloaded, novel?.pluginId, remoteChapters]);
+
   const handleDownloadAll = useCallback(() => {
     if (!novel?.pluginId) return;
     enqueueManyChapterDownloads(remoteChapters);
@@ -769,10 +834,10 @@ export const NovelDetailScreen: React.FC = () => {
   }, [cancelNovelTasks, novel, settings.general.downloadLocation, updateNovel]);
 
   const downloadOptions = [
-    { id: "next", label: "Next chapter", onPress: () => handleDownloadUnread(1) },
-    { id: "next5", label: "Next 5 chapters", onPress: () => handleDownloadUnread(5) },
-    { id: "next10", label: "Next 10 chapters", onPress: () => handleDownloadUnread(10) },
-    { id: "custom", label: "Custom", onPress: () => {} },
+    { id: "next", label: "Next chapter", onPress: () => handleDownloadNext(1) },
+    { id: "next5", label: "Next 5 chapters", onPress: () => handleDownloadNext(5) },
+    { id: "next10", label: "Next 10 chapters", onPress: () => handleDownloadNext(10) },
+    { id: "custom", label: "Custom", onPress: handleCustomDownload },
     { id: "unread", label: "Unread", onPress: () => handleDownloadUnread() },
     { id: "all", label: "All", onPress: handleDownloadAll },
     {
