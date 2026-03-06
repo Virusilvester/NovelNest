@@ -15,6 +15,8 @@ export interface Novel {
   isDownloaded: boolean;
   isInLibrary: boolean;
   categoryId: string;
+  // Auto-download setting for this novel
+  autoDownload?: boolean;
   // If this novel came from an installed extension/plugin, keep a stable reference
   // so `NovelDetailScreen` can re-fetch latest metadata and chapter list.
   pluginId?: string;

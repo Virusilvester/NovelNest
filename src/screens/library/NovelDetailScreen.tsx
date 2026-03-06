@@ -8,11 +8,12 @@ import {
   FlatList,
   Image,
   Modal,
+  RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
   useWindowDimensions,
-  View,
+  View
 } from "react-native";
 import { Header } from "../../components/common/Header";
 import { PopupMenu } from "../../components/common/PopupMenu";
@@ -259,6 +260,121 @@ export const NovelDetailScreen: React.FC = () => {
     () => initialCached?.chaptersHasMore ?? false,
   );
   const [isChaptersLoadingMore, setIsChaptersLoadingMore] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Refresh function for pull-to-refresh
+  const handleRefresh = useCallback(async () => {
+    if (!novel?.pluginId || !novel?.pluginNovelPath) return;
+    
+    setIsRefreshing(true);
+    try {
+      // Clear the cache to force fresh fetch
+      lastFetchKeyRef.current = null;
+      
+      // Trigger the existing fetch logic by resetting dependencies
+      const plugin = linkedPlugin;
+      if (!plugin) {
+        setRemoteError("Source plugin is not installed.");
+        return;
+      }
+      if (!plugin.enabled) {
+        setRemoteError("Source plugin is disabled.");
+        return;
+      }
+
+      const signature = NovelDetailCache.signature({
+        novelId: novel.id,
+        pluginId: novel.pluginId,
+        novelPath: novel.pluginNovelPath,
+        pluginVersion: plugin.version,
+        pluginUrl: plugin.url,
+        pluginLocalPath: plugin.localPath,
+        userAgent: settings.advanced.userAgent,
+      });
+
+      setRemoteError(null);
+      setChaptersPage(1);
+
+      const instance = await PluginRuntimeService.loadLnReaderPlugin(plugin, {
+        userAgent: settings.advanced.userAgent,
+      });
+      const parseNovel =
+        (instance as any).parseNovelAndChapters ||
+        (instance as any).parseNovel;
+      if (typeof parseNovel !== "function") {
+        throw new Error("This source does not support novel details.");
+      }
+
+      const data = await parseNovel(novel.pluginNovelPath);
+      const normalizedDetail = normalizePluginDetailForCache(data);
+      setRemoteDetail(normalizedDetail);
+
+      const chaptersRaw = Array.isArray(data?.chapters) ? data.chapters : [];
+      const chaptersMapped = chaptersRaw
+        .map((c: any) => ({
+          name: String(c?.name || ""),
+          path: String(c?.path || ""),
+          releaseTime: c?.releaseTime ?? null,
+        }))
+        .filter(isPluginChapterItem);
+      setRemoteChapters(chaptersMapped);
+      setChaptersPage(1);
+
+      const totalFromDetail = normalizedDetail?.totalChapters;
+      const hasMoreFromTotal =
+        totalFromDetail != null
+          ? chaptersMapped.length < totalFromDetail
+          : false;
+      const canPage = typeof (instance as any).fetchChaptersPage === "function";
+      setChaptersHasMore(canPage && hasMoreFromTotal);
+
+      const cacheEntry: CachedPluginNovelDetail = {
+        signature,
+        cachedAt: Date.now(),
+        detail: normalizedDetail,
+        chapters: chaptersMapped,
+        chaptersPage: 1,
+        chaptersHasMore: canPage && hasMoreFromTotal,
+      };
+
+      NovelDetailCache.set(
+        cacheKey ?? NovelDetailCache.key(novel.pluginId, novel.pluginNovelPath),
+        cacheEntry
+      );
+
+      const statusRaw = String(normalizedDetail?.status || "").toLowerCase();
+      const nextStatus: Novel["status"] = normalizedDetail?.status
+        ? statusRaw.includes("complete") ||
+            statusRaw.includes("end") ||
+            statusRaw.includes("finished")
+          ? "completed"
+          : "ongoing"
+        : novel.status;
+
+      updateNovel(novel.id, {
+        title: String(normalizedDetail?.name || novel.title),
+        author: String(normalizedDetail?.author || novel.author || "Unknown"),
+        coverUrl: String(normalizedDetail?.cover || novel.coverUrl),
+        status: nextStatus,
+        summary: String(normalizedDetail?.summary || novel.summary || ""),
+        genres: Array.isArray(normalizedDetail?.genres)
+          ? normalizedDetail.genres
+          : novel.genres,
+        totalChapters:
+          totalFromDetail != null
+            ? totalFromDetail
+            : chaptersMapped.length || novel.totalChapters,
+        pluginCache: cacheEntry,
+      });
+
+      console.log("🔄 Novel details refreshed successfully");
+    } catch (e: any) {
+      console.error("❌ Failed to refresh novel details:", e);
+      setRemoteError(e?.message || "Failed to refresh novel details.");
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [novel, linkedPlugin, settings.advanced.userAgent, cacheKey, updateNovel]);
 
   const [selectedChapterPaths, setSelectedChapterPaths] = useState<Set<string>>(
     () => new Set(),
@@ -656,6 +772,39 @@ export const NovelDetailScreen: React.FC = () => {
     return map;
   }, [downloadTasks, novel?.id, novel?.pluginId]);
 
+  const handlePluginChapterPress = useCallback(
+    (chapter: PluginChapterItem) => {
+      if (!novel?.pluginId) return;
+      
+      // Apply reader settings when opening chapter
+      const readerSettings = {
+        keepScreenOn: settings.reader.general.keepScreenOn,
+        volumeButtonsScroll: settings.reader.general.volumeButtonsScroll,
+        swipeToNavigate: settings.reader.general.swipeToNavigate,
+        tapToScroll: settings.reader.general.tapToScroll,
+        autoScroll: settings.reader.general.autoScroll,
+        fullscreen: settings.reader.display.fullscreen,
+        showProgressPercentage: settings.reader.display.showProgressPercentage,
+        theme: settings.reader.theme,
+      };
+      
+      console.log("📖 Opening chapter with reader settings:", {
+        chapter: chapter.name,
+        settings: Object.keys(readerSettings).filter(key => readerSettings[key as keyof typeof readerSettings])
+      });
+      
+      (navigation as any).navigate("ChapterReader", {
+        pluginId: novel.pluginId,
+        novelId: novel.id,
+        novelTitle: novel.title,
+        chapterPath: chapter.path,
+        chapterTitle: chapter.name,
+        readerSettings,
+      });
+    },
+    [navigation, novel, settings.reader],
+  );
+
   const enqueueChapterDownload = useCallback(
     (chapter: PluginChapterItem) => {
       if (!novel?.pluginId) return;
@@ -745,8 +894,26 @@ export const NovelDetailScreen: React.FC = () => {
       
       console.log(`📚 Downloading next ${limit} chapters (${nextToDownload.length} undownloaded found)`);
       enqueueManyChapterDownloads(nextToDownload);
+      
+      // Auto-download setting: Ask if user wants to enable auto-download for this novel
+      if (settings.autoDownload.downloadNewChapters && !novel.autoDownload) {
+        Alert.alert(
+          "Auto-Download",
+          "Enable auto-download for new chapters of this novel?",
+          [
+            { text: "Not Now", style: "cancel" },
+            { 
+              text: "Enable", 
+              onPress: () => {
+                updateNovel(novel.id, { autoDownload: true });
+                console.log("✅ Auto-download enabled for novel:", novel.title);
+              }
+            }
+          ]
+        );
+      }
     },
-    [enqueueManyChapterDownloads, novel?.chapterDownloaded, novel?.pluginId, remoteChapters],
+    [enqueueManyChapterDownloads, remoteChapters, settings.autoDownload.downloadNewChapters, novel, updateNovel],
   );
 
   const handleCustomDownload = useCallback(() => {
@@ -771,7 +938,7 @@ export const NovelDetailScreen: React.FC = () => {
         { text: "Cancel", style: "cancel" },
         {
           text: "Download",
-          onPress: (count) => {
+          onPress: (count?: string) => {
             const num = parseInt(count || "0");
             if (num > 0 && num <= undownloaded.length) {
               console.log(`📚 Custom downloading ${num} chapters`);
@@ -1143,14 +1310,6 @@ export const NovelDetailScreen: React.FC = () => {
   const handleGenrePress = useCallback((genre: string) => {
     (navigation as any).navigate("SourceDetail", { genre });
   }, [navigation]);
-
-  const handlePluginChapterPress = useCallback((c: PluginChapterItem) => {
-    if (!novel?.pluginId) return;
-    (navigation as any).navigate("Reader", {
-      novelId: novel.id,
-      chapterId: c.path,
-    });
-  }, [navigation, novel?.id, novel?.pluginId]);
 
   const loadMoreChapters = async () => {
     if (!novel?.pluginId || !novel?.pluginNovelPath) return;
@@ -1655,6 +1814,14 @@ export const NovelDetailScreen: React.FC = () => {
           maxToRenderPerBatch={40}
           windowSize={10}
           removeClippedSubviews
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={theme.colors.primary}
+              colors={[theme.colors.primary]}
+            />
+          }
         />
       )}
 

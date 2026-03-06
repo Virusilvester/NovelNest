@@ -1,19 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
-import { FlashList, ListRenderItem } from "@shopify/flash-list";
 import type { RouteProp } from "@react-navigation/native";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { FlashList, ListRenderItem } from "@shopify/flash-list";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Modal,
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  useWindowDimensions,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    Modal,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    useWindowDimensions,
+    View
 } from "react-native";
 import { Header } from "../../components/common/Header";
 import { PopupMenu } from "../../components/common/PopupMenu";
@@ -24,19 +24,19 @@ import { useTheme } from "../../context/ThemeContext";
 import type { RootStackParamList } from "../../navigation/types";
 import { ChapterDownloads } from "../../services/chapterDownloads";
 import {
-  NovelDetailCache,
-  normalizePluginDetailForCache,
+    normalizePluginDetailForCache,
+    NovelDetailCache,
 } from "../../services/novelDetailCache";
 import { PluginRuntimeService } from "../../services/pluginRuntime";
 import type { Theme } from "../../theme";
 import type { CachedPluginNovelDetail, Novel } from "../../types";
-import { clamp } from "../../utils/responsive";
 import {
-  computeTotalEffectiveReadCount,
-  detectChapterListOrder,
-  getEffectiveReadForChapter,
-  updateReadOverridesForSelection,
+    computeTotalEffectiveReadCount,
+    detectChapterListOrder,
+    getEffectiveReadForChapter,
+    updateReadOverridesForSelection,
 } from "../../utils/chapterState";
+import { clamp } from "../../utils/responsive";
 
 type ChapterItem = {
   name: string;
@@ -294,6 +294,7 @@ export const PluginNovelDetailScreen: React.FC = () => {
     () => initialCached?.chaptersHasMore ?? false,
   );
   const [isChaptersLoadingMore, setIsChaptersLoadingMore] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
   const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(
     null,
@@ -587,6 +588,88 @@ export const PluginNovelDetailScreen: React.FC = () => {
       setIsChaptersLoadingMore(false);
     }
   };
+
+  // Refresh function for pull-to-refresh
+  const handleRefresh = useCallback(async () => {
+    if (!plugin) return;
+    
+    setIsRefreshing(true);
+    try {
+      // Clear cache to force fresh fetch
+      NovelDetailCache.clear(cacheKey);
+      
+      // Reset loading state and trigger re-fetch
+      setError(null);
+      setChaptersPage(1);
+      
+      const instance = await PluginRuntimeService.loadLnReaderPlugin(plugin, {
+        userAgent: settings.advanced.userAgent,
+      });
+      
+      const parseNovel =
+        (instance as any).parseNovelAndChapters ||
+        (instance as any).parseNovel;
+      if (typeof parseNovel !== "function") {
+        throw new Error("This source does not support novel details.");
+      }
+
+      const data = await parseNovel(novelPath);
+      const normalizedDetail = normalizePluginDetailForCache(data);
+      setRemoteDetail(normalizedDetail);
+
+      const chaptersRaw = Array.isArray(data?.chapters) ? data.chapters : [];
+      const chaptersMapped = chaptersRaw
+        .map((c: any) => ({
+          name: String(c?.name || ""),
+          path: String(c?.path || ""),
+          releaseTime: c?.releaseTime ?? null,
+        }))
+        .filter(isChapterItem);
+      setRemoteChapters(chaptersMapped);
+      setChaptersPage(1);
+
+      const totalFromDetail = normalizedDetail?.totalChapters;
+      const hasMoreFromTotal =
+        totalFromDetail != null
+          ? chaptersMapped.length < totalFromDetail
+          : false;
+      const canPage = typeof (instance as any).fetchChaptersPage === "function";
+      setChaptersHasMore(canPage && hasMoreFromTotal);
+
+      const signature = NovelDetailCache.signature({
+        novelId: stableNumericId,
+        pluginId: plugin.id,
+        novelPath,
+        pluginVersion: plugin.version,
+        pluginUrl: plugin.url,
+        pluginLocalPath: plugin.localPath,
+        userAgent: settings.advanced.userAgent,
+      });
+
+      const cacheEntry: CachedPluginNovelDetail = {
+        signature,
+        cachedAt: Date.now(),
+        detail: normalizedDetail,
+        chapters: chaptersMapped,
+        chaptersPage: 1,
+        chaptersHasMore: canPage && hasMoreFromTotal,
+      };
+
+      NovelDetailCache.set(cacheKey, cacheEntry);
+      
+      // Update existing novel if it's in library
+      if (existingNovel) {
+        updateNovel(existingNovel.id, { pluginCache: cacheEntry });
+      }
+
+      console.log("🔄 Plugin novel details refreshed successfully");
+    } catch (e: any) {
+      console.error("❌ Failed to refresh plugin novel details:", e);
+      setError(e?.message || "Failed to refresh novel details.");
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [plugin, cacheKey, novelPath, settings.advanced.userAgent, existingNovel, updateNovel, stableNumericId]);
 
   const [isInLibrary, setIsInLibrary] = useState(
     Boolean(existingNovel?.isInLibrary),
@@ -1524,6 +1607,8 @@ export const PluginNovelDetailScreen: React.FC = () => {
           showsVerticalScrollIndicator={false}
           removeClippedSubviews={Platform.OS === "android"}
           extraData={selectedChapterPaths}
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
         />
       )}
 
