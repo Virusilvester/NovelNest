@@ -455,6 +455,14 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
           ),
         );
         console.log('✅ Task marked as completed');
+        
+        // Show completed status briefly before auto-removing
+        console.log('⏳ Showing completed status for 2 seconds before auto-removal');
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        
+        // Auto-remove completed task from UI
+        setTasksAndRef((prev) => prev.filter((t) => t.id !== task.id));
+        console.log('🧹 Completed task auto-removed from queue UI');
 
       } catch (e: any) {
         console.log('❌ Download failed with error:', e);

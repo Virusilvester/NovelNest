@@ -3,16 +3,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Image,
-    Modal,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    useWindowDimensions,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
 } from "react-native";
 import { Header } from "../../components/common/Header";
 import { PopupMenu } from "../../components/common/PopupMenu";
@@ -22,18 +22,142 @@ import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
 import { ChapterDownloads } from "../../services/chapterDownloads";
 import {
-    normalizePluginDetailForCache,
-    NovelDetailCache,
+  normalizePluginDetailForCache,
+  NovelDetailCache,
 } from "../../services/novelDetailCache";
 import { PluginRuntimeService } from "../../services/pluginRuntime";
 import type { CachedPluginNovelDetail, Novel } from "../../types";
 import {
-    computeTotalEffectiveReadCount,
-    detectChapterListOrder,
-    getEffectiveReadForChapter,
-    updateReadOverridesForSelection,
+  computeTotalEffectiveReadCount,
+  detectChapterListOrder,
+  getEffectiveReadForChapter,
+  updateReadOverridesForSelection,
 } from "../../utils/chapterState";
 import { clamp } from "../../utils/responsive";
+
+// Memoized chapter item component for performance
+const ChapterItem = React.memo(({ 
+  item, 
+  index, 
+  selected, 
+  isRead, 
+  downloadInfo, 
+  isDownloaded, 
+  isChapterSelectionMode,
+  theme,
+  toggleChapterSelected,
+  handlePluginChapterPress,
+  enqueueChapterDownload
+}: {
+  item: PluginChapterItem;
+  index: number;
+  selected: boolean;
+  isRead: boolean;
+  downloadInfo: any;
+  isDownloaded: boolean;
+  isChapterSelectionMode: boolean;
+  theme: any;
+  toggleChapterSelected: (path: string) => void;
+  handlePluginChapterPress: (chapter: PluginChapterItem) => void;
+  enqueueChapterDownload: (chapter: PluginChapterItem) => void;
+}) => {
+  const c = item;
+
+  return (
+    <TouchableOpacity
+      key={c.path}
+      style={[
+        styles.chapterItem,
+        selected && {
+          backgroundColor: theme.colors.primary + "1A",
+        },
+        { borderBottomColor: theme.colors.divider },
+      ]}
+      onPress={() => {
+        if (isChapterSelectionMode) {
+          toggleChapterSelected(c.path);
+          return;
+        }
+        handlePluginChapterPress(c);
+      }}
+      onLongPress={() => toggleChapterSelected(c.path)}
+      delayLongPress={220}
+    >
+      <View style={styles.chapterLeft}>
+        {isChapterSelectionMode ? (
+          <Ionicons
+            name={selected ? "checkmark-circle" : "ellipse-outline"}
+            size={22}
+            color={selected ? theme.colors.primary : theme.colors.textSecondary}
+          />
+        ) : null}
+        <Text
+          style={[
+            styles.chapterTitle,
+            { color: isRead ? theme.colors.textSecondary : theme.colors.text },
+          ]}
+          numberOfLines={2}
+        >
+          {c.name}
+        </Text>
+      </View>
+      {!isChapterSelectionMode ? (
+        <View style={styles.chapterRight}>
+          <TouchableOpacity
+            onPress={() => {
+              if (isDownloaded) return;
+              if (
+                downloadInfo?.status === "pending" ||
+                downloadInfo?.status === "downloading"
+              ) {
+                return;
+              }
+              enqueueChapterDownload(c);
+            }}
+            style={[styles.chapterIconBtn, isDownloaded && { opacity: 0.65 }]}
+            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+          >
+            {isDownloaded ? (
+              <Ionicons
+                name="checkmark-circle"
+                size={20}
+                color={theme.colors.primary}
+              />
+            ) : downloadInfo?.status === "downloading" ? (
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+            ) : downloadInfo?.status === "pending" ? (
+              <Ionicons
+                name="time-outline"
+                size={20}
+                color={theme.colors.textSecondary}
+              />
+            ) : downloadInfo?.status === "error" ? (
+              <Ionicons
+                name="alert-circle-outline"
+                size={20}
+                color={theme.colors.error}
+              />
+            ) : (
+              <Ionicons
+                name="download-outline"
+                size={20}
+                color={theme.colors.textSecondary}
+              />
+            )}
+          </TouchableOpacity>
+
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={theme.colors.textSecondary}
+          />
+        </View>
+      ) : null}
+    </TouchableOpacity>
+  );
+});
+
+ChapterItem.displayName = 'ChapterItem';
 
 type PluginChapterItem = {
   name: string;
@@ -1103,96 +1227,19 @@ export const NovelDetailScreen: React.FC = () => {
       const isDownloaded = Boolean(novel?.chapterDownloaded?.[c.path]);
 
       return (
-        <TouchableOpacity
-          key={c.path}
-          style={[
-            styles.chapterItem,
-            selected && {
-              backgroundColor: theme.colors.primary + "1A",
-            },
-            { borderBottomColor: theme.colors.divider },
-          ]}
-          onPress={() => {
-            if (isChapterSelectionMode) {
-              toggleChapterSelected(c.path);
-              return;
-            }
-            handlePluginChapterPress(c);
-          }}
-          onLongPress={() => toggleChapterSelected(c.path)}
-          delayLongPress={220}
-        >
-          <View style={styles.chapterLeft}>
-            {isChapterSelectionMode ? (
-              <Ionicons
-                name={selected ? "checkmark-circle" : "ellipse-outline"}
-                size={22}
-                color={selected ? theme.colors.primary : theme.colors.textSecondary}
-              />
-            ) : null}
-            <Text
-              style={[
-                styles.chapterTitle,
-                { color: isRead ? theme.colors.textSecondary : theme.colors.text },
-              ]}
-              numberOfLines={2}
-            >
-              {c.name}
-            </Text>
-          </View>
-          {!isChapterSelectionMode ? (
-            <View style={styles.chapterRight}>
-              <TouchableOpacity
-                onPress={() => {
-                  if (isDownloaded) return;
-                  if (
-                    downloadInfo?.status === "pending" ||
-                    downloadInfo?.status === "downloading"
-                  ) {
-                    return;
-                  }
-                  enqueueChapterDownload(c);
-                }}
-                style={[styles.chapterIconBtn, isDownloaded && { opacity: 0.65 }]}
-                hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-              >
-                {isDownloaded ? (
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={20}
-                    color={theme.colors.primary}
-                  />
-                ) : downloadInfo?.status === "downloading" ? (
-                  <ActivityIndicator size="small" color={theme.colors.primary} />
-                ) : downloadInfo?.status === "pending" ? (
-                  <Ionicons
-                    name="time-outline"
-                    size={20}
-                    color={theme.colors.textSecondary}
-                  />
-                ) : downloadInfo?.status === "error" ? (
-                  <Ionicons
-                    name="alert-circle-outline"
-                    size={20}
-                    color={theme.colors.error}
-                  />
-                ) : (
-                  <Ionicons
-                    name="download-outline"
-                    size={20}
-                    color={theme.colors.textSecondary}
-                  />
-                )}
-              </TouchableOpacity>
-
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={theme.colors.textSecondary}
-              />
-            </View>
-          ) : null}
-        </TouchableOpacity>
+        <ChapterItem
+          item={c}
+          index={index}
+          selected={selected}
+          isRead={isRead}
+          downloadInfo={downloadInfo}
+          isDownloaded={isDownloaded}
+          isChapterSelectionMode={isChapterSelectionMode}
+          theme={theme}
+          toggleChapterSelected={toggleChapterSelected}
+          handlePluginChapterPress={handlePluginChapterPress}
+          enqueueChapterDownload={enqueueChapterDownload}
+        />
       );
     },
     [
@@ -1202,11 +1249,7 @@ export const NovelDetailScreen: React.FC = () => {
       novel?.chapterDownloaded,
       readStatusByPath,
       selectedChapterPaths,
-      theme.colors.error,
-      theme.colors.primary,
-      theme.colors.text,
-      theme.colors.textSecondary,
-      theme.colors.divider,
+      theme,
       toggleChapterSelected,
       handlePluginChapterPress,
     ],
