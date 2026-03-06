@@ -1,18 +1,18 @@
 // src/context/LibraryContext.tsx
 import React, {
-    createContext,
-    useCallback,
-    useContext,
-    useEffect,
-    useState,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
 } from "react";
 import { DatabaseService } from "../services/database";
 import {
-    Category,
-    DisplayMode,
-    LibraryFilterOption,
-    LibrarySortOption,
-    Novel,
+  Category,
+  DisplayMode,
+  LibraryFilterOption,
+  LibrarySortOption,
+  Novel,
 } from "../types";
 import { useSettings } from "./SettingsContext";
 
@@ -68,7 +68,19 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const reloadFromDatabase = useCallback(async () => {
     const next = await DatabaseService.getLibrary();
-    setCategories(next.categories);
+    const dbCategories = next.categories;
+    
+    // Always include the "All" category as the first category
+    const allCategories: Category[] = [
+      {
+        id: "all",
+        name: "All",
+        order: -1, // Always first
+      },
+      ...dbCategories.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    ];
+    
+    setCategories(allCategories);
     setNovels(next.novels);
   }, []);
 
@@ -147,15 +159,24 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({
     (name: string) => {
       const trimmed = name.trim();
       if (!trimmed) return;
+
       const newCategory: Category = {
         id: Date.now().toString(),
         name: trimmed,
-        order: categories.length,
+        order: categories.filter(c => c.id !== "all").length, // Exclude "All" from count
       };
-      setCategories((prev) => [...prev, newCategory]);
+      
+      // Add new category while keeping "All" first
+      const allCategories = [
+        categories.find(c => c.id === "all")!, // Keep "All" category
+        ...categories.filter(c => c.id !== "all"), // Existing categories except "All"
+        newCategory, // New category
+      ];
+      
+      setCategories(allCategories);
       void DatabaseService.upsertCategory(newCategory);
     },
-    [categories.length],
+    [categories],
   );
 
   const removeCategory = useCallback(
@@ -169,15 +190,27 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const reorderCategories = useCallback((orderedIds: string[]) => {
-    setCategories((prev) => {
-      const categoryMap = new Map(prev.map((c) => [c.id, c]));
-      return orderedIds.map((id, index) => ({
+    // Ensure "All" category is always first and not included in reordering
+    const allCategory = categories.find(c => c.id === "all");
+    const reorderableCategories = orderedIds.filter(id => id !== "all");
+    
+    const categoryMap = new Map(
+      categories
+        .filter(c => c.id !== "all") // Exclude "All" from mapping
+        .map((c) => [c.id, c])
+    );
+    
+    const reordered = [
+      allCategory!, // Always keep "All" first
+      ...reorderableCategories.map((id, index) => ({
         ...categoryMap.get(id)!,
         order: index,
-      }));
-    });
-    void DatabaseService.reorderCategories(orderedIds);
-  }, []);
+      })),
+    ];
+    
+    setCategories(reordered);
+    void DatabaseService.reorderCategories(reorderableCategories); // Pass only the IDs
+  }, [categories]);
 
   const selectCategory = useCallback((id: string) => {
     setSelectedCategoryId(id);
