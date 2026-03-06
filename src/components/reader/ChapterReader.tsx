@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
 import { useKeepAwake } from "expo-keep-awake";
+import { useNavigation } from "@react-navigation/native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -20,6 +20,14 @@ import { useTheme } from "../../context/ThemeContext";
 import { PopupMenu } from "../common/PopupMenu";
 import { ChapterDrawer, type ReaderChapterItem } from "./ChapterDrawer";
 
+// FIX: KeepAwake moved outside the component so it is a stable component
+// definition. Defining it inside the render function caused React to treat it
+// as a new component on every render, remounting it each time.
+const KeepAwakeGuard: React.FC = () => {
+  useKeepAwake();
+  return null;
+};
+
 type Props = {
   initialChapterPath: string;
   initialChapterTitle?: string;
@@ -36,6 +44,14 @@ type Props = {
     onPress: () => void;
     isDestructive?: boolean;
   }[];
+  // NOTE: These props are accepted for API compatibility with the parent screens
+  // but ChapterReader reads reader settings directly from SettingsContext so it
+  // always reflects live changes made in the quick-settings panel.
+  swipeToNavigate?: boolean;
+  tapToScroll?: boolean;
+  keepScreenOn?: boolean;
+  showProgressPercentage?: boolean;
+  readerTheme?: any;
 };
 
 type WebMsg =
@@ -151,24 +167,24 @@ export const ChapterReader: React.FC<Props> = ({
   onChapterChange,
   onChapterRead,
   extraMenuItems,
+  // accepted but unused — ChapterReader reads from SettingsContext directly
+  // so live quick-settings changes take effect without a re-render from the parent
+  swipeToNavigate: _swipeToNavigate,
+  tapToScroll: _tapToScroll,
+  keepScreenOn: _keepScreenOn,
+  showProgressPercentage: _showProgressPercentage,
+  readerTheme: _readerTheme,
 }) => {
   const navigation = useNavigation();
   const { theme } = useTheme();
   const { settings, updateReaderSettings } = useSettings();
   const insets = useSafeAreaInsets();
 
-  const KeepAwake = () => {
-    useKeepAwake();
-    return null;
-  };
-
   const webViewRef = useRef<any>(null);
   const chapterHtmlCacheRef = useRef(new Map<string, string>());
 
   const [currentPath, setCurrentPath] = useState(initialChapterPath);
-  const [currentTitle, setCurrentTitle] = useState<string | undefined>(
-    initialChapterTitle,
-  );
+  const [currentTitle, setCurrentTitle] = useState<string | undefined>(initialChapterTitle);
   const [rawHtml, setRawHtml] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -183,21 +199,35 @@ export const ChapterReader: React.FC<Props> = ({
   const onChapterChangeRef = useRef<Props["onChapterChange"]>(onChapterChange);
   const onChapterReadRef = useRef<Props["onChapterRead"]>(onChapterRead);
 
-  useEffect(() => {
-    onChapterChangeRef.current = onChapterChange;
-  }, [onChapterChange]);
+  useEffect(() => { onChapterChangeRef.current = onChapterChange; }, [onChapterChange]);
+  useEffect(() => { onChapterReadRef.current = onChapterRead; }, [onChapterRead]);
 
-  useEffect(() => {
-    onChapterReadRef.current = onChapterRead;
-  }, [onChapterRead]);
+  // FIX: keep a ref for controlsHidden so handleMessage can read the current
+  // value without having it as a dependency (which forced handleMessage to be
+  // recreated on every controls toggle, resetting WebView's onMessage prop).
+  const controlsHiddenRef = useRef(controlsHidden);
+  useEffect(() => { controlsHiddenRef.current = controlsHidden; }, [controlsHidden]);
+
+  // Keep refs for the settings values that are read inside handleMessage so the
+  // callback is stable and never needs to be recreated due to settings changes.
+  const swipeToNavigateRef = useRef(settings.reader.general.swipeToNavigate);
+  const tapToScrollRef = useRef(settings.reader.general.tapToScroll);
+  useEffect(() => { swipeToNavigateRef.current = settings.reader.general.swipeToNavigate; }, [settings.reader.general.swipeToNavigate]);
+  useEffect(() => { tapToScrollRef.current = settings.reader.general.tapToScroll; }, [settings.reader.general.tapToScroll]);
 
   const chapterIndex = useMemo(
     () => chapters.findIndex((c) => c.path === currentPath),
     [chapters, currentPath],
   );
 
-  const resolvedTitle =
-    currentTitle || chapters[chapterIndex]?.name || "Reader";
+  // Keep a ref so handleMessage can read the current chapterIndex without
+  // it being a dependency of the callback.
+  const chapterIndexRef = useRef(chapterIndex);
+  useEffect(() => { chapterIndexRef.current = chapterIndex; }, [chapterIndex]);
+  const chaptersRef = useRef(chapters);
+  useEffect(() => { chaptersRef.current = chapters; }, [chapters]);
+
+  const resolvedTitle = currentTitle || chapters[chapterIndex]?.name || "Reader";
 
   const canGoPrev = chapterIndex > 0;
   const canGoNext = chapterIndex >= 0 && chapterIndex < chapters.length - 1;
@@ -229,6 +259,7 @@ export const ChapterReader: React.FC<Props> = ({
     theme.isDark,
   ]);
 
+  // Load chapter HTML whenever the path changes or a reload is triggered
   useEffect(() => {
     let cancelled = false;
 
@@ -259,12 +290,18 @@ export const ChapterReader: React.FC<Props> = ({
     };
 
     run();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [currentPath, loadChapterHtml, reloadToken]);
 
+  // FIX: skip firing onChapterChange on the very first render (mount) so we
+  // don't write a spurious history entry before the user has navigated anywhere.
+  // We track whether the component has mounted and only fire on subsequent changes.
+  const isMountedRef = useRef(false);
   useEffect(() => {
+    if (!isMountedRef.current) {
+      isMountedRef.current = true;
+      return;
+    }
     if (chapterIndex < 0) return;
     onChapterChangeRef.current?.(chapters[chapterIndex], chapterIndex);
   }, [chapterIndex, chapters]);
@@ -280,15 +317,17 @@ export const ChapterReader: React.FC<Props> = ({
     );
   }, []);
 
-  const navigateTo = useCallback(
-    (chapter: ReaderChapterItem) => {
-      setControlsHidden(false);
-      setDrawerVisible(false);
-      setCurrentPath(chapter.path);
-      setCurrentTitle(chapter.name);
-    },
-    [],
-  );
+  const navigateTo = useCallback((chapter: ReaderChapterItem) => {
+    setControlsHidden(false);
+    setDrawerVisible(false);
+    setCurrentPath(chapter.path);
+    setCurrentTitle(chapter.name);
+    // FIX: scroll to top immediately when switching chapters so the WebView
+    // doesn't appear stuck mid-scroll while the new HTML loads.
+    webViewRef.current?.injectJavaScript(
+      `(()=>{ try { window.scrollTo({ top: 0 }); } catch {} })(); true;`,
+    );
+  }, []);
 
   const goPrev = useCallback(() => {
     if (!canGoPrev) return;
@@ -301,6 +340,13 @@ export const ChapterReader: React.FC<Props> = ({
     const next = chapters[chapterIndex + 1];
     if (next) navigateTo(next);
   }, [canGoNext, chapterIndex, chapters, navigateTo]);
+
+  // FIX: goPrev/goNext refs so handleMessage can call them without needing them
+  // as dependencies (which would destabilise the callback on every chapter change).
+  const goPrevRef = useRef(goPrev);
+  const goNextRef = useRef(goNext);
+  useEffect(() => { goPrevRef.current = goPrev; }, [goPrev]);
+  useEffect(() => { goNextRef.current = goNext; }, [goNext]);
 
   const injectedBeforeContent = useMemo(() => {
     return `(() => {
@@ -378,88 +424,78 @@ export const ChapterReader: React.FC<Props> = ({
     })(); true;`;
   }, []);
 
-  const handleMessage = useCallback(
-    (event: WebViewMessageEvent) => {
-      const raw = event?.nativeEvent?.data;
-      if (!raw) return;
-      let msg: WebMsg | null = null;
-      try {
-        msg = JSON.parse(raw);
-      } catch {
-        return;
-      }
-      if (!msg || typeof msg !== "object" || !("type" in msg)) return;
+  // FIX: handleMessage is now fully stable — it reads all mutable values from
+  // refs instead of closing over state/props. This means it is created once and
+  // WebView's onMessage prop never changes, preventing WebView resets.
+  const handleMessage = useCallback((event: WebViewMessageEvent) => {
+    const raw = event?.nativeEvent?.data;
+    if (!raw) return;
+    let msg: WebMsg | null = null;
+    try {
+      msg = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    if (!msg || typeof msg !== "object" || !("type" in msg)) return;
 
-      if (msg.type === "scroll") {
-        const value =
-          typeof msg.progress === "number" && Number.isFinite(msg.progress)
-            ? msg.progress
-            : 0;
-        setScrollProgress(value);
+    if (msg.type === "scroll") {
+      const value =
+        typeof msg.progress === "number" && Number.isFinite(msg.progress)
+          ? msg.progress
+          : 0;
+      setScrollProgress(value);
 
-        // Hide controls while actively scrolling to give a clean reading view.
-        if (!controlsHidden && value > 0) {
-          setControlsHidden(true);
-        }
-
-        if (
-          value >= 90 &&
-          !hasMarkedReadRef.current &&
-          chapterIndex >= 0 &&
-          chapters[chapterIndex]
-        ) {
-          hasMarkedReadRef.current = true;
-          onChapterReadRef.current?.(chapters[chapterIndex], chapterIndex);
-          // Show navigation controls when reaching the end
-          setControlsHidden(false);
-        }
-        return;
+      // Hide controls while actively scrolling
+      if (!controlsHiddenRef.current && value > 0) {
+        setControlsHidden(true);
       }
 
-      if (msg.type === "tap") {
-        const yRatioRaw =
-          typeof msg.yRatio === "number" && Number.isFinite(msg.yRatio)
-            ? msg.yRatio
-            : 0.5;
-        const yRatio = Math.max(0, Math.min(1, yRatioRaw));
+      // Mark chapter as read when the user reaches 90% scroll depth
+      const idx = chapterIndexRef.current;
+      const ch = chaptersRef.current;
+      if (value >= 90 && !hasMarkedReadRef.current && idx >= 0 && ch[idx]) {
+        hasMarkedReadRef.current = true;
+        onChapterReadRef.current?.(ch[idx], idx);
+        // Show nav controls at the end of the chapter
+        setControlsHidden(false);
+      }
+      return;
+    }
 
-        if (settings.reader.general.tapToScroll) {
-          if (yRatio < 0.33) {
-            webViewRef.current?.injectJavaScript(
-              `(()=>{try{const h=window.innerHeight||document.documentElement.clientHeight||400;window.scrollBy({top:-0.6*h,behavior:'smooth'});}catch{}})();true;`,
-            );
-          } else if (yRatio > 0.66) {
-            webViewRef.current?.injectJavaScript(
-              `(()=>{try{const h=window.innerHeight||document.documentElement.clientHeight||400;window.scrollBy({top:0.6*h,behavior:'smooth'});}catch{}})();true;`,
-            );
-          } else {
-            setControlsHidden((prev) => !prev);
-          }
+    if (msg.type === "tap") {
+      const yRatioRaw =
+        typeof msg.yRatio === "number" && Number.isFinite(msg.yRatio)
+          ? msg.yRatio
+          : 0.5;
+      const yRatio = Math.max(0, Math.min(1, yRatioRaw));
+
+      if (tapToScrollRef.current) {
+        if (yRatio < 0.33) {
+          webViewRef.current?.injectJavaScript(
+            `(()=>{try{const h=window.innerHeight||document.documentElement.clientHeight||400;window.scrollBy({top:-0.6*h,behavior:'smooth'});}catch{}})();true;`,
+          );
+        } else if (yRatio > 0.66) {
+          webViewRef.current?.injectJavaScript(
+            `(()=>{try{const h=window.innerHeight||document.documentElement.clientHeight||400;window.scrollBy({top:0.6*h,behavior:'smooth'});}catch{}})();true;`,
+          );
         } else {
           setControlsHidden((prev) => !prev);
         }
-        return;
+      } else {
+        setControlsHidden((prev) => !prev);
       }
+      return;
+    }
 
-      if (msg.type === "swipe") {
-        if (!settings.reader.general.swipeToNavigate) return;
-        if (msg.direction === "left") {
-          goNext();
-        } else {
-          goPrev();
-        }
+    if (msg.type === "swipe") {
+      if (!swipeToNavigateRef.current) return;
+      if (msg.direction === "left") {
+        goNextRef.current();
+      } else {
+        goPrevRef.current();
       }
-    },
-    [
-      chapterIndex,
-      chapters,
-      controlsHidden,
-      goNext,
-      goPrev,
-      settings.reader.general.swipeToNavigate,
-      settings.reader.general.tapToScroll,
-    ],
-  );
+    }
+  }, []); // stable — no deps needed, all values read from refs
 
   useEffect(() => {
     if (!settings.reader.general.autoScroll) return;
@@ -470,7 +506,6 @@ export const ChapterReader: React.FC<Props> = ({
         `(()=>{try{window.scrollBy({top:2,behavior:'smooth'});}catch{}})();true;`,
       );
     }, 80);
-
     return () => {
       cancelled = true;
       clearInterval(id);
@@ -541,7 +576,7 @@ export const ChapterReader: React.FC<Props> = ({
 
   return (
     <View style={[styles.container, { backgroundColor: readerTheme.backgroundColor }]}>
-      {settings.reader.general.keepScreenOn ? <KeepAwake /> : null}
+      {settings.reader.general.keepScreenOn ? <KeepAwakeGuard /> : null}
       <StatusBar
         hidden={settings.reader.display.fullscreen && controlsHidden}
         barStyle={theme.isDark ? "light-content" : "dark-content"}
@@ -573,10 +608,7 @@ export const ChapterReader: React.FC<Props> = ({
         <View style={[styles.center, { backgroundColor: readerTheme.backgroundColor }]}>
           <Text style={[styles.errorText, { color: theme.colors.error }]}>{error}</Text>
           <TouchableOpacity
-            style={[
-              styles.retryBtn,
-              { backgroundColor: theme.colors.primary },
-            ]}
+            style={[styles.retryBtn, { backgroundColor: theme.colors.primary }]}
             onPress={() => {
               chapterHtmlCacheRef.current.delete(currentPath);
               setError(null);
@@ -604,7 +636,10 @@ export const ChapterReader: React.FC<Props> = ({
             <TouchableOpacity onPress={goBack} style={styles.iconBtn}>
               <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
             </TouchableOpacity>
-            <Text style={[styles.chapterTitle, { color: theme.colors.text }]} numberOfLines={1}>
+            <Text
+              style={[styles.chapterTitle, { color: theme.colors.text }]}
+              numberOfLines={1}
+            >
               {resolvedTitle}
             </Text>
             <TouchableOpacity
@@ -651,10 +686,7 @@ export const ChapterReader: React.FC<Props> = ({
                   {Math.round(scrollProgress)}%
                 </Text>
                 <View
-                  style={[
-                    styles.progressBar,
-                    { backgroundColor: theme.colors.border },
-                  ]}
+                  style={[styles.progressBar, { backgroundColor: theme.colors.border }]}
                 >
                   <View
                     style={[
@@ -686,7 +718,11 @@ export const ChapterReader: React.FC<Props> = ({
         </>
       ) : null}
 
-      <PopupMenu visible={menuVisible} onClose={() => setMenuVisible(false)} items={menuItems} />
+      <PopupMenu
+        visible={menuVisible}
+        onClose={() => setMenuVisible(false)}
+        items={menuItems}
+      />
 
       <ChapterDrawer
         visible={drawerVisible}
@@ -723,151 +759,95 @@ export const ChapterReader: React.FC<Props> = ({
             </Text>
 
             <View style={styles.settingsRow}>
-              <Text
-                style={[styles.settingsLabel, { color: theme.colors.textSecondary }]}
-              >
+              <Text style={[styles.settingsLabel, { color: theme.colors.textSecondary }]}>
                 Text size
               </Text>
               <View style={styles.settingsControls}>
                 <TouchableOpacity
                   style={styles.settingsIconBtn}
                   onPress={() => {
-                    const current = settings.reader.theme.textSize;
-                    const next = Math.max(10, current - 1);
+                    const next = Math.max(10, settings.reader.theme.textSize - 1);
                     void updateReaderSettings("theme", "textSize", next);
                   }}
                 >
-                  <Ionicons
-                    name="remove"
-                    size={20}
-                    color={theme.colors.primary}
-                  />
+                  <Ionicons name="remove" size={20} color={theme.colors.primary} />
                 </TouchableOpacity>
-                <Text
-                  style={[
-                    styles.settingsValue,
-                    { color: theme.colors.text },
-                  ]}
-                >
+                <Text style={[styles.settingsValue, { color: theme.colors.text }]}>
                   {settings.reader.theme.textSize}
                 </Text>
                 <TouchableOpacity
                   style={styles.settingsIconBtn}
                   onPress={() => {
-                    const current = settings.reader.theme.textSize;
-                    const next = Math.min(40, current + 1);
+                    const next = Math.min(40, settings.reader.theme.textSize + 1);
                     void updateReaderSettings("theme", "textSize", next);
                   }}
                 >
-                  <Ionicons
-                    name="add"
-                    size={20}
-                    color={theme.colors.primary}
-                  />
+                  <Ionicons name="add" size={20} color={theme.colors.primary} />
                 </TouchableOpacity>
               </View>
             </View>
 
             <View style={styles.settingsRow}>
-              <Text
-                style={[styles.settingsLabel, { color: theme.colors.textSecondary }]}
-              >
+              <Text style={[styles.settingsLabel, { color: theme.colors.textSecondary }]}>
                 Line height
               </Text>
               <View style={styles.settingsControls}>
                 <TouchableOpacity
                   style={styles.settingsIconBtn}
                   onPress={() => {
-                    const current = settings.reader.theme.lineHeight;
-                    const next =
-                      Math.round(Math.max(1, current - 0.1) * 10) / 10;
+                    const next = Math.round(Math.max(1, settings.reader.theme.lineHeight - 0.1) * 10) / 10;
                     void updateReaderSettings("theme", "lineHeight", next);
                   }}
                 >
-                  <Ionicons
-                    name="remove"
-                    size={20}
-                    color={theme.colors.primary}
-                  />
+                  <Ionicons name="remove" size={20} color={theme.colors.primary} />
                 </TouchableOpacity>
-                <Text
-                  style={[
-                    styles.settingsValue,
-                    { color: theme.colors.text },
-                  ]}
-                >
+                <Text style={[styles.settingsValue, { color: theme.colors.text }]}>
                   {settings.reader.theme.lineHeight.toFixed(1)}
                 </Text>
                 <TouchableOpacity
                   style={styles.settingsIconBtn}
                   onPress={() => {
-                    const current = settings.reader.theme.lineHeight;
-                    const next =
-                      Math.round(Math.min(3, current + 0.1) * 10) / 10;
+                    const next = Math.round(Math.min(3, settings.reader.theme.lineHeight + 0.1) * 10) / 10;
                     void updateReaderSettings("theme", "lineHeight", next);
                   }}
                 >
-                  <Ionicons
-                    name="add"
-                    size={20}
-                    color={theme.colors.primary}
-                  />
+                  <Ionicons name="add" size={20} color={theme.colors.primary} />
                 </TouchableOpacity>
               </View>
             </View>
 
             <View style={styles.settingsRow}>
-              <Text
-                style={[styles.settingsLabel, { color: theme.colors.textSecondary }]}
-              >
+              <Text style={[styles.settingsLabel, { color: theme.colors.textSecondary }]}>
                 Page padding
               </Text>
               <View style={styles.settingsControls}>
                 <TouchableOpacity
                   style={styles.settingsIconBtn}
                   onPress={() => {
-                    const current = settings.reader.theme.padding;
-                    const next = Math.max(0, current - 2);
+                    const next = Math.max(0, settings.reader.theme.padding - 2);
                     void updateReaderSettings("theme", "padding", next);
                   }}
                 >
-                  <Ionicons
-                    name="remove"
-                    size={20}
-                    color={theme.colors.primary}
-                  />
+                  <Ionicons name="remove" size={20} color={theme.colors.primary} />
                 </TouchableOpacity>
-                <Text
-                  style={[
-                    styles.settingsValue,
-                    { color: theme.colors.text },
-                  ]}
-                >
+                <Text style={[styles.settingsValue, { color: theme.colors.text }]}>
                   {settings.reader.theme.padding}px
                 </Text>
                 <TouchableOpacity
                   style={styles.settingsIconBtn}
                   onPress={() => {
-                    const current = settings.reader.theme.padding;
-                    const next = Math.min(64, current + 2);
+                    const next = Math.min(64, settings.reader.theme.padding + 2);
                     void updateReaderSettings("theme", "padding", next);
                   }}
                 >
-                  <Ionicons
-                    name="add"
-                    size={20}
-                    color={theme.colors.primary}
-                  />
+                  <Ionicons name="add" size={20} color={theme.colors.primary} />
                 </TouchableOpacity>
               </View>
             </View>
 
             <View style={styles.settingsFooter}>
               <TouchableOpacity
-                style={[
-                  styles.settingsCloseBtn,
-                  { backgroundColor: theme.colors.primary },
-                ]}
+                style={[styles.settingsCloseBtn, { backgroundColor: theme.colors.primary }]}
                 onPress={() => setSettingsVisible(false)}
               >
                 <Text style={styles.settingsCloseText}>Done</Text>

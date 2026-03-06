@@ -37,6 +37,10 @@ export const ReaderScreen: React.FC = () => {
 
   const novel = useMemo(() => novels.find((n) => n.id === novelId), [novels, novelId]);
 
+  // FIX: always-current ref so callbacks never capture stale novel state
+  const novelRef = useRef(novel);
+  useEffect(() => { novelRef.current = novel; }, [novel]);
+
   const pluginId = novel?.pluginId;
   const novelPath = novel?.pluginNovelPath;
 
@@ -56,30 +60,39 @@ export const ReaderScreen: React.FC = () => {
   const chapters: ReaderChapterItem[] = useMemo(() => {
     const fromDb = novel?.pluginCache?.chapters;
     const fromMem = cached?.chapters;
-    const raw =
-      Array.isArray(fromDb) && fromDb.length ? fromDb : (fromMem ?? []);
+    const raw = Array.isArray(fromDb) && fromDb.length ? fromDb : (fromMem ?? []);
     return raw
       .map((c: any) => ({ name: String(c?.name || ""), path: String(c?.path || "") }))
       .filter((c) => c.path);
   }, [cached?.chapters, novel?.pluginCache?.chapters]);
 
+  // FIX: Resume-reading support. The caller can pass chapterId="resume" to have
+  // the reader open the chapter the user was on last. We also fall back to
+  // lastReadChapter index when no exact path match is found.
   const initialChapter = useMemo(() => {
     if (chapters.length > 0) {
+      // 1. Exact path match
       const matched = chapters.find((c) => c.path === chapterId);
       if (matched) return { path: matched.path, title: matched.name };
 
+      // 2. "resume" sentinel or empty: open last-read chapter
+      if (!chapterId || chapterId === "resume") {
+        const lastIdx = Math.max(0, (novel?.lastReadChapter || 1) - 1);
+        const idx = Math.min(chapters.length - 1, lastIdx);
+        return { path: chapters[idx].path, title: chapters[idx].name };
+      }
+
+      // 3. Numeric 1-based index
       const numeric = Number(chapterId);
       if (Number.isFinite(numeric) && numeric > 0) {
-        const idx = Math.min(
-          chapters.length - 1,
-          Math.max(0, Math.floor(numeric) - 1),
-        );
+        const idx = Math.min(chapters.length - 1, Math.max(0, Math.floor(numeric) - 1));
         return { path: chapters[idx].path, title: chapters[idx].name };
       }
     }
 
+    // 4. Fallback: treat chapterId as a raw path
     return { path: chapterId, title: undefined };
-  }, [chapterId, chapters]);
+  }, [chapterId, chapters, novel?.lastReadChapter]);
 
   const initialChapters: ReaderChapterItem[] = useMemo(() => {
     if (chapters.length > 0) return chapters;
@@ -99,15 +112,13 @@ export const ReaderScreen: React.FC = () => {
       if (!plugin.enabled) throw new Error("Plugin is disabled.");
 
       if (novel?.chapterDownloaded?.[path]) {
-        console.log('Loading downloaded chapter:', { path, pluginId, novelId, isDownloaded: novel.chapterDownloaded[path] });
-        const cached = await ChapterDownloads.readChapterHtml(
+        const html = await ChapterDownloads.readChapterHtml(
           pluginId,
           novelId,
           path,
           settings.general.downloadLocation,
         );
-        console.log('Cached chapter result:', cached ? 'success' : 'null');
-        if (cached != null) return cached;
+        if (html != null) return html;
       }
 
       const instance = await PluginRuntimeService.loadLnReaderPlugin(plugin, {
@@ -129,23 +140,40 @@ export const ReaderScreen: React.FC = () => {
     ],
   );
 
+  const historyEntriesRef = useRef(historyEntries);
+  useEffect(() => { historyEntriesRef.current = historyEntries; }, [historyEntries]);
+
+  // FIX: onChapterRead — called when the user scrolls to the bottom of a chapter.
+  // Uses novelRef so it always works with current data, not a stale closure snapshot.
+  // Also writes chapterReadOverrides so the chapter list greys-out correctly.
   const handleChapterRead = useCallback(
     (_chapter: ReaderChapterItem, index: number) => {
-      if (!novel) return;
-      const nextLastRead = Math.max(novel.lastReadChapter || 0, index + 1);
-      const total =
-        novel.totalChapters > 0 ? novel.totalChapters : Math.max(nextLastRead, chapters.length);
+      const n = novelRef.current;
+      if (!n) return;
+
+      const total = n.totalChapters > 0
+        ? n.totalChapters
+        : Math.max(index + 1, chapters.length);
+
+      const nextLastRead = Math.max(n.lastReadChapter || 0, index + 1);
       const nextUnread = Math.max(0, total - nextLastRead);
 
-      updateNovel(novel.id, {
+      // Keep chapterReadOverrides in sync with what the user has actually read
+      const updatedOverrides: Record<string, boolean> = {
+        ...(n.chapterReadOverrides || {}),
+        [_chapter.path]: true,
+      };
+
+      updateNovel(n.id, {
         lastReadChapter: nextLastRead,
         unreadChapters: nextUnread,
         lastReadDate: new Date(),
+        chapterReadOverrides: updatedOverrides,
       });
 
       const chapter: Chapter = {
         id: _chapter.path,
-        novelId: novel.id,
+        novelId: n.id,
         title: _chapter.name || "Chapter",
         number: index + 1,
         isRead: true,
@@ -154,16 +182,11 @@ export const ReaderScreen: React.FC = () => {
       };
       const totalChaptersRead = Math.max(0, total - nextUnread);
       const progress = total > 0 ? (totalChaptersRead / total) * 100 : 0;
-      const existing = historyEntries.find((e) => e.id === novel.id);
+      const existing = historyEntriesRef.current.find((e) => e.id === n.id);
 
       upsertHistoryEntry({
-        id: novel.id,
-        novel: stripNovelForHistory({
-          ...novel,
-          lastReadChapter: nextLastRead,
-          unreadChapters: nextUnread,
-          lastReadDate: new Date(),
-        }),
+        id: n.id,
+        novel: stripNovelForHistory({ ...n, lastReadChapter: nextLastRead, unreadChapters: nextUnread, lastReadDate: new Date() }),
         lastReadChapter: chapter,
         progress,
         totalChaptersRead,
@@ -171,36 +194,30 @@ export const ReaderScreen: React.FC = () => {
         timeSpentReading: existing?.timeSpentReading || 0,
       });
     },
-    [chapters.length, historyEntries, novel, updateNovel, upsertHistoryEntry],
+    // chapters.length is stable enough as a dependency; novelRef is a ref so excluded
+     
+    [chapters.length, updateNovel, upsertHistoryEntry],
   );
 
   const lastChapterRef = useRef<{ chapter: ReaderChapterItem; index: number } | null>(null);
   const sessionStartRef = useRef<number>(Date.now());
-  const historyEntriesRef = useRef(historyEntries);
-  const novelRef = useRef(novel);
 
-  useEffect(() => {
-    historyEntriesRef.current = historyEntries;
-  }, [historyEntries]);
-
-  useEffect(() => {
-    novelRef.current = novel;
-  }, [novel]);
-
+  // FIX: handleChapterChange also uses novelRef to avoid stale state
   const handleChapterChange = useCallback(
     (chapter: ReaderChapterItem, index: number) => {
       lastChapterRef.current = { chapter, index };
       updateNovel(novelId, { lastReadDate: new Date() });
 
-      if (!novel) return;
-      const total = novel.totalChapters > 0 ? novel.totalChapters : chapters.length;
-      const totalChaptersRead = Math.max(0, total - (novel.unreadChapters || 0));
+      const n = novelRef.current;
+      if (!n) return;
+      const total = n.totalChapters > 0 ? n.totalChapters : chapters.length;
+      const totalChaptersRead = Math.max(0, total - (n.unreadChapters || 0));
       const progress = total > 0 ? (totalChaptersRead / total) * 100 : 0;
-      const existing = historyEntries.find((e) => e.id === novel.id);
+      const existing = historyEntriesRef.current.find((e) => e.id === n.id);
 
       const historyChapter: Chapter = {
         id: chapter.path,
-        novelId: novel.id,
+        novelId: n.id,
         title: chapter.name || "Chapter",
         number: index + 1,
         isRead: false,
@@ -209,8 +226,8 @@ export const ReaderScreen: React.FC = () => {
       };
 
       upsertHistoryEntry({
-        id: novel.id,
-        novel: stripNovelForHistory({ ...novel, lastReadDate: new Date() }),
+        id: n.id,
+        novel: stripNovelForHistory({ ...n, lastReadDate: new Date() }),
         lastReadChapter: historyChapter,
         progress,
         totalChaptersRead,
@@ -218,27 +235,30 @@ export const ReaderScreen: React.FC = () => {
         timeSpentReading: existing?.timeSpentReading || 0,
       });
     },
-    [chapters.length, historyEntries, novel, novelId, updateNovel, upsertHistoryEntry],
+     
+    [chapters.length, novelId, updateNovel, upsertHistoryEntry],
   );
 
+  // Session time-tracking — runs on unmount
   useEffect(() => {
     sessionStartRef.current = Date.now();
     return () => {
-      const novelNow = novelRef.current;
-      if (!novelNow) return;
+      const n = novelRef.current;
+      if (!n) return;
       const last = lastChapterRef.current;
       if (!last) return;
       const elapsedMs = Date.now() - sessionStartRef.current;
       const minutes = Math.max(0, Math.round(elapsedMs / 60000));
       if (minutes <= 0) return;
 
-      const existing = historyEntriesRef.current.find((e) => e.id === novelNow.id);
-      const total = novelNow.totalChapters > 0 ? novelNow.totalChapters : chapters.length;
-      const totalChaptersRead = Math.max(0, total - (novelNow.unreadChapters || 0));
+      const existing = historyEntriesRef.current.find((e) => e.id === n.id);
+      const total = n.totalChapters > 0 ? n.totalChapters : chapters.length;
+      const totalChaptersRead = Math.max(0, total - (n.unreadChapters || 0));
       const progress = total > 0 ? (totalChaptersRead / total) * 100 : 0;
+
       const historyChapter: Chapter = {
         id: last.chapter.path,
-        novelId: novelNow.id,
+        novelId: n.id,
         title: last.chapter.name || "Chapter",
         number: last.index + 1,
         isRead: false,
@@ -247,8 +267,8 @@ export const ReaderScreen: React.FC = () => {
       };
 
       upsertHistoryEntry({
-        id: novelNow.id,
-        novel: stripNovelForHistory({ ...novelNow }),
+        id: n.id,
+        novel: stripNovelForHistory({ ...n }),
         lastReadChapter: historyChapter,
         progress,
         totalChaptersRead,
@@ -256,27 +276,31 @@ export const ReaderScreen: React.FC = () => {
         timeSpentReading: (existing?.timeSpentReading || 0) + minutes,
       });
     };
+     
   }, [chapters.length, novelId, upsertHistoryEntry]);
 
   const handleMarkRead = useCallback(() => {
-    if (!novel) return;
-    const total = novel.totalChapters > 0 ? novel.totalChapters : chapters.length;
-    updateNovel(novel.id, {
+    const n = novelRef.current;
+    if (!n) return;
+    const total = n.totalChapters > 0 ? n.totalChapters : chapters.length;
+    updateNovel(n.id, {
       unreadChapters: 0,
       lastReadChapter: total,
       lastReadDate: new Date(),
     });
-  }, [chapters.length, novel, updateNovel]);
+  }, [chapters.length, updateNovel]);
 
   const handleMarkUnread = useCallback(() => {
-    if (!novel) return;
-    const total = novel.totalChapters > 0 ? novel.totalChapters : chapters.length;
-    updateNovel(novel.id, {
+    const n = novelRef.current;
+    if (!n) return;
+    const total = n.totalChapters > 0 ? n.totalChapters : chapters.length;
+    updateNovel(n.id, {
       unreadChapters: total,
       lastReadChapter: 0,
       lastReadDate: undefined,
+      chapterReadOverrides: undefined,
     });
-  }, [chapters.length, novel, updateNovel]);
+  }, [chapters.length, updateNovel]);
 
   const extraMenuItems = useMemo(
     () => [
@@ -304,9 +328,7 @@ export const ReaderScreen: React.FC = () => {
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <Header title="Reader" onBackPress={() => (navigation as any).goBack()} />
         <View style={styles.center}>
-          <Text style={[styles.message, { color: theme.colors.error }]}>
-            Novel not found.
-          </Text>
+          <Text style={[styles.message, { color: theme.colors.error }]}>Novel not found.</Text>
         </View>
       </View>
     );
@@ -337,6 +359,12 @@ export const ReaderScreen: React.FC = () => {
       onChapterChange={handleChapterChange}
       onChapterRead={handleChapterRead}
       extraMenuItems={extraMenuItems}
+      // FIX: pass reader behavior settings into ChapterReader
+      swipeToNavigate={settings.reader.general.swipeToNavigate}
+      tapToScroll={settings.reader.general.tapToScroll}
+      keepScreenOn={settings.reader.general.keepScreenOn}
+      showProgressPercentage={settings.reader.display.showProgressPercentage}
+      readerTheme={settings.reader.theme}
     />
   );
 };

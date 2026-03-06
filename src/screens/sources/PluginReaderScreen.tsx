@@ -1,8 +1,8 @@
 import type { RouteProp } from "@react-navigation/native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
-import { ChapterReader } from "../../components/reader/ChapterReader";
 import type { ReaderChapterItem } from "../../components/reader/ChapterDrawer";
+import { ChapterReader } from "../../components/reader/ChapterReader";
 import { useHistory } from "../../context/HistoryContext";
 import { useLibrary } from "../../context/LibraryContext";
 import { useSettings } from "../../context/SettingsContext";
@@ -34,8 +34,11 @@ export const PluginReaderScreen: React.FC = () => {
     return novels.find((n) => n.id === novelId);
   }, [novelId, novels]);
 
-  const effectiveNovelPath =
-    novelPath ?? libraryNovel?.pluginNovelPath ?? undefined;
+  // FIX: always-current ref so callbacks never capture stale novel state
+  const libraryNovelRef = useRef(libraryNovel);
+  useEffect(() => { libraryNovelRef.current = libraryNovel; }, [libraryNovel]);
+
+  const effectiveNovelPath = novelPath ?? libraryNovel?.pluginNovelPath ?? undefined;
 
   const cacheKey = useMemo(() => {
     if (!effectiveNovelPath) return null;
@@ -50,13 +53,9 @@ export const PluginReaderScreen: React.FC = () => {
   const chapters: ReaderChapterItem[] = useMemo(() => {
     const fromDb = libraryNovel?.pluginCache?.chapters;
     const fromMem = cached?.chapters;
-    const raw =
-      Array.isArray(fromDb) && fromDb.length ? fromDb : (fromMem ?? []);
+    const raw = Array.isArray(fromDb) && fromDb.length ? fromDb : (fromMem ?? []);
     return raw
-      .map((c: any) => ({
-        name: String(c?.name || ""),
-        path: String(c?.path || ""),
-      }))
+      .map((c: any) => ({ name: String(c?.name || ""), path: String(c?.path || "") }))
       .filter((c) => c.path);
   }, [cached?.chapters, libraryNovel?.pluginCache?.chapters]);
 
@@ -88,25 +87,36 @@ export const PluginReaderScreen: React.FC = () => {
     [plugin, settings.advanced.userAgent],
   );
 
+  const historyEntriesRef = useRef(historyEntries);
+  useEffect(() => { historyEntriesRef.current = historyEntries; }, [historyEntries]);
+
+  // FIX: uses novelRef to avoid stale closure, writes chapterReadOverrides for chapter list sync
   const handleChapterRead = useCallback(
     (_chapter: ReaderChapterItem, index: number) => {
-      const novel = libraryNovel;
-      if (!novel) return;
+      const n = libraryNovelRef.current;
+      if (!n) return;
 
-      const nextLastRead = Math.max(novel.lastReadChapter || 0, index + 1);
-      const total =
-        novel.totalChapters > 0 ? novel.totalChapters : Math.max(nextLastRead, chapters.length);
+      const total = n.totalChapters > 0
+        ? n.totalChapters
+        : Math.max(index + 1, chapters.length);
+      const nextLastRead = Math.max(n.lastReadChapter || 0, index + 1);
       const nextUnread = Math.max(0, total - nextLastRead);
 
-      updateNovel(novel.id, {
+      const updatedOverrides: Record<string, boolean> = {
+        ...(n.chapterReadOverrides || {}),
+        [_chapter.path]: true,
+      };
+
+      updateNovel(n.id, {
         lastReadChapter: nextLastRead,
         unreadChapters: nextUnread,
         lastReadDate: new Date(),
+        chapterReadOverrides: updatedOverrides,
       });
 
       const chapter: Chapter = {
         id: _chapter.path,
-        novelId: novel.id,
+        novelId: n.id,
         title: _chapter.name || "Chapter",
         number: index + 1,
         isRead: true,
@@ -115,11 +125,11 @@ export const PluginReaderScreen: React.FC = () => {
       };
       const totalChaptersRead = Math.max(0, total - nextUnread);
       const progress = total > 0 ? (totalChaptersRead / total) * 100 : 0;
-      const existing = historyEntries.find((e) => e.id === novel.id);
+      const existing = historyEntriesRef.current.find((e) => e.id === n.id);
 
       upsertHistoryEntry({
-        id: novel.id,
-        novel: { ...novel, pluginCache: undefined } as any,
+        id: n.id,
+        novel: { ...n, pluginCache: undefined } as any,
         lastReadChapter: chapter,
         progress,
         totalChaptersRead,
@@ -127,37 +137,29 @@ export const PluginReaderScreen: React.FC = () => {
         timeSpentReading: existing?.timeSpentReading || 0,
       });
     },
-    [chapters.length, historyEntries, libraryNovel, updateNovel, upsertHistoryEntry],
+     
+    [chapters.length, updateNovel, upsertHistoryEntry],
   );
 
   const lastChapterRef = useRef<{ chapter: ReaderChapterItem; index: number } | null>(null);
   const sessionStartRef = useRef<number>(Date.now());
-  const historyEntriesRef = useRef(historyEntries);
-  const novelRef = useRef(libraryNovel);
 
-  useEffect(() => {
-    historyEntriesRef.current = historyEntries;
-  }, [historyEntries]);
-
-  useEffect(() => {
-    novelRef.current = libraryNovel;
-  }, [libraryNovel]);
-
+  // FIX: uses novelRef to avoid stale state
   const handleChapterChange = useCallback(
     (chapter: ReaderChapterItem, index: number) => {
       lastChapterRef.current = { chapter, index };
       if (novelId) updateNovel(novelId, { lastReadDate: new Date() });
 
-      const novel = libraryNovel;
-      if (!novel) return;
-      const total = novel.totalChapters > 0 ? novel.totalChapters : chapters.length;
-      const totalChaptersRead = Math.max(0, total - (novel.unreadChapters || 0));
+      const n = libraryNovelRef.current;
+      if (!n) return;
+      const total = n.totalChapters > 0 ? n.totalChapters : chapters.length;
+      const totalChaptersRead = Math.max(0, total - (n.unreadChapters || 0));
       const progress = total > 0 ? (totalChaptersRead / total) * 100 : 0;
-      const existing = historyEntries.find((e) => e.id === novel.id);
+      const existing = historyEntriesRef.current.find((e) => e.id === n.id);
 
       const historyChapter: Chapter = {
         id: chapter.path,
-        novelId: novel.id,
+        novelId: n.id,
         title: chapter.name || "Chapter",
         number: index + 1,
         isRead: false,
@@ -166,8 +168,8 @@ export const PluginReaderScreen: React.FC = () => {
       };
 
       upsertHistoryEntry({
-        id: novel.id,
-        novel: { ...novel, pluginCache: undefined } as any,
+        id: n.id,
+        novel: { ...n, pluginCache: undefined } as any,
         lastReadChapter: historyChapter,
         progress,
         totalChaptersRead,
@@ -175,27 +177,28 @@ export const PluginReaderScreen: React.FC = () => {
         timeSpentReading: existing?.timeSpentReading || 0,
       });
     },
-    [chapters.length, historyEntries, libraryNovel, novelId, updateNovel, upsertHistoryEntry],
+     
+    [chapters.length, novelId, updateNovel, upsertHistoryEntry],
   );
 
   useEffect(() => {
     sessionStartRef.current = Date.now();
     return () => {
-      const novel = novelRef.current;
-      if (!novel) return;
+      const n = libraryNovelRef.current;
+      if (!n) return;
       const last = lastChapterRef.current;
       if (!last) return;
       const elapsedMs = Date.now() - sessionStartRef.current;
       const minutes = Math.max(0, Math.round(elapsedMs / 60000));
       if (minutes <= 0) return;
 
-      const existing = historyEntriesRef.current.find((e) => e.id === novel.id);
-      const total = novel.totalChapters > 0 ? novel.totalChapters : chapters.length;
-      const totalChaptersRead = Math.max(0, total - (novel.unreadChapters || 0));
+      const existing = historyEntriesRef.current.find((e) => e.id === n.id);
+      const total = n.totalChapters > 0 ? n.totalChapters : chapters.length;
+      const totalChaptersRead = Math.max(0, total - (n.unreadChapters || 0));
       const progress = total > 0 ? (totalChaptersRead / total) * 100 : 0;
       const historyChapter: Chapter = {
         id: last.chapter.path,
-        novelId: novel.id,
+        novelId: n.id,
         title: last.chapter.name || "Chapter",
         number: last.index + 1,
         isRead: false,
@@ -204,8 +207,8 @@ export const PluginReaderScreen: React.FC = () => {
       };
 
       upsertHistoryEntry({
-        id: novel.id,
-        novel: { ...novel, pluginCache: undefined } as any,
+        id: n.id,
+        novel: { ...n, pluginCache: undefined } as any,
         lastReadChapter: historyChapter,
         progress,
         totalChaptersRead,
@@ -213,20 +216,19 @@ export const PluginReaderScreen: React.FC = () => {
         timeSpentReading: (existing?.timeSpentReading || 0) + minutes,
       });
     };
+     
   }, [chapters.length, novelId, upsertHistoryEntry]);
 
   const extraMenuItems = useMemo(() => {
-    if (!libraryNovel) return undefined;
-    const total =
-      libraryNovel.totalChapters > 0
-        ? libraryNovel.totalChapters
-        : chapters.length;
+    const n = libraryNovel;
+    if (!n) return undefined;
+    const total = n.totalChapters > 0 ? n.totalChapters : chapters.length;
     return [
       {
         id: "markRead",
         label: "Mark as read",
         onPress: () =>
-          updateNovel(libraryNovel.id, {
+          updateNovel(n.id, {
             unreadChapters: 0,
             lastReadChapter: total,
             lastReadDate: new Date(),
@@ -236,10 +238,11 @@ export const PluginReaderScreen: React.FC = () => {
         id: "markUnread",
         label: "Mark as unread",
         onPress: () =>
-          updateNovel(libraryNovel.id, {
+          updateNovel(n.id, {
             unreadChapters: total,
             lastReadChapter: 0,
             lastReadDate: undefined,
+            chapterReadOverrides: undefined,
           }),
       },
     ];
@@ -270,6 +273,12 @@ export const PluginReaderScreen: React.FC = () => {
       onChapterChange={handleChapterChange}
       onChapterRead={handleChapterRead}
       extraMenuItems={extraMenuItems}
+      // FIX: pass reader behavior settings into ChapterReader
+      swipeToNavigate={settings.reader.general.swipeToNavigate}
+      tapToScroll={settings.reader.general.tapToScroll}
+      keepScreenOn={settings.reader.general.keepScreenOn}
+      showProgressPercentage={settings.reader.display.showProgressPercentage}
+      readerTheme={settings.reader.theme}
     />
   );
 };
