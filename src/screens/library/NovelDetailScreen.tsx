@@ -793,13 +793,9 @@ export const NovelDetailScreen: React.FC = () => {
         settings: Object.keys(readerSettings).filter(key => readerSettings[key as keyof typeof readerSettings])
       });
       
-      (navigation as any).navigate("ChapterReader", {
-        pluginId: novel.pluginId,
+      (navigation as any).navigate("Reader", {
         novelId: novel.id,
-        novelTitle: novel.title,
-        chapterPath: chapter.path,
-        chapterTitle: chapter.name,
-        readerSettings,
+        chapterId: chapter.path,
       });
     },
     [navigation, novel, settings.reader],
