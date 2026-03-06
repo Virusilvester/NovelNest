@@ -1,12 +1,11 @@
 // src/context/HistoryContext.tsx
 import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useState,
 } from "react";
-import { mockHistoryEntries } from "../data/mockData";
 import { DatabaseService } from "../services/database";
 import { HistoryEntry } from "../types";
 
@@ -31,7 +30,7 @@ export const HistoryProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [historyEntries, setHistoryEntries] =
-    useState<HistoryEntry[]>(mockHistoryEntries);
+    useState<HistoryEntry[]>([]);
 
   const reloadFromDatabase = useCallback(async () => {
     const next = await DatabaseService.getHistory();
@@ -49,10 +48,7 @@ export const HistoryProvider: React.FC<{ children: React.ReactNode }> = ({
           // If database is completely empty, LibraryContext will seed via replaceAll.
           const lib = await DatabaseService.getLibrary();
           if (lib.categories.length > 0 || lib.novels.length > 0) {
-            await Promise.all(
-              mockHistoryEntries.map((e) => DatabaseService.upsertHistoryEntry(e)),
-            );
-          }
+            }
         }
         if (cancelled) return;
         await reloadFromDatabase();

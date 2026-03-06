@@ -5,23 +5,22 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { Header } from "../../components/common/Header";
 import { useHistory } from "../../context/HistoryContext";
 import { useLibrary } from "../../context/LibraryContext";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
-import { mockCategories } from "../../data/mockData";
 import { DatabaseService } from "../../services/database";
 
 interface DataActionProps {
@@ -240,7 +239,7 @@ export const DataManagementScreen: React.FC = () => {
             setIsLoading(true);
             try {
               await DatabaseService.replaceAll({
-                categories: mockCategories,
+                categories: [],
                 novels: [],
                 history: [],
               });

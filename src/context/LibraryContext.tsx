@@ -1,19 +1,18 @@
 // src/context/LibraryContext.tsx
 import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useState,
 } from "react";
-import { mockCategories, mockHistoryEntries, mockNovels } from "../data/mockData";
 import { DatabaseService } from "../services/database";
 import {
-  Category,
-  DisplayMode,
-  LibraryFilterOption,
-  LibrarySortOption,
-  Novel,
+    Category,
+    DisplayMode,
+    LibraryFilterOption,
+    LibrarySortOption,
+    Novel,
 } from "../types";
 import { useSettings } from "./SettingsContext";
 
@@ -56,8 +55,8 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const settings = useSettings();
 
-  const [novels, setNovels] = useState<Novel[]>(mockNovels);
-  const [categories, setCategories] = useState<Category[]>(mockCategories);
+  const [novels, setNovels] = useState<Novel[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
 
   const filterOptions = settings.settings.ui.libraryFilterOptions;
@@ -90,14 +89,14 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({
           history.length === 0
         ) {
           await DatabaseService.replaceAll({
-            categories: mockCategories,
-            novels: mockNovels,
-            history: mockHistoryEntries,
+            categories: [],
+            novels: [],
+            history: [],
           });
         } else if (lib.categories.length === 0 && lib.novels.length === 0) {
           await DatabaseService.replaceAll({
-            categories: mockCategories,
-            novels: mockNovels,
+            categories: [],
+            novels: [],
             history,
           });
         }
