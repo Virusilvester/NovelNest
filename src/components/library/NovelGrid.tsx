@@ -3,8 +3,8 @@ import { FlashList, ListRenderItem } from "@shopify/flash-list";
 import React, { useCallback } from "react";
 import { Platform, StyleSheet, useWindowDimensions, View } from "react-native";
 import { DisplayMode, Novel } from "../../types";
-import { NovelCard } from "../common/NovelCard";
 import { getGridColumns, getGridItemWidth } from "../../utils/responsive";
+import { NovelCard } from "../common/NovelCard";
 
 interface NovelGridProps {
   novels: Novel[];

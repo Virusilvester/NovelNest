@@ -146,12 +146,6 @@ const ChapterItem = React.memo(({
               />
             )}
           </TouchableOpacity>
-
-          <Ionicons
-            name="chevron-forward"
-            size={20}
-            color={theme.colors.textSecondary}
-          />
         </View>
       ) : null}
     </TouchableOpacity>

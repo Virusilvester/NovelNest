@@ -1,7 +1,7 @@
 // src/components/common/NovelCard.tsx
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
 import { Image } from "expo-image";
+import React from "react";
 import {
   StyleSheet,
   Text,
@@ -103,7 +103,7 @@ const NovelCardComponent: React.FC<NovelCardProps> = ({
           <View style={styles.listHeader}>
             <Text
               style={[styles.listTitle, { color: theme.colors.text }]}
-              numberOfLines={2}
+              numberOfLines={1}
             >
               {novel.title}
             </Text>
@@ -209,13 +209,7 @@ const NovelCardComponent: React.FC<NovelCardProps> = ({
           )}
         </View>
 
-        {/* Arrow indicator */}
-        <Ionicons
-          name="chevron-forward"
-          size={20}
-          color={theme.colors.textSecondary}
-          style={styles.listArrow}
-        />
+        {/* No icon - clean list view */}
       </TouchableOpacity>
     );
   }
