@@ -15,16 +15,16 @@ import {
   View
 } from "react-native";
 import { Header } from "../../components/common/Header";
+import { ImprovedSwitch } from "../../components/common/ImprovedSwitch";
 import { PopupMenu } from "../../components/common/PopupMenu";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
 import type { MainDrawerNavigationProp } from "../../navigation/navigationTypes";
 import { ExtensionsService } from "../../services/extensions";
 import type { ExtensionRepoPlugin } from "../../types";
-import { ImprovedSwitch } from "@/src/components/common/ImprovedSwitch";
 
 type RepoPlugin = ExtensionRepoPlugin & { repoUrl: string };
-type SortOption = "az" | "za" | "installed";
+type SortOption = "az" | "za";
 
 const safeHost = (site: string): string => {
   try {
@@ -147,21 +147,19 @@ export const ExtensionsScreen: React.FC = () => {
         })
       : plugins;
 
-    const withInstalledPriority = [...filtered].sort((a, b) => {
-      const aInstalled = Boolean(installed[a.id]);
-      const bInstalled = Boolean(installed[b.id]);
-      if (aInstalled !== bInstalled) return aInstalled ? -1 : 1;
-      return 0;
-    });
-
-    if (sortOption === "installed") {
-      return withInstalledPriority.sort((a, b) => a.name.localeCompare(b.name));
-    }
-
-    return withInstalledPriority.sort((a, b) => {
+    // Group installed extensions on top, then sort within each group
+    const installedExtensions = filtered.filter(p => Boolean(installed[p.id]));
+    const availableExtensions = filtered.filter(p => !Boolean(installed[p.id]));
+    
+    const sortFn = (a: any, b: any) => {
       if (sortOption === "az") return a.name.localeCompare(b.name);
       return b.name.localeCompare(a.name);
-    });
+    };
+    
+    return [
+      ...installedExtensions.sort(sortFn),
+      ...availableExtensions.sort(sortFn)
+    ];
   }, [installed, plugins, searchQuery, sortOption]);
 
   const handleAddRepo = async () => {
@@ -293,14 +291,9 @@ export const ExtensionsScreen: React.FC = () => {
     );
   };
 
-  const filterMenuItems = [
+  const sortOptions = [
     { id: "az", label: "A-Z", onPress: () => setSortOption("az") },
     { id: "za", label: "Z-A", onPress: () => setSortOption("za") },
-    {
-      id: "installed",
-      label: "Installed first",
-      onPress: () => setSortOption("installed"),
-    },
   ];
 
   return (
@@ -397,7 +390,7 @@ export const ExtensionsScreen: React.FC = () => {
       <PopupMenu
         visible={isFilterMenuVisible}
         onClose={() => setIsFilterMenuVisible(false)}
-        items={filterMenuItems.map((item) => ({
+        items={sortOptions.map((item) => ({
           ...item,
           onPress: () => {
             item.onPress();
