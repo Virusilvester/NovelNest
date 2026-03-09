@@ -1,3 +1,4 @@
+// src/components/common/ErrorBoundary.tsx
 import React from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -31,7 +32,9 @@ export class ErrorBoundary extends React.Component<Props, State> {
         <Text style={styles.message}>{String(this.state.error.message)}</Text>
         {this.state.info?.componentStack ? (
           <ScrollView style={styles.stackContainer}>
-            <Text style={styles.stackText}>{this.state.info.componentStack}</Text>
+            <Text style={styles.stackText}>
+              {this.state.info.componentStack}
+            </Text>
           </ScrollView>
         ) : null}
       </View>

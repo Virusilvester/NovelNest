@@ -1,7 +1,14 @@
+// src/components/reader/ChapterReader.tsx
 import { Ionicons } from "@expo/vector-icons";
-import { useKeepAwake } from "expo-keep-awake";
 import { useNavigation } from "@react-navigation/native";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useKeepAwake } from "expo-keep-awake";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Linking,
@@ -93,7 +100,9 @@ const buildReaderHtml = (opts: {
   linkColor: string;
   isDark: boolean;
 }) => {
-  const safeBody = stripEventHandlers(stripScripts(extractBodyContent(opts.rawHtml || "")));
+  const safeBody = stripEventHandlers(
+    stripScripts(extractBodyContent(opts.rawHtml || "")),
+  );
 
   return `<!DOCTYPE html>
 <html>
@@ -184,7 +193,9 @@ export const ChapterReader: React.FC<Props> = ({
   const chapterHtmlCacheRef = useRef(new Map<string, string>());
 
   const [currentPath, setCurrentPath] = useState(initialChapterPath);
-  const [currentTitle, setCurrentTitle] = useState<string | undefined>(initialChapterTitle);
+  const [currentTitle, setCurrentTitle] = useState<string | undefined>(
+    initialChapterTitle,
+  );
   const [rawHtml, setRawHtml] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -199,21 +210,31 @@ export const ChapterReader: React.FC<Props> = ({
   const onChapterChangeRef = useRef<Props["onChapterChange"]>(onChapterChange);
   const onChapterReadRef = useRef<Props["onChapterRead"]>(onChapterRead);
 
-  useEffect(() => { onChapterChangeRef.current = onChapterChange; }, [onChapterChange]);
-  useEffect(() => { onChapterReadRef.current = onChapterRead; }, [onChapterRead]);
+  useEffect(() => {
+    onChapterChangeRef.current = onChapterChange;
+  }, [onChapterChange]);
+  useEffect(() => {
+    onChapterReadRef.current = onChapterRead;
+  }, [onChapterRead]);
 
   // FIX: keep a ref for controlsHidden so handleMessage can read the current
   // value without having it as a dependency (which forced handleMessage to be
   // recreated on every controls toggle, resetting WebView's onMessage prop).
   const controlsHiddenRef = useRef(controlsHidden);
-  useEffect(() => { controlsHiddenRef.current = controlsHidden; }, [controlsHidden]);
+  useEffect(() => {
+    controlsHiddenRef.current = controlsHidden;
+  }, [controlsHidden]);
 
   // Keep refs for the settings values that are read inside handleMessage so the
   // callback is stable and never needs to be recreated due to settings changes.
   const swipeToNavigateRef = useRef(settings.reader.general.swipeToNavigate);
   const tapToScrollRef = useRef(settings.reader.general.tapToScroll);
-  useEffect(() => { swipeToNavigateRef.current = settings.reader.general.swipeToNavigate; }, [settings.reader.general.swipeToNavigate]);
-  useEffect(() => { tapToScrollRef.current = settings.reader.general.tapToScroll; }, [settings.reader.general.tapToScroll]);
+  useEffect(() => {
+    swipeToNavigateRef.current = settings.reader.general.swipeToNavigate;
+  }, [settings.reader.general.swipeToNavigate]);
+  useEffect(() => {
+    tapToScrollRef.current = settings.reader.general.tapToScroll;
+  }, [settings.reader.general.tapToScroll]);
 
   const chapterIndex = useMemo(
     () => chapters.findIndex((c) => c.path === currentPath),
@@ -223,11 +244,16 @@ export const ChapterReader: React.FC<Props> = ({
   // Keep a ref so handleMessage can read the current chapterIndex without
   // it being a dependency of the callback.
   const chapterIndexRef = useRef(chapterIndex);
-  useEffect(() => { chapterIndexRef.current = chapterIndex; }, [chapterIndex]);
+  useEffect(() => {
+    chapterIndexRef.current = chapterIndex;
+  }, [chapterIndex]);
   const chaptersRef = useRef(chapters);
-  useEffect(() => { chaptersRef.current = chapters; }, [chapters]);
+  useEffect(() => {
+    chaptersRef.current = chapters;
+  }, [chapters]);
 
-  const resolvedTitle = currentTitle || chapters[chapterIndex]?.name || "Reader";
+  const resolvedTitle =
+    currentTitle || chapters[chapterIndex]?.name || "Reader";
 
   const canGoPrev = chapterIndex > 0;
   const canGoNext = chapterIndex >= 0 && chapterIndex < chapters.length - 1;
@@ -290,7 +316,9 @@ export const ChapterReader: React.FC<Props> = ({
     };
 
     run();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [currentPath, loadChapterHtml, reloadToken]);
 
   // FIX: skip firing onChapterChange on the very first render (mount) so we
@@ -345,8 +373,12 @@ export const ChapterReader: React.FC<Props> = ({
   // as dependencies (which would destabilise the callback on every chapter change).
   const goPrevRef = useRef(goPrev);
   const goNextRef = useRef(goNext);
-  useEffect(() => { goPrevRef.current = goPrev; }, [goPrev]);
-  useEffect(() => { goNextRef.current = goNext; }, [goNext]);
+  useEffect(() => {
+    goPrevRef.current = goPrev;
+  }, [goPrev]);
+  useEffect(() => {
+    goNextRef.current = goNext;
+  }, [goNext]);
 
   const injectedBeforeContent = useMemo(() => {
     return `(() => {
@@ -575,7 +607,12 @@ export const ChapterReader: React.FC<Props> = ({
   }, [baseUrl, currentPath]);
 
   return (
-    <View style={[styles.container, { backgroundColor: readerTheme.backgroundColor }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: readerTheme.backgroundColor },
+      ]}
+    >
       {settings.reader.general.keepScreenOn ? <KeepAwakeGuard /> : null}
       <StatusBar
         hidden={settings.reader.display.fullscreen && controlsHidden}
@@ -596,17 +633,31 @@ export const ChapterReader: React.FC<Props> = ({
       />
 
       {loading ? (
-        <View style={[styles.center, { backgroundColor: readerTheme.backgroundColor }]}>
+        <View
+          style={[
+            styles.center,
+            { backgroundColor: readerTheme.backgroundColor },
+          ]}
+        >
           <ActivityIndicator color={theme.colors.primary} />
-          <Text style={[styles.centerText, { color: theme.colors.textSecondary }]}>
+          <Text
+            style={[styles.centerText, { color: theme.colors.textSecondary }]}
+          >
             Loading…
           </Text>
         </View>
       ) : null}
 
       {error ? (
-        <View style={[styles.center, { backgroundColor: readerTheme.backgroundColor }]}>
-          <Text style={[styles.errorText, { color: theme.colors.error }]}>{error}</Text>
+        <View
+          style={[
+            styles.center,
+            { backgroundColor: readerTheme.backgroundColor },
+          ]}
+        >
+          <Text style={[styles.errorText, { color: theme.colors.error }]}>
+            {error}
+          </Text>
           <TouchableOpacity
             style={[styles.retryBtn, { backgroundColor: theme.colors.primary }]}
             onPress={() => {
@@ -645,12 +696,22 @@ export const ChapterReader: React.FC<Props> = ({
             <TouchableOpacity
               onPress={() => setDrawerVisible(true)}
               disabled={chapters.length === 0}
-              style={[styles.iconBtn, chapters.length === 0 && { opacity: 0.4 }]}
+              style={[
+                styles.iconBtn,
+                chapters.length === 0 && { opacity: 0.4 },
+              ]}
             >
               <Ionicons name="list" size={22} color={theme.colors.text} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setMenuVisible(true)} style={styles.iconBtn}>
-              <Ionicons name="ellipsis-vertical" size={20} color={theme.colors.text} />
+            <TouchableOpacity
+              onPress={() => setMenuVisible(true)}
+              style={styles.iconBtn}
+            >
+              <Ionicons
+                name="ellipsis-vertical"
+                size={20}
+                color={theme.colors.text}
+              />
             </TouchableOpacity>
           </View>
 
@@ -670,7 +731,11 @@ export const ChapterReader: React.FC<Props> = ({
                 disabled={!canGoPrev}
                 style={[styles.bottomBtn, !canGoPrev && { opacity: 0.35 }]}
               >
-                <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
+                <Ionicons
+                  name="chevron-back"
+                  size={22}
+                  color={theme.colors.text}
+                />
               </TouchableOpacity>
             ) : (
               <View style={[styles.bottomBtn, { opacity: 0 }]} />
@@ -682,11 +747,19 @@ export const ChapterReader: React.FC<Props> = ({
 
             {settings.reader.display.showProgressPercentage ? (
               <View style={styles.progressWrap}>
-                <Text style={[styles.progressText, { color: theme.colors.textSecondary }]}>
+                <Text
+                  style={[
+                    styles.progressText,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
                   {Math.round(scrollProgress)}%
                 </Text>
                 <View
-                  style={[styles.progressBar, { backgroundColor: theme.colors.border }]}
+                  style={[
+                    styles.progressBar,
+                    { backgroundColor: theme.colors.border },
+                  ]}
                 >
                   <View
                     style={[
@@ -709,7 +782,11 @@ export const ChapterReader: React.FC<Props> = ({
                 disabled={!canGoNext}
                 style={[styles.bottomBtn, !canGoNext && { opacity: 0.35 }]}
               >
-                <Ionicons name="chevron-forward" size={22} color={theme.colors.text} />
+                <Ionicons
+                  name="chevron-forward"
+                  size={22}
+                  color={theme.colors.text}
+                />
               </TouchableOpacity>
             ) : (
               <View style={[styles.bottomBtn, { opacity: 0 }]} />
@@ -759,26 +836,43 @@ export const ChapterReader: React.FC<Props> = ({
             </Text>
 
             <View style={styles.settingsRow}>
-              <Text style={[styles.settingsLabel, { color: theme.colors.textSecondary }]}>
+              <Text
+                style={[
+                  styles.settingsLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
                 Text size
               </Text>
               <View style={styles.settingsControls}>
                 <TouchableOpacity
                   style={styles.settingsIconBtn}
                   onPress={() => {
-                    const next = Math.max(10, settings.reader.theme.textSize - 1);
+                    const next = Math.max(
+                      10,
+                      settings.reader.theme.textSize - 1,
+                    );
                     void updateReaderSettings("theme", "textSize", next);
                   }}
                 >
-                  <Ionicons name="remove" size={20} color={theme.colors.primary} />
+                  <Ionicons
+                    name="remove"
+                    size={20}
+                    color={theme.colors.primary}
+                  />
                 </TouchableOpacity>
-                <Text style={[styles.settingsValue, { color: theme.colors.text }]}>
+                <Text
+                  style={[styles.settingsValue, { color: theme.colors.text }]}
+                >
                   {settings.reader.theme.textSize}
                 </Text>
                 <TouchableOpacity
                   style={styles.settingsIconBtn}
                   onPress={() => {
-                    const next = Math.min(40, settings.reader.theme.textSize + 1);
+                    const next = Math.min(
+                      40,
+                      settings.reader.theme.textSize + 1,
+                    );
                     void updateReaderSettings("theme", "textSize", next);
                   }}
                 >
@@ -788,26 +882,45 @@ export const ChapterReader: React.FC<Props> = ({
             </View>
 
             <View style={styles.settingsRow}>
-              <Text style={[styles.settingsLabel, { color: theme.colors.textSecondary }]}>
+              <Text
+                style={[
+                  styles.settingsLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
                 Line height
               </Text>
               <View style={styles.settingsControls}>
                 <TouchableOpacity
                   style={styles.settingsIconBtn}
                   onPress={() => {
-                    const next = Math.round(Math.max(1, settings.reader.theme.lineHeight - 0.1) * 10) / 10;
+                    const next =
+                      Math.round(
+                        Math.max(1, settings.reader.theme.lineHeight - 0.1) *
+                          10,
+                      ) / 10;
                     void updateReaderSettings("theme", "lineHeight", next);
                   }}
                 >
-                  <Ionicons name="remove" size={20} color={theme.colors.primary} />
+                  <Ionicons
+                    name="remove"
+                    size={20}
+                    color={theme.colors.primary}
+                  />
                 </TouchableOpacity>
-                <Text style={[styles.settingsValue, { color: theme.colors.text }]}>
+                <Text
+                  style={[styles.settingsValue, { color: theme.colors.text }]}
+                >
                   {settings.reader.theme.lineHeight.toFixed(1)}
                 </Text>
                 <TouchableOpacity
                   style={styles.settingsIconBtn}
                   onPress={() => {
-                    const next = Math.round(Math.min(3, settings.reader.theme.lineHeight + 0.1) * 10) / 10;
+                    const next =
+                      Math.round(
+                        Math.min(3, settings.reader.theme.lineHeight + 0.1) *
+                          10,
+                      ) / 10;
                     void updateReaderSettings("theme", "lineHeight", next);
                   }}
                 >
@@ -817,7 +930,12 @@ export const ChapterReader: React.FC<Props> = ({
             </View>
 
             <View style={styles.settingsRow}>
-              <Text style={[styles.settingsLabel, { color: theme.colors.textSecondary }]}>
+              <Text
+                style={[
+                  styles.settingsLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
                 Page padding
               </Text>
               <View style={styles.settingsControls}>
@@ -828,15 +946,24 @@ export const ChapterReader: React.FC<Props> = ({
                     void updateReaderSettings("theme", "padding", next);
                   }}
                 >
-                  <Ionicons name="remove" size={20} color={theme.colors.primary} />
+                  <Ionicons
+                    name="remove"
+                    size={20}
+                    color={theme.colors.primary}
+                  />
                 </TouchableOpacity>
-                <Text style={[styles.settingsValue, { color: theme.colors.text }]}>
+                <Text
+                  style={[styles.settingsValue, { color: theme.colors.text }]}
+                >
                   {settings.reader.theme.padding}px
                 </Text>
                 <TouchableOpacity
                   style={styles.settingsIconBtn}
                   onPress={() => {
-                    const next = Math.min(64, settings.reader.theme.padding + 2);
+                    const next = Math.min(
+                      64,
+                      settings.reader.theme.padding + 2,
+                    );
                     void updateReaderSettings("theme", "padding", next);
                   }}
                 >
@@ -847,7 +974,10 @@ export const ChapterReader: React.FC<Props> = ({
 
             <View style={styles.settingsFooter}>
               <TouchableOpacity
-                style={[styles.settingsCloseBtn, { backgroundColor: theme.colors.primary }]}
+                style={[
+                  styles.settingsCloseBtn,
+                  { backgroundColor: theme.colors.primary },
+                ]}
                 onPress={() => setSettingsVisible(false)}
               >
                 <Text style={styles.settingsCloseText}>Done</Text>
@@ -875,7 +1005,12 @@ const styles = StyleSheet.create({
   },
   centerText: { fontSize: 12 },
   errorText: { fontSize: 13, textAlign: "center" },
-  retryBtn: { marginTop: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
+  retryBtn: {
+    marginTop: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
   retryText: { color: "#FFF", fontWeight: "800" },
   topBar: {
     position: "absolute",
@@ -889,7 +1024,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   iconBtn: { padding: 10 },
-  chapterTitle: { flex: 1, fontSize: 14, fontWeight: "800", paddingHorizontal: 6 },
+  chapterTitle: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "800",
+    paddingHorizontal: 6,
+  },
   bottomBar: {
     position: "absolute",
     left: 0,

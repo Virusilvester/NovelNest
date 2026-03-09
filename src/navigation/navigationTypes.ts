@@ -1,3 +1,4 @@
+// src/navigation/navigationTypes.ts
 import type { DrawerNavigationProp } from "@react-navigation/drawer";
 import type { CompositeNavigationProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -10,4 +11,3 @@ export type MainDrawerNavigationProp = CompositeNavigationProp<
   DrawerNavigationProp<MainDrawerParamList>,
   RootStackNavigationProp
 >;
-

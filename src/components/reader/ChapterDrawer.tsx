@@ -1,3 +1,4 @@
+// src/components/reader/ChapterDrawer.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { FlashList, ListRenderItem } from "@shopify/flash-list";
 import React, { useMemo, useState } from "react";
@@ -67,16 +68,29 @@ export const ChapterDrawer: React.FC<Props> = ({
           {item.name || "(untitled)"}
         </Text>
         {isActive ? (
-          <Ionicons name="radio-button-on" size={18} color={theme.colors.primary} />
+          <Ionicons
+            name="radio-button-on"
+            size={18}
+            color={theme.colors.primary}
+          />
         ) : (
-          <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
+          <Ionicons
+            name="chevron-forward"
+            size={18}
+            color={theme.colors.textSecondary}
+          />
         )}
       </TouchableOpacity>
     );
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
       <TouchableOpacity
         style={styles.overlay}
         activeOpacity={1}
@@ -96,7 +110,10 @@ export const ChapterDrawer: React.FC<Props> = ({
           onPress={() => {}}
         >
           <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>
+            <Text
+              style={[styles.title, { color: theme.colors.text }]}
+              numberOfLines={1}
+            >
               {title}
             </Text>
             <TouchableOpacity onPress={onClose} style={styles.iconBtn}>
@@ -104,8 +121,14 @@ export const ChapterDrawer: React.FC<Props> = ({
             </TouchableOpacity>
           </View>
 
-          <View style={[styles.searchWrap, { borderColor: theme.colors.border }]}>
-            <Ionicons name="search" size={16} color={theme.colors.textSecondary} />
+          <View
+            style={[styles.searchWrap, { borderColor: theme.colors.border }]}
+          >
+            <Ionicons
+              name="search"
+              size={16}
+              color={theme.colors.textSecondary}
+            />
             <TextInput
               value={query}
               onChangeText={setQuery}
@@ -116,8 +139,15 @@ export const ChapterDrawer: React.FC<Props> = ({
               autoCapitalize="none"
             />
             {!!query && (
-              <TouchableOpacity onPress={() => setQuery("")} style={styles.iconBtnSmall}>
-                <Ionicons name="close-circle" size={18} color={theme.colors.textSecondary} />
+              <TouchableOpacity
+                onPress={() => setQuery("")}
+                style={styles.iconBtnSmall}
+              >
+                <Ionicons
+                  name="close-circle"
+                  size={18}
+                  color={theme.colors.textSecondary}
+                />
               </TouchableOpacity>
             )}
           </View>
