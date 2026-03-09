@@ -1,21 +1,21 @@
 // src/context/SettingsContext.tsx
 import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useState,
 } from "react";
 import { StorageService } from "../services/storage";
 import {
-  AppSettings,
-  DEFAULT_SETTINGS,
-  DisplayMode,
-  ExtensionRepoPlugin,
-  InstalledExtensionPlugin,
-  LibraryFilterOption,
-  LibrarySortOption,
-  StartScreen,
+    AppSettings,
+    DEFAULT_SETTINGS,
+    DisplayMode,
+    ExtensionRepoPlugin,
+    InstalledExtensionPlugin,
+    LibraryFilterOption,
+    LibrarySortOption,
+    StartScreen,
 } from "../types";
 
 interface ExtendedSettings extends AppSettings {
@@ -77,6 +77,13 @@ interface SettingsContextType {
     section: keyof AppSettings["reader"],
     key: string,
     value: any,
+  ) => Promise<void>;
+  updateReaderSettingsBatch: (
+    updates: {
+      section: keyof AppSettings["reader"];
+      key: string;
+      value: any;
+    }[],
   ) => Promise<void>;
 
   updateTrackingSettings: (
@@ -149,13 +156,16 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const updateGeneralSettings = useCallback(
     async (key: keyof AppSettings["general"], value: any) => {
-      const newSettings = {
-        ...settings,
-        general: { ...settings.general, [key]: value },
-      };
-      await saveSettings(newSettings);
+      setSettings((currentSettings) => {
+        const newSettings = {
+          ...currentSettings,
+          general: { ...currentSettings.general, [key]: value },
+        };
+        void StorageService.saveSettings(newSettings);
+        return newSettings;
+      });
     },
-    [settings],
+    [],
   );
 
   const setStartScreen = useCallback(
@@ -174,13 +184,16 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const updateDisplaySettings = useCallback(
     async (key: keyof AppSettings["display"], value: any) => {
-      const newSettings = {
-        ...settings,
-        display: { ...settings.display, [key]: value },
-      };
-      await saveSettings(newSettings);
+      setSettings((currentSettings) => {
+        const newSettings = {
+          ...currentSettings,
+          display: { ...currentSettings.display, [key]: value },
+        };
+        void StorageService.saveSettings(newSettings);
+        return newSettings;
+      });
     },
-    [settings],
+    [],
   );
 
   const setTheme = useCallback(
@@ -192,60 +205,105 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const updateAutoDownloadSettings = useCallback(
     async (key: keyof AppSettings["autoDownload"], value: any) => {
-      const newSettings = {
-        ...settings,
-        autoDownload: { ...settings.autoDownload, [key]: value },
-      };
-      await saveSettings(newSettings);
+      setSettings((currentSettings) => {
+        const newSettings = {
+          ...currentSettings,
+          autoDownload: { ...currentSettings.autoDownload, [key]: value },
+        };
+        void StorageService.saveSettings(newSettings);
+        return newSettings;
+      });
     },
-    [settings],
+    [],
   );
 
   const updateUpdatesSettings = useCallback(
     async (key: keyof AppSettings["updates"], value: any) => {
-      const newSettings = {
-        ...settings,
-        updates: { ...settings.updates, [key]: value },
-      };
-      await saveSettings(newSettings);
+      setSettings((currentSettings) => {
+        const newSettings = {
+          ...currentSettings,
+          updates: { ...currentSettings.updates, [key]: value },
+        };
+        void StorageService.saveSettings(newSettings);
+        return newSettings;
+      });
     },
-    [settings],
+    [],
   );
 
   const updateReaderSettings = useCallback(
     async (section: keyof AppSettings["reader"], key: string, value: any) => {
-      const newSettings = {
-        ...settings,
-        reader: {
-          ...settings.reader,
-          [section]: { ...(settings.reader as any)[section], [key]: value },
-        },
-      };
-      await saveSettings(newSettings);
+      setSettings((currentSettings) => {
+        const newSettings = {
+          ...currentSettings,
+          reader: {
+            ...currentSettings.reader,
+            [section]: { ...(currentSettings.reader as any)[section], [key]: value },
+          },
+        };
+        // Save asynchronously without blocking the state update
+        void StorageService.saveSettings(newSettings);
+        return newSettings;
+      });
     },
-    [settings],
+    [],
+  );
+
+  const updateReaderSettingsBatch = useCallback(
+    async (updates: {
+      section: keyof AppSettings["reader"];
+      key: string;
+      value: any;
+    }[]) => {
+      setSettings((currentSettings) => {
+        let newReaderSettings = { ...currentSettings.reader };
+        
+        for (const update of updates) {
+          newReaderSettings = {
+            ...newReaderSettings,
+            [update.section]: { ...(newReaderSettings as any)[update.section], [update.key]: update.value },
+          };
+        }
+        
+        const newSettings = {
+          ...currentSettings,
+          reader: newReaderSettings,
+        };
+        
+        // Save asynchronously without blocking the state update
+        void StorageService.saveSettings(newSettings);
+        return newSettings;
+      });
+    },
+    [],
   );
 
   const updateTrackingSettings = useCallback(
     async (key: keyof AppSettings["tracking"], value: any) => {
-      const newSettings = {
-        ...settings,
-        tracking: { ...settings.tracking, [key]: value },
-      };
-      await saveSettings(newSettings);
+      setSettings((currentSettings) => {
+        const newSettings = {
+          ...currentSettings,
+          tracking: { ...currentSettings.tracking, [key]: value },
+        };
+        void StorageService.saveSettings(newSettings);
+        return newSettings;
+      });
     },
-    [settings],
+    [],
   );
 
   const updateAdvancedSettings = useCallback(
     async (key: keyof AppSettings["advanced"], value: any) => {
-      const newSettings = {
-        ...settings,
-        advanced: { ...settings.advanced, [key]: value },
-      };
-      await saveSettings(newSettings);
+      setSettings((currentSettings) => {
+        const newSettings = {
+          ...currentSettings,
+          advanced: { ...currentSettings.advanced, [key]: value },
+        };
+        void StorageService.saveSettings(newSettings);
+        return newSettings;
+      });
     },
-    [settings],
+    [],
   );
 
   const setUserAgent = useCallback(
@@ -437,6 +495,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
         updateAutoDownloadSettings,
         updateUpdatesSettings,
         updateReaderSettings,
+        updateReaderSettingsBatch,
         updateTrackingSettings,
         updateAdvancedSettings,
         setUserAgent,

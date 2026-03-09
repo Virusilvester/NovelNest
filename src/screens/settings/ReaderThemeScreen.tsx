@@ -16,14 +16,14 @@ import { useTheme } from "../../context/ThemeContext";
 export const ReaderThemeScreen: React.FC = () => {
   const navigation = useNavigation();
   const { theme } = useTheme();
-  const { settings, updateReaderSettings } = useSettings();
+  const { settings, updateReaderSettings, updateReaderSettingsBatch } = useSettings();
 
   const presets = ["Default", "Dark", "Sepia", "Green"];
 
   const applyPreset = useCallback(
     async (preset: string) => {
-      let backgroundColor = settings.reader.theme.backgroundColor;
-      let textColor = settings.reader.theme.textColor;
+      let backgroundColor = "#FFFFFF";
+      let textColor = "#000000";
 
       switch (preset.toLowerCase()) {
         case "dark":
@@ -44,15 +44,14 @@ export const ReaderThemeScreen: React.FC = () => {
           break;
       }
 
-      await updateReaderSettings("theme", "preset", preset);
-      await updateReaderSettings("theme", "backgroundColor", backgroundColor);
-      await updateReaderSettings("theme", "textColor", textColor);
+      // Apply all preset settings atomically using batch update
+      await updateReaderSettingsBatch([
+        { section: "theme", key: "preset", value: preset },
+        { section: "theme", key: "backgroundColor", value: backgroundColor },
+        { section: "theme", key: "textColor", value: textColor },
+      ]);
     },
-    [
-      settings.reader.theme.backgroundColor,
-      settings.reader.theme.textColor,
-      updateReaderSettings,
-    ],
+    [updateReaderSettingsBatch],
   );
 
   return (

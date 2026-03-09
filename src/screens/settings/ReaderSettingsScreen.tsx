@@ -226,7 +226,7 @@ const Card: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 export const ReaderSettingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { theme } = useTheme();
-  const { settings, updateReaderSettings } = useSettings();
+  const { settings, updateReaderSettings, updateReaderSettingsBatch } = useSettings();
 
   const g = settings.reader.general;
   const d = settings.reader.display;
@@ -413,9 +413,12 @@ export const ReaderSettingsScreen: React.FC = () => {
                   p.bg === t.backgroundColor && styles.presetChipActive,
                 ]}
                 onPress={async () => {
-                  await updateReaderSettings("theme", "backgroundColor", p.bg);
-                  await updateReaderSettings("theme", "textColor", p.fg);
-                  await updateReaderSettings("theme", "preset", p.key);
+                  // Apply all preset settings atomically using batch update
+                  await updateReaderSettingsBatch([
+                    { section: "theme", key: "backgroundColor", value: p.bg },
+                    { section: "theme", key: "textColor", value: p.fg },
+                    { section: "theme", key: "preset", value: p.key },
+                  ]);
                 }}
               >
                 <Text style={[styles.presetChipLabel, { color: p.fg }]}>{p.key}</Text>
