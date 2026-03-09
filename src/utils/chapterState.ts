@@ -1,3 +1,4 @@
+// src/utils/chapterState.ts
 export type ChapterListOrder = "asc" | "desc";
 
 type ChapterLike = { path: string; chapterNumber?: number | null };
@@ -12,7 +13,9 @@ const hasOwn = (obj: Record<string, any> | undefined, key: string) => {
   return Object.prototype.hasOwnProperty.call(obj, key);
 };
 
-export const detectChapterListOrder = (chapters: ChapterLike[]): ChapterListOrder => {
+export const detectChapterListOrder = (
+  chapters: ChapterLike[],
+): ChapterListOrder => {
   const first = chapters[0]?.chapterNumber;
   const last = chapters[chapters.length - 1]?.chapterNumber;
   if (typeof first === "number" && typeof last === "number" && first !== last) {

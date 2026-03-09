@@ -1,3 +1,4 @@
+// src/screens/library/PluginReaderScreen.tsx
 import type { RouteProp } from "@react-navigation/native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
@@ -24,7 +25,8 @@ export const PluginReaderScreen: React.FC = () => {
   const { novels, updateNovel } = useLibrary();
   const { historyEntries, upsertHistoryEntry } = useHistory();
 
-  const { pluginId, novelId, novelPath, chapterPath, chapterTitle } = route.params;
+  const { pluginId, novelId, novelPath, chapterPath, chapterTitle } =
+    route.params;
 
   const installed = settings.extensions.installedPlugins || {};
   const plugin = installed[pluginId];
@@ -36,9 +38,12 @@ export const PluginReaderScreen: React.FC = () => {
 
   // FIX: always-current ref so callbacks never capture stale novel state
   const libraryNovelRef = useRef(libraryNovel);
-  useEffect(() => { libraryNovelRef.current = libraryNovel; }, [libraryNovel]);
+  useEffect(() => {
+    libraryNovelRef.current = libraryNovel;
+  }, [libraryNovel]);
 
-  const effectiveNovelPath = novelPath ?? libraryNovel?.pluginNovelPath ?? undefined;
+  const effectiveNovelPath =
+    novelPath ?? libraryNovel?.pluginNovelPath ?? undefined;
 
   const cacheKey = useMemo(() => {
     if (!effectiveNovelPath) return null;
@@ -53,9 +58,13 @@ export const PluginReaderScreen: React.FC = () => {
   const chapters: ReaderChapterItem[] = useMemo(() => {
     const fromDb = libraryNovel?.pluginCache?.chapters;
     const fromMem = cached?.chapters;
-    const raw = Array.isArray(fromDb) && fromDb.length ? fromDb : (fromMem ?? []);
+    const raw =
+      Array.isArray(fromDb) && fromDb.length ? fromDb : (fromMem ?? []);
     return raw
-      .map((c: any) => ({ name: String(c?.name || ""), path: String(c?.path || "") }))
+      .map((c: any) => ({
+        name: String(c?.name || ""),
+        path: String(c?.path || ""),
+      }))
       .filter((c) => c.path);
   }, [cached?.chapters, libraryNovel?.pluginCache?.chapters]);
 
@@ -88,7 +97,9 @@ export const PluginReaderScreen: React.FC = () => {
   );
 
   const historyEntriesRef = useRef(historyEntries);
-  useEffect(() => { historyEntriesRef.current = historyEntries; }, [historyEntries]);
+  useEffect(() => {
+    historyEntriesRef.current = historyEntries;
+  }, [historyEntries]);
 
   // FIX: uses novelRef to avoid stale closure, writes chapterReadOverrides for chapter list sync
   const handleChapterRead = useCallback(
@@ -96,9 +107,10 @@ export const PluginReaderScreen: React.FC = () => {
       const n = libraryNovelRef.current;
       if (!n) return;
 
-      const total = n.totalChapters > 0
-        ? n.totalChapters
-        : Math.max(index + 1, chapters.length);
+      const total =
+        n.totalChapters > 0
+          ? n.totalChapters
+          : Math.max(index + 1, chapters.length);
       const nextLastRead = Math.max(n.lastReadChapter || 0, index + 1);
       const nextUnread = Math.max(0, total - nextLastRead);
 
@@ -137,11 +149,14 @@ export const PluginReaderScreen: React.FC = () => {
         timeSpentReading: existing?.timeSpentReading || 0,
       });
     },
-     
+
     [chapters.length, updateNovel, upsertHistoryEntry],
   );
 
-  const lastChapterRef = useRef<{ chapter: ReaderChapterItem; index: number } | null>(null);
+  const lastChapterRef = useRef<{
+    chapter: ReaderChapterItem;
+    index: number;
+  } | null>(null);
   const sessionStartRef = useRef<number>(Date.now());
 
   // FIX: uses novelRef to avoid stale state
@@ -177,7 +192,7 @@ export const PluginReaderScreen: React.FC = () => {
         timeSpentReading: existing?.timeSpentReading || 0,
       });
     },
-     
+
     [chapters.length, novelId, updateNovel, upsertHistoryEntry],
   );
 
@@ -216,7 +231,6 @@ export const PluginReaderScreen: React.FC = () => {
         timeSpentReading: (existing?.timeSpentReading || 0) + minutes,
       });
     };
-     
   }, [chapters.length, novelId, upsertHistoryEntry]);
 
   const extraMenuItems = useMemo(() => {

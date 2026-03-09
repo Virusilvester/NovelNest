@@ -1,3 +1,4 @@
+// src/screens/main/ExtensionsScreen.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { FlashList } from "@shopify/flash-list";
@@ -12,7 +13,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { Header } from "../../components/common/Header";
 import { ImprovedSwitch } from "../../components/common/ImprovedSwitch";
@@ -106,8 +107,10 @@ export const ExtensionsScreen: React.FC = () => {
   const refreshAll = async () => {
     if (repositories.length === 0) return;
     setIsRefreshing(true);
-    const statusUpdates: Record<string, { fetchedAt?: string; error?: string }> =
-      {};
+    const statusUpdates: Record<
+      string,
+      { fetchedAt?: string; error?: string }
+    > = {};
 
     await Promise.all(
       repositories.map(async (repoUrl) => {
@@ -148,17 +151,21 @@ export const ExtensionsScreen: React.FC = () => {
       : plugins;
 
     // Group installed extensions on top, then sort within each group
-    const installedExtensions = filtered.filter(p => Boolean(installed[p.id]));
-    const availableExtensions = filtered.filter(p => !Boolean(installed[p.id]));
-    
+    const installedExtensions = filtered.filter((p) =>
+      Boolean(installed[p.id]),
+    );
+    const availableExtensions = filtered.filter(
+      (p) => !Boolean(installed[p.id]),
+    );
+
     const sortFn = (a: any, b: any) => {
       if (sortOption === "az") return a.name.localeCompare(b.name);
       return b.name.localeCompare(a.name);
     };
-    
+
     return [
       ...installedExtensions.sort(sortFn),
-      ...availableExtensions.sort(sortFn)
+      ...availableExtensions.sort(sortFn),
     ];
   }, [installed, plugins, searchQuery, sortOption]);
 
@@ -232,12 +239,19 @@ export const ExtensionsScreen: React.FC = () => {
         ]}
       >
         <View
-          style={[styles.iconContainer, { backgroundColor: theme.colors.border }]}
+          style={[
+            styles.iconContainer,
+            { backgroundColor: theme.colors.border },
+          ]}
         >
           {item.iconUrl ? (
             <Image source={{ uri: item.iconUrl }} style={styles.icon} />
           ) : (
-            <Ionicons name="cube" size={22} color={theme.colors.textSecondary} />
+            <Ionicons
+              name="cube"
+              size={22}
+              color={theme.colors.textSecondary}
+            />
           )}
         </View>
 
@@ -246,12 +260,18 @@ export const ExtensionsScreen: React.FC = () => {
             {item.name}
           </Text>
           <Text
-            style={[styles.extensionMeta, { color: theme.colors.textSecondary }]}
+            style={[
+              styles.extensionMeta,
+              { color: theme.colors.textSecondary },
+            ]}
           >
             v{item.version} • {item.lang.toUpperCase()} • {safeHost(item.site)}
           </Text>
           <Text
-            style={[styles.extensionSubMeta, { color: theme.colors.textSecondary }]}
+            style={[
+              styles.extensionSubMeta,
+              { color: theme.colors.textSecondary },
+            ]}
             numberOfLines={1}
           >
             {item.repoUrl}
@@ -297,7 +317,9 @@ export const ExtensionsScreen: React.FC = () => {
   ];
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
       <Header
         title="Extensions"
         onMenuPress={() => navigation.openDrawer()}
@@ -343,12 +365,20 @@ export const ExtensionsScreen: React.FC = () => {
           <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
             No repositories
           </Text>
-          <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
+          <Text
+            style={[
+              styles.emptySubtitle,
+              { color: theme.colors.textSecondary },
+            ]}
+          >
             Add an extension repository to browse and install plugins.
           </Text>
           <TouchableOpacity
             onPress={() => setIsRepoModalVisible(true)}
-            style={[styles.emptyButton, { backgroundColor: theme.colors.primary }]}
+            style={[
+              styles.emptyButton,
+              { backgroundColor: theme.colors.primary },
+            ]}
           >
             <Text style={styles.emptyButtonText}>Add repository</Text>
           </TouchableOpacity>
@@ -363,9 +393,11 @@ export const ExtensionsScreen: React.FC = () => {
           onRefresh={refreshAll}
           ListHeaderComponent={
             <View style={styles.repoSummary}>
-              <Text style={[styles.repoSummaryText, { color: theme.colors.text }]}>
-                {Object.keys(installed).length} installed • {repositories.length} repos •{" "}
-                {plugins.length} plugins
+              <Text
+                style={[styles.repoSummaryText, { color: theme.colors.text }]}
+              >
+                {Object.keys(installed).length} installed •{" "}
+                {repositories.length} repos • {plugins.length} plugins
               </Text>
               {repositories.map((r) => {
                 const s = repoFetchStatus[r];
@@ -406,7 +438,12 @@ export const ExtensionsScreen: React.FC = () => {
         onRequestClose={() => setIsRepoModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: theme.colors.surface }]}>
+          <View
+            style={[
+              styles.modalCard,
+              { backgroundColor: theme.colors.surface },
+            ]}
+          >
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
                 Repositories
@@ -426,12 +463,18 @@ export const ExtensionsScreen: React.FC = () => {
                 autoCorrect={false}
                 style={[
                   styles.repoInput,
-                  { color: theme.colors.text, borderColor: theme.colors.border },
+                  {
+                    color: theme.colors.text,
+                    borderColor: theme.colors.border,
+                  },
                 ]}
               />
               <TouchableOpacity
                 onPress={handleAddRepo}
-                style={[styles.addRepoButton, { backgroundColor: theme.colors.primary }]}
+                style={[
+                  styles.addRepoButton,
+                  { backgroundColor: theme.colors.primary },
+                ]}
               >
                 <Ionicons name="add" size={22} color="#FFF" />
               </TouchableOpacity>
@@ -441,17 +484,30 @@ export const ExtensionsScreen: React.FC = () => {
               data={repositories}
               keyExtractor={(item) => item}
               renderItem={({ item }) => (
-                <View style={[styles.repoRow, { borderBottomColor: theme.colors.divider }]}>
+                <View
+                  style={[
+                    styles.repoRow,
+                    { borderBottomColor: theme.colors.divider },
+                  ]}
+                >
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: theme.colors.text }} numberOfLines={2}>
+                    <Text
+                      style={{ color: theme.colors.text }}
+                      numberOfLines={2}
+                    >
                       {item}
                     </Text>
                     {repoFetchStatus[item]?.fetchedAt && (
                       <Text
-                        style={[styles.repoFetchedAt, { color: theme.colors.textSecondary }]}
+                        style={[
+                          styles.repoFetchedAt,
+                          { color: theme.colors.textSecondary },
+                        ]}
                       >
                         Cached:{" "}
-                        {new Date(repoFetchStatus[item].fetchedAt!).toLocaleString()}
+                        {new Date(
+                          repoFetchStatus[item].fetchedAt!,
+                        ).toLocaleString()}
                       </Text>
                     )}
                   </View>
@@ -477,7 +533,10 @@ export const ExtensionsScreen: React.FC = () => {
                 setIsRepoModalVisible(false);
                 refreshAll();
               }}
-              style={[styles.modalFooterButton, { backgroundColor: theme.colors.primary }]}
+              style={[
+                styles.modalFooterButton,
+                { backgroundColor: theme.colors.primary },
+              ]}
             >
               <Text style={styles.modalFooterButtonText}>Refresh</Text>
             </TouchableOpacity>
@@ -521,7 +580,11 @@ const styles = StyleSheet.create({
   extensionName: { fontSize: 16, fontWeight: "bold" },
   extensionMeta: { fontSize: 12, marginTop: 4 },
   extensionSubMeta: { fontSize: 11, marginTop: 4 },
-  actionsContainer: { alignItems: "flex-end", justifyContent: "center", gap: 8 },
+  actionsContainer: {
+    alignItems: "flex-end",
+    justifyContent: "center",
+    gap: 8,
+  },
   actionButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,

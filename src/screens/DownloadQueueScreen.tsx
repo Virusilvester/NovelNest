@@ -3,13 +3,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import React, { useMemo } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    SectionList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  SectionList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { Header } from "../components/common/Header";
 import { useDownloadQueue, type DownloadTask } from "../context/DownloadQueueContext";
@@ -21,39 +21,19 @@ type DownloadSection = {
   data: DownloadTask[];
 };
 
-const statusLabel = (task: DownloadTask) => {
-  switch (task.status) {
-    case "pending":
-      return "pending";
-    case "downloading":
-      return "downloading";
-    case "completed":
-      return "completed";
-    case "canceled":
-      return "canceled";
-    case "error":
-      return "error";
-    default:
-      return String(task.status);
-  }
+const STATUS_CONFIG: Record<
+  DownloadTask["status"],
+  { label: string; icon: keyof typeof Ionicons.glyphMap; color: (theme: any) => string }
+> = {
+  pending:     { label: "Pending",     icon: "time-outline",             color: (t) => t.colors.textSecondary },
+  downloading: { label: "Downloading", icon: "cloud-download-outline",   color: (t) => t.colors.primary },
+  completed:   { label: "Complete",    icon: "checkmark-circle-outline", color: (t) => t.colors.success },
+  canceled:    { label: "Canceled",    icon: "close-circle-outline",     color: (t) => t.colors.textSecondary },
+  error:       { label: "Error",       icon: "alert-circle-outline",     color: (t) => t.colors.error },
 };
 
-const statusSort = (status: DownloadTask["status"]) => {
-  switch (status) {
-    case "downloading":
-      return 0;
-    case "pending":
-      return 1;
-    case "error":
-      return 2;
-    case "completed":
-      return 3;
-    case "canceled":
-      return 4;
-    default:
-      return 10;
-  }
-};
+const statusSort = (s: DownloadTask["status"]) =>
+  ({ downloading: 0, pending: 1, error: 2, completed: 3, canceled: 4 }[s] ?? 10);
 
 export const DownloadQueueScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -66,168 +46,182 @@ export const DownloadQueueScreen: React.FC = () => {
     for (const task of tasks) {
       const pluginId = task.pluginId || "unknown";
       const title = task.pluginName || pluginId;
-      const section = grouped.get(pluginId) || { pluginId, title, data: [] };
+      const section = grouped.get(pluginId) ?? { pluginId, title, data: [] };
       section.data.push(task);
       grouped.set(pluginId, section);
     }
-
     return Array.from(grouped.values())
       .map((s) => ({
         ...s,
-        data: s.data
-          .slice()
-          .sort(
-            (a, b) =>
-              statusSort(a.status) - statusSort(b.status) ||
-              a.createdAt - b.createdAt,
-          ),
+        data: s.data.slice().sort(
+          (a, b) => statusSort(a.status) - statusSort(b.status) || a.createdAt - b.createdAt,
+        ),
       }))
       .sort((a, b) => a.title.localeCompare(b.title));
   }, [tasks]);
 
+  // Aggregate counts for header pill
+  const counts = useMemo(() => {
+    const c = { downloading: 0, pending: 0, error: 0, completed: 0, canceled: 0 };
+    tasks.forEach((t) => { if (t.status in c) (c as any)[t.status]++; });
+    return c;
+  }, [tasks]);
+
   const renderItem = ({ item }: { item: DownloadTask }) => {
-    const showCancel =
-      item.status === "pending" || item.status === "downloading" || item.status === "error";
-    const showCompleted = item.status === "completed";
+    const cfg = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.pending;
+    const statusColor = cfg.color(theme);
+    const isActive = item.status === "pending" || item.status === "downloading";
+    const isError = item.status === "error";
+    const isDone = item.status === "completed";
 
     return (
-      <View style={[styles.item, { backgroundColor: theme.colors.surface }]}>
-        <View style={styles.itemHeader}>
-          <View style={styles.itemInfo}>
+      <View style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+        {/* Top row: title + action */}
+        <View style={styles.cardTop}>
+          <View style={[styles.statusDot, { backgroundColor: statusColor + "30" }]}>
+            {item.status === "downloading" ? (
+              <ActivityIndicator size="small" color={statusColor} />
+            ) : (
+              <Ionicons name={cfg.icon} size={16} color={statusColor} />
+            )}
+          </View>
+
+          <View style={styles.cardInfo}>
             <Text style={[styles.novelTitle, { color: theme.colors.text }]} numberOfLines={1}>
               {item.novelTitle}
             </Text>
-            <Text
-              style={[styles.chapterTitle, { color: theme.colors.textSecondary }]}
-              numberOfLines={1}
-            >
+            <Text style={[styles.chapterTitle, { color: theme.colors.textSecondary }]} numberOfLines={1}>
               {item.chapterTitle}
             </Text>
           </View>
 
-          {item.status === "error" ? (
+          {isError && (
             <TouchableOpacity
               onPress={() => retryTask(item.id)}
-              style={styles.actionBtn}
+              style={[styles.actionBtn, { backgroundColor: theme.colors.primary + "18" }]}
               hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
             >
-              <Ionicons name="refresh" size={18} color={theme.colors.primary} />
+              <Ionicons name="refresh-outline" size={16} color={theme.colors.primary} />
             </TouchableOpacity>
-          ) : showCancel ? (
+          )}
+          {isActive && (
             <TouchableOpacity
-              key={`cancel-${item.id}`}
-              onPress={() => {
-                Alert.alert(
-                  "Cancel download",
-                  "Cancel this chapter or cancel all downloads for this novel?",
-                  [
-                    { text: "Keep", style: "cancel" },
-                    { text: "Cancel chapter", style: "destructive", onPress: () => cancelTask(item.id) },
-                    { text: "Cancel novel", style: "destructive", onPress: () => cancelNovelTasks(item.novelId) },
-                  ],
-                );
-              }}
-              style={styles.actionBtn}
+              onPress={() => Alert.alert(
+                "Cancel download",
+                "Cancel this chapter or all downloads for this novel?",
+                [
+                  { text: "Keep", style: "cancel" },
+                  { text: "Cancel chapter", style: "destructive", onPress: () => cancelTask(item.id) },
+                  { text: "Cancel novel", style: "destructive", onPress: () => cancelNovelTasks(item.novelId) },
+                ],
+              )}
+              style={[styles.actionBtn, { backgroundColor: theme.colors.border }]}
               hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
             >
-              <Ionicons name="close" size={18} color={theme.colors.textSecondary} />
+              <Ionicons name="close" size={16} color={theme.colors.textSecondary} />
             </TouchableOpacity>
-          ) : showCompleted ? (
+          )}
+          {isDone && (
             <TouchableOpacity
-              key={`remove-${item.id}`}
-              onPress={() => {
-                Alert.alert(
-                  "Download Complete",
-                  "This chapter has been downloaded successfully. What would you like to do?",
-                  [
-                    { text: "Keep", style: "cancel" },
-                    { text: "Remove from queue", style: "destructive", onPress: () => cancelTask(item.id) },
-                  ],
-                );
-              }}
-              style={styles.actionBtn}
+              onPress={() => cancelTask(item.id)}
+              style={[styles.actionBtn, { backgroundColor: theme.colors.success + "18" }]}
               hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
             >
-              <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary} />
+              <Ionicons name="checkmark" size={16} color={theme.colors.success} />
             </TouchableOpacity>
-          ) : null}
+          )}
         </View>
 
-        <View style={styles.progressContainer}>
-          <View style={[styles.progressBar, { backgroundColor: theme.colors.border }]}>
+        {/* Progress bar */}
+        <View style={styles.progressRow}>
+          <View style={[styles.progressTrack, { backgroundColor: theme.colors.border }]}>
             <View
               style={[
                 styles.progressFill,
                 {
-                  backgroundColor:
-                    item.status === "error" ? theme.colors.error : theme.colors.primary,
+                  backgroundColor: isError ? theme.colors.error : isDone ? theme.colors.success : theme.colors.primary,
                   width: `${Math.max(0, Math.min(100, item.progress))}%`,
                 },
               ]}
             />
           </View>
-          <View style={styles.statusRight}>
-            {item.status === "downloading" ? (
-              <ActivityIndicator size="small" color={theme.colors.primary} />
-            ) : null}
-            <Text style={[styles.statusText, { color: theme.colors.textSecondary }]}>
-              {item.status === "downloading"
-                ? statusLabel(item)
-                : item.status === "error" && item.errorMessage
-                  ? "error"
-                  : statusLabel(item)}
-            </Text>
-          </View>
+          <Text style={[styles.progressPct, { color: theme.colors.textSecondary }]}>
+            {Math.round(item.progress)}%
+          </Text>
         </View>
 
-        {item.status === "error" && item.errorMessage ? (
-          <Text style={[styles.errorText, { color: theme.colors.error }]} numberOfLines={2}>
-            {item.errorMessage}
-          </Text>
+        {/* Error message */}
+        {isError && item.errorMessage ? (
+          <View style={[styles.errorBanner, { backgroundColor: theme.colors.error + "12" }]}>
+            <Ionicons name="alert-circle-outline" size={13} color={theme.colors.error} />
+            <Text style={[styles.errorText, { color: theme.colors.error }]} numberOfLines={2}>
+              {" "}{item.errorMessage}
+            </Text>
+          </View>
         ) : null}
       </View>
     );
   };
 
   return (
-    <View key="download-queue-screen" style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <Header
-        title={paused ? "Download Queue (Paused)" : "Download Queue"}
+        title={paused ? "Queue (Paused)" : "Download Queue"}
         onBackPress={() => navigation.goBack()}
         rightButtons={[
-          <TouchableOpacity
-            key="toggle-paused"
-            onPress={togglePaused}
-            style={styles.iconButton}
-          >
+          <TouchableOpacity key="toggle" onPress={togglePaused} style={styles.iconBtn}>
             <Ionicons
-              name={paused ? "play" : "pause"}
-              size={20}
-              color={theme.colors.text}
+              name={paused ? "play-circle-outline" : "pause-circle-outline"}
+              size={24}
+              color={paused ? theme.colors.primary : theme.colors.text}
             />
           </TouchableOpacity>,
-          <TouchableOpacity 
-            key="clear-completed"
-            onPress={() => {
-              Alert.alert(
-                "Clear Completed",
-                "Remove all completed downloads from the queue?",
-                [
-                  { text: "Cancel", style: "cancel" },
-                  {
-                    text: "Clear All",
-                    style: "destructive",
-                    onPress: () => clearFinished(),
-                  },
-                ],
-              );
-            }} 
-            style={styles.iconButton}
+          <TouchableOpacity
+            key="clear"
+            onPress={() => Alert.alert(
+              "Clear completed",
+              "Remove all completed downloads from the queue?",
+              [
+                { text: "Cancel", style: "cancel" },
+                { text: "Clear", style: "destructive", onPress: () => clearFinished() },
+              ],
+            )}
+            style={styles.iconBtn}
           >
-            <Ionicons name="trash" size={20} color={theme.colors.text} />
+            <Ionicons name="trash-outline" size={20} color={theme.colors.text} />
           </TouchableOpacity>,
         ]}
       />
+
+      {/* Status summary strip */}
+      {tasks.length > 0 && (
+        <View style={[styles.summaryStrip, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
+          {counts.downloading > 0 && (
+            <View style={styles.stripItem}>
+              <Ionicons name="cloud-download-outline" size={13} color={theme.colors.primary} />
+              <Text style={[styles.stripText, { color: theme.colors.primary }]}>{" "}{counts.downloading} active</Text>
+            </View>
+          )}
+          {counts.pending > 0 && (
+            <View style={styles.stripItem}>
+              <Ionicons name="time-outline" size={13} color={theme.colors.textSecondary} />
+              <Text style={[styles.stripText, { color: theme.colors.textSecondary }]}>{" "}{counts.pending} queued</Text>
+            </View>
+          )}
+          {counts.error > 0 && (
+            <View style={styles.stripItem}>
+              <Ionicons name="alert-circle-outline" size={13} color={theme.colors.error} />
+              <Text style={[styles.stripText, { color: theme.colors.error }]}>{" "}{counts.error} failed</Text>
+            </View>
+          )}
+          {counts.completed > 0 && (
+            <View style={styles.stripItem}>
+              <Ionicons name="checkmark-circle-outline" size={13} color={theme.colors.success} />
+              <Text style={[styles.stripText, { color: theme.colors.success }]}>{" "}{counts.completed} done</Text>
+            </View>
+          )}
+        </View>
+      )}
 
       <SectionList<DownloadTask, DownloadSection>
         sections={sections}
@@ -235,20 +229,25 @@ export const DownloadQueueScreen: React.FC = () => {
         renderItem={renderItem}
         renderSectionHeader={({ section }) => (
           <View style={[styles.sectionHeader, { backgroundColor: theme.colors.background }]}>
+            <Ionicons name="cube-outline" size={13} color={theme.colors.textSecondary} />
             <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
-              {section.title}
+              {"  "}{section.title}
             </Text>
           </View>
         )}
         contentContainerStyle={styles.listContent}
+        stickySectionHeadersEnabled={false}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-              No downloads yet.
+          <View style={styles.emptyContainer}>
+            <View style={[styles.emptyIconWrap, { backgroundColor: theme.colors.surface }]}>
+              <Ionicons name="cloud-done-outline" size={48} color={theme.colors.textSecondary} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>No downloads</Text>
+            <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
+              Downloaded chapters will appear here
             </Text>
           </View>
         }
-        stickySectionHeadersEnabled={false}
       />
     </View>
   );
@@ -256,58 +255,73 @@ export const DownloadQueueScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  iconBtn: { padding: 8 },
   listContent: { padding: 16, paddingBottom: 28 },
-  iconButton: {
-    padding: 8,
-    justifyContent: "center",
+
+  summaryStrip: {
+    flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
+    gap: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  stripItem: { flexDirection: "row", alignItems: "center" },
+  stripText: { fontSize: 12, fontWeight: "600" },
+
   sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingTop: 10,
     paddingBottom: 6,
   },
   sectionTitle: {
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 0.5,
+    fontSize: 11,
+    fontWeight: "700",
     textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
-  item: {
+
+  card: {
     padding: 14,
     marginBottom: 10,
-    borderRadius: 10,
+    borderRadius: 14,
     elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.16,
-    shadowRadius: 1,
-  },
-  itemHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
     gap: 10,
   },
-  itemInfo: { flex: 1 },
-  novelTitle: { fontSize: 15, fontWeight: "800" },
-  chapterTitle: { fontSize: 13, marginTop: 2 },
-  actionBtn: { padding: 6, borderRadius: 10 },
-  progressContainer: {
-    flexDirection: "row",
+  cardTop: { flexDirection: "row", alignItems: "center", gap: 10 },
+  statusDot: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: "center",
     alignItems: "center",
-    marginTop: 10,
-    gap: 10,
   },
-  progressBar: {
-    flex: 1,
-    height: 4,
-    borderRadius: 999,
-    overflow: "hidden",
+  cardInfo: { flex: 1 },
+  novelTitle: { fontSize: 14, fontWeight: "700", marginBottom: 2 },
+  chapterTitle: { fontSize: 12 },
+  actionBtn: { width: 34, height: 34, borderRadius: 9, justifyContent: "center", alignItems: "center" },
+
+  progressRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  progressTrack: { flex: 1, height: 4, borderRadius: 999, overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: 999 },
+  progressPct: { fontSize: 11, fontWeight: "600", minWidth: 34, textAlign: "right" },
+
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: 8,
+    borderRadius: 8,
   },
-  progressFill: { height: "100%" },
-  statusRight: { flexDirection: "row", alignItems: "center", gap: 8 },
-  statusText: { fontSize: 12, minWidth: 70, textAlign: "right" },
-  errorText: { fontSize: 12, marginTop: 8 },
-  empty: { paddingTop: 28, alignItems: "center" },
-  emptyText: { fontSize: 13 },
+  errorText: { fontSize: 12, flex: 1, lineHeight: 16 },
+
+  emptyContainer: { paddingTop: 60, alignItems: "center", gap: 12 },
+  emptyIconWrap: { width: 96, height: 96, borderRadius: 24, justifyContent: "center", alignItems: "center", marginBottom: 8 },
+  emptyTitle: { fontSize: 18, fontWeight: "800" },
+  emptySubtitle: { fontSize: 14, textAlign: "center", opacity: 0.7 },
 });

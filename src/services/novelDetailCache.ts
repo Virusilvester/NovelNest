@@ -1,3 +1,4 @@
+// src/services/novelDetailCache.ts
 import type { CachedPluginNovelDetail } from "../types";
 
 export const normalizePluginDetailForCache = (
@@ -9,7 +10,8 @@ export const normalizePluginDetailForCache = (
     ? detail.genres.map((g: any) => String(g)).filter(Boolean)
     : undefined;
   const totalChapters =
-    typeof detail.totalChapters === "number" && Number.isFinite(detail.totalChapters)
+    typeof detail.totalChapters === "number" &&
+    Number.isFinite(detail.totalChapters)
       ? detail.totalChapters
       : undefined;
 

@@ -1,3 +1,4 @@
+// src/services/pluginRuntime.ts
 import { load as cheerioLoad } from "cheerio-without-node-native";
 import dayjs from "dayjs";
 import * as FileSystem from "expo-file-system/legacy";
@@ -84,7 +85,8 @@ const createRequireShim = (opts: { userAgent?: string }): RequireShim => {
     if (moduleName === "cheerio") return { load: cheerioLoad };
     if (moduleName === "dayjs") return dayjs;
     if (moduleName === "htmlparser2") return { Parser };
-    if (moduleName === "@/types/constants") return { defaultCover, FilterTypes };
+    if (moduleName === "@/types/constants")
+      return { defaultCover, FilterTypes };
     if (moduleName === "@/types/filterTypes") return { FilterTypes };
     if ((libs as any)[moduleName]) return (libs as any)[moduleName];
     throw new Error(`Unsupported plugin dependency: ${moduleName}`);
@@ -189,7 +191,11 @@ const createNovelNestApiPlugin = (
         bookId,
       )}/chapters?page=${encodeURIComponent(String(page))}`;
       const res = await apiFetchJson(url);
-      const items = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+      const items = Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res)
+          ? res
+          : [];
       all.push(...items);
       hasMore = Boolean(res?.hasMore);
       page += 1;
@@ -205,7 +211,11 @@ const createNovelNestApiPlugin = (
       bookId,
     )}/chapters?page=${encodeURIComponent(String(pageNo))}`;
     const res = await apiFetchJson(url);
-    const items = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+    const items = Array.isArray(res?.data)
+      ? res.data
+      : Array.isArray(res)
+        ? res
+        : [];
     return {
       chapters: items,
       hasMore: Boolean(res?.hasMore),
@@ -252,8 +262,10 @@ const createNovelNestApiPlugin = (
       const data = await apiFetchJson(url);
       const bucket =
         data && typeof data === "object"
-          ? (data as any)[sourceId] ??
-            (Object.keys(data).length ? (data as any)[Object.keys(data)[0]] : undefined)
+          ? ((data as any)[sourceId] ??
+            (Object.keys(data).length
+              ? (data as any)[Object.keys(data)[0]]
+              : undefined))
           : undefined;
 
       const raw = Array.isArray(bucket?.data)
@@ -268,7 +280,9 @@ const createNovelNestApiPlugin = (
         .map(mapBookToNovelItem)
         .filter((i: any) => i.name && i.path);
       (items as any).__hasMore = Boolean(bucket?.hasMore ?? data?.hasMore);
-      (items as any).__page = Number(bucket?.currentPage ?? data?.currentPage ?? pageNo);
+      (items as any).__page = Number(
+        bucket?.currentPage ?? data?.currentPage ?? pageNo,
+      );
       return items;
     },
     parseNovel: async (bookId: string) => {
@@ -280,7 +294,9 @@ const createNovelNestApiPlugin = (
         Array.isArray(detail?.chapters) && detail.chapters.length
           ? detail.chapters
           : await fetchAllChapters(bookId);
-      const chapters = chaptersRaw.map(mapChapter).filter((c: any) => c.name && c.path);
+      const chapters = chaptersRaw
+        .map(mapChapter)
+        .filter((c: any) => c.name && c.path);
 
       return {
         name: String(detail?.title || detail?.name || ""),
@@ -333,10 +349,7 @@ const buildDefaultFilterValues = (filters: any) => {
   return values;
 };
 
-const evalCommonJsModule = (
-  code: string,
-  requireShim: RequireShim,
-): any => {
+const evalCommonJsModule = (code: string, requireShim: RequireShim): any => {
   const module = { exports: {} as any };
   const exports = module.exports;
 
@@ -404,7 +417,9 @@ export const PluginRuntimeService = {
         instance.popularNovels = ((pageNo: number, options?: any) => {
           const normalized = options ?? {};
           if (normalized.filters == null && (instance as any).filters) {
-            normalized.filters = buildDefaultFilterValues((instance as any).filters);
+            normalized.filters = buildDefaultFilterValues(
+              (instance as any).filters,
+            );
           }
           return (original as any).call(instance, pageNo, normalized);
         }) as any;
@@ -414,7 +429,9 @@ export const PluginRuntimeService = {
         instance.latestNovels = ((pageNo: number, options?: any) => {
           const normalized = options ?? {};
           if (normalized.filters == null && (instance as any).filters) {
-            normalized.filters = buildDefaultFilterValues((instance as any).filters);
+            normalized.filters = buildDefaultFilterValues(
+              (instance as any).filters,
+            );
           }
           return (original as any).call(instance, pageNo, normalized);
         }) as any;

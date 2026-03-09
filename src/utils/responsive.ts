@@ -1,3 +1,4 @@
+// src/utils/responsive.ts
 export const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
 
@@ -23,4 +24,3 @@ export const getGridItemWidth = (
   columns: number,
   spacing: number,
 ): number => (containerWidth - spacing * (columns + 1)) / columns;
-

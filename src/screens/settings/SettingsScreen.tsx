@@ -4,14 +4,14 @@ import { useNavigation } from "@react-navigation/native";
 import * as FileSystem from "expo-file-system/legacy";
 import React, { useState } from "react";
 import {
-    Alert,
-    Linking,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Alert,
+  Linking,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { Header } from "../../components/common/Header";
 import { ImprovedSwitch } from "../../components/common/ImprovedSwitch";
@@ -21,90 +21,76 @@ import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
 import { StartScreen } from "../../types";
 
-interface SettingsSectionProps {
-  title: string;
-  children: React.ReactNode;
-}
+// ── Section wrapper ───────────────────────────────────────────────────────────
 
-const SettingsSection: React.FC<SettingsSectionProps> = ({
-  title,
-  children,
-}) => {
+const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => {
   const { theme } = useTheme();
   return (
     <View style={styles.section}>
-      <Text
-        style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}
-      >
-        {title}
-      </Text>
-      <View
-        style={[
-          styles.sectionContent,
-          { backgroundColor: theme.colors.surface },
-        ]}
-      >
+      <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>{title}</Text>
+      <View style={[styles.sectionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
         {children}
       </View>
     </View>
   );
 };
 
-interface SettingsItemProps {
-  title: string;
+// ── Row variants ──────────────────────────────────────────────────────────────
+
+interface RowProps {
+  icon: keyof typeof Ionicons.glyphMap;
+  iconColor?: string;
+  label: string;
   subtitle?: string;
   onPress?: () => void;
   rightElement?: React.ReactNode;
-  showArrow?: boolean;
+  isLast?: boolean;
   isDestructive?: boolean;
 }
 
-const SettingsItem: React.FC<SettingsItemProps> = ({
-  title,
+const Row: React.FC<RowProps> = ({
+  icon,
+  iconColor,
+  label,
   subtitle,
   onPress,
   rightElement,
-  showArrow = true,
-  isDestructive = false,
+  isLast,
+  isDestructive,
 }) => {
   const { theme } = useTheme();
+  const color = isDestructive ? theme.colors.error : (iconColor ?? theme.colors.primary);
   return (
     <TouchableOpacity
-      style={[styles.item, { borderBottomColor: theme.colors.divider }]}
+      style={[
+        styles.row,
+        !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.divider },
+      ]}
       onPress={onPress}
-      disabled={!onPress}
+      disabled={!onPress && !rightElement}
+      activeOpacity={0.7}
     >
-      <View style={styles.itemContent}>
-        <Text
-          style={[
-            styles.itemTitle,
-            { color: isDestructive ? theme.colors.error : theme.colors.text },
-          ]}
-        >
-          {title}
+      <View style={[styles.rowIconWrap, { backgroundColor: color + "18" }]}>
+        <Ionicons name={icon} size={18} color={color} />
+      </View>
+      <View style={styles.rowContent}>
+        <Text style={[styles.rowLabel, { color: isDestructive ? theme.colors.error : theme.colors.text }]}>
+          {label}
         </Text>
-        {subtitle && (
-          <Text
-            style={[styles.itemSubtitle, { color: theme.colors.textSecondary }]}
-            numberOfLines={1}
-          >
+        {subtitle ? (
+          <Text style={[styles.rowSubtitle, { color: theme.colors.textSecondary }]} numberOfLines={1}>
             {subtitle}
           </Text>
-        )}
+        ) : null}
       </View>
-      {rightElement ||
-        (showArrow && onPress && (
-          <Ionicons
-            name="chevron-forward"
-            size={20}
-            color={
-              isDestructive ? theme.colors.error : theme.colors.textSecondary
-            }
-          />
-        ))}
+      {rightElement ?? (onPress ? (
+        <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
+      ) : null)}
     </TouchableOpacity>
   );
 };
+
+// ── Main screen ───────────────────────────────────────────────────────────────
 
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -115,245 +101,215 @@ export const SettingsScreen: React.FC = () => {
     updateDisplaySettings,
     updateAutoDownloadSettings,
     updateUpdatesSettings,
-    //resetSettings,
     setDownloadLocation,
   } = useSettings();
 
   const [showStartScreenModal, setShowStartScreenModal] = useState(false);
-  const [showUpdateFrequencyModal, setShowUpdateFrequencyModal] =
-    useState(false);
-
-  const handleHelpPress = () => {
-    Linking.openURL("https://github.com/your-repo/wiki");
-  };
+  const [showUpdateFrequencyModal, setShowUpdateFrequencyModal] = useState(false);
 
   const handleSelectDownloadLocation = async () => {
     try {
       if (Platform.OS === "android" && FileSystem.StorageAccessFramework) {
-        const perm =
-          await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
-        if (perm.granted) {
-          await setDownloadLocation(perm.directoryUri);
-        }
+        const perm = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+        if (perm.granted) await setDownloadLocation(perm.directoryUri);
         return;
       }
-
       Alert.alert(
         "Not supported",
-        "Custom download location is only supported on Android. Downloads will be stored internally.",
+        "Custom download location is only supported on Android.",
       );
     } catch (err) {
       console.error("Error selecting download location:", err);
     }
   };
 
-  // const handleClearSettings = () => {
-  //   Alert.alert(
-  //     "Clear Settings",
-  //     "Are you sure you want to reset all settings to default? This action cannot be undone.",
-  //     [
-  //       { text: "Cancel", style: "cancel" },
-  //       {
-  //         text: "Reset",
-  //         style: "destructive",
-  //         onPress: async () => {
-  //           await resetSettings();
-  //           Alert.alert("Success", "Settings have been reset to default.");
-  //         },
-  //       },
-  //     ],
-  //   );
-  // };
+  const getStartScreenLabel = (value: StartScreen) =>
+    START_SCREENS.find((s) => s.value === value)?.label ?? "Library";
 
-  const getStartScreenLabel = (value: StartScreen) => {
-    return START_SCREENS.find((s) => s.value === value)?.label || "Library";
-  };
+  const getUpdateFrequencyLabel = (value: string) =>
+    UPDATE_FREQUENCIES.find((f) => f.value === value)?.label ?? "Daily";
 
-  const getUpdateFrequencyLabel = (value: string) => {
-    return UPDATE_FREQUENCIES.find((f) => f.value === value)?.label || "Daily";
-  };
+  const downloadLocationLabel = !settings.general.downloadLocation
+    ? "Internal (default)"
+    : settings.general.downloadLocation.startsWith("content://")
+    ? "Custom folder (Android)"
+    : settings.general.downloadLocation;
 
   return (
-    <View
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
-    >
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <Header
         title="Settings"
         onBackPress={() => navigation.goBack()}
         rightButtons={
-          <TouchableOpacity onPress={handleHelpPress} style={styles.iconButton}>
-            <Ionicons
-              name="help-circle-outline"
-              size={24}
-              color={theme.colors.text}
-            />
+          <TouchableOpacity onPress={() => Linking.openURL("https://github.com/your-repo/wiki")} style={styles.iconBtn}>
+            <Ionicons name="help-circle-outline" size={22} color={theme.colors.text} />
           </TouchableOpacity>
         }
       />
 
-      <ScrollView style={styles.content}>
-        {/* General Section */}
-        <SettingsSection title="General">
-          <SettingsItem
-            title="Start screen"
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+
+        {/* General */}
+        <Section title="General">
+          <Row
+            icon="home-outline"
+            label="Start screen"
             subtitle={getStartScreenLabel(settings.general.startScreen)}
             onPress={() => setShowStartScreenModal(true)}
           />
-          <SettingsItem
-            title="Language"
-            subtitle={
-              settings.general.language === "en"
-                ? "English"
-                : settings.general.language
-            }
-            onPress={() => {
-              /* Show language selection */
-            }}
+          <Row
+            icon="language-outline"
+            label="Language"
+            subtitle={settings.general.language === "en" ? "English" : settings.general.language}
+            onPress={() => {/* show language picker */}}
           />
-          <SettingsItem
-            title="Download location"
-            subtitle={
-              !settings.general.downloadLocation
-                ? "Internal (default)"
-                : settings.general.downloadLocation.startsWith("content://")
-                  ? "Custom folder (Android)"
-                  : settings.general.downloadLocation
-            }
+          <Row
+            icon="folder-open-outline"
+            label="Download location"
+            subtitle={downloadLocationLabel}
             onPress={handleSelectDownloadLocation}
+            isLast
           />
-        </SettingsSection>
+        </Section>
 
-        {/* Display Section */}
-        <SettingsSection title="Display">
-          <SettingsItem
-            title="App Theme"
-            subtitle={settings.display.theme === "dark" ? "Dark" : "Light"}
+        {/* Display */}
+        <Section title="Display">
+          <Row
+            icon={settings.display.theme === "dark" ? "moon-outline" : "sunny-outline"}
+            label="Dark mode"
+            isLast
             rightElement={
               <ImprovedSwitch
                 value={settings.display.theme === "dark"}
-                onValueChange={(v) =>
-                  updateDisplaySettings("theme", v ? "dark" : "light")
-                }
+                onValueChange={(v) => updateDisplaySettings("theme", v ? "dark" : "light")}
               />
             }
-            showArrow={false}
           />
-        </SettingsSection>
+        </Section>
 
-        {/* Auto-download Section */}
-        <SettingsSection title="Auto-download">
-          <SettingsItem
-            title="Download new chapters"
+        {/* Auto-download */}
+        <Section title="Auto-download">
+          <Row
+            icon="cloud-download-outline"
+            label="Download new chapters"
+            isLast
             rightElement={
               <ImprovedSwitch
                 value={settings.autoDownload.downloadNewChapters}
-                onValueChange={(v) =>
-                  updateAutoDownloadSettings("downloadNewChapters", v)
-                }
+                onValueChange={(v) => updateAutoDownloadSettings("downloadNewChapters", v)}
               />
             }
-            showArrow={false}
           />
-        </SettingsSection>
+        </Section>
 
-        {/* Library Section */}
-        <SettingsSection title="Library">
-          <SettingsItem
-            title="Categories"
+        {/* Library */}
+        <Section title="Library">
+          <Row
+            icon="albums-outline"
+            label="Categories"
             onPress={() => navigation.navigate("EditCategories")}
+            isLast
           />
-        </SettingsSection>
+        </Section>
 
-        {/* Updates Section */}
-        <SettingsSection title="Updates">
-          <SettingsItem
-            title="Library update frequency"
+        {/* Updates */}
+        <Section title="Updates">
+          <Row
+            icon="alarm-outline"
+            label="Update frequency"
             subtitle={getUpdateFrequencyLabel(settings.updates.frequency)}
             onPress={() => setShowUpdateFrequencyModal(true)}
           />
-          <SettingsItem
-            title="Only update ongoing"
+          <Row
+            icon="git-branch-outline"
+            label="Only update ongoing"
+            isLast
             rightElement={
               <ImprovedSwitch
                 value={settings.updates.onlyUpdateOngoing}
-                onValueChange={(v) =>
-                  updateUpdatesSettings("onlyUpdateOngoing", v)
-                }
+                onValueChange={(v) => updateUpdatesSettings("onlyUpdateOngoing", v)}
               />
             }
-            showArrow={false}
           />
-        </SettingsSection>
+        </Section>
 
-        {/* Reader Section */}
-        <SettingsSection title="Reader">
-          <SettingsItem
-            title="General"
+        {/* Reader */}
+        <Section title="Reader">
+          <Row
+            icon="settings-outline"
+            label="General"
             onPress={() => navigation.navigate("ReaderSettings")}
           />
-          <SettingsItem
-            title="Reader theme"
+          <Row
+            icon="color-palette-outline"
+            label="Reader theme"
             onPress={() => navigation.navigate("ReaderTheme")}
           />
-          <SettingsItem
-            title="Text to Speech"
+          <Row
+            icon="mic-outline"
+            label="Text to Speech"
             onPress={() => navigation.navigate("TTSSettings")}
+            isLast
           />
-        </SettingsSection>
+        </Section>
 
-        {/* Tracking Section */}
-        <SettingsSection title="Tracking">
-          <SettingsItem
-            title="Services"
+        {/* Tracking */}
+        <Section title="Tracking">
+          <Row
+            icon="analytics-outline"
+            label="Services"
             onPress={() => navigation.navigate("TrackingServices")}
+            isLast
           />
-        </SettingsSection>
+        </Section>
 
-        {/* Backup Section */}
-        <SettingsSection title="Backup">
-          <SettingsItem
-            title="Remote Backup"
+        {/* Backup */}
+        <Section title="Backup">
+          <Row
+            icon="cloud-outline"
+            label="Remote Backup"
             onPress={() => navigation.navigate("RemoteBackup")}
           />
-          <SettingsItem
-            title="Legacy Backup"
+          <Row
+            icon="archive-outline"
+            label="Legacy Backup"
             onPress={() => navigation.navigate("LegacyBackup")}
+            isLast
           />
-        </SettingsSection>
+        </Section>
 
-        {/* Advanced Section */}
-        <SettingsSection title="Advanced">
-          <SettingsItem
-            title="Data Management"
+        {/* Advanced */}
+        <Section title="Advanced">
+          <Row
+            icon="server-outline"
+            label="Data Management"
             subtitle="Storage, cache, and user agent"
             onPress={() => navigation.navigate("DataManagement")}
+            isLast
           />
-          {/* <SettingsItem
-            title="Reset settings"
-            subtitle="Restore defaults"
-            onPress={handleClearSettings}
-            isDestructive
-          /> */}
-        </SettingsSection>
+        </Section>
 
-        {/* About Section */}
-        <SettingsSection title="About">
-          <SettingsItem title="Version" subtitle="1.0.0" showArrow={false} />
-        </SettingsSection>
+        {/* About */}
+        <Section title="About">
+          <Row
+            icon="information-circle-outline"
+            label="Version"
+            subtitle="1.0.0"
+            isLast
+          />
+        </Section>
+
+        <View style={styles.bottomPad} />
       </ScrollView>
 
-      {/* Selection Modals */}
       <SelectionModal
         visible={showStartScreenModal}
         title="Select Start Screen"
         options={START_SCREENS}
         selectedValue={settings.general.startScreen}
-        onSelect={(value) =>
-          updateGeneralSettings("startScreen", value as StartScreen)
-        }
+        onSelect={(value) => updateGeneralSettings("startScreen", value as StartScreen)}
         onClose={() => setShowStartScreenModal(false)}
       />
-
       <SelectionModal
         visible={showUpdateFrequencyModal}
         title="Update Frequency"
@@ -367,46 +323,42 @@ export const SettingsScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  iconButton: {
-    padding: 8,
-  },
-  content: {
-    flex: 1,
-  },
-  section: {
-    marginTop: 24,
-  },
+  container: { flex: 1 },
+  iconBtn: { padding: 8 },
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 32 },
+  bottomPad: { height: 8 },
+
+  section: { marginTop: 24, paddingHorizontal: 16 },
   sectionTitle: {
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: 11,
+    fontWeight: "700",
     textTransform: "uppercase",
-    marginHorizontal: 16,
+    letterSpacing: 0.8,
     marginBottom: 8,
+    marginLeft: 4,
   },
-  sectionContent: {
-    marginHorizontal: 16,
-    borderRadius: 8,
+  sectionCard: {
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
     overflow: "hidden",
   },
-  item: {
+
+  row: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    padding: 16,
-    borderBottomWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    gap: 12,
   },
-  itemContent: {
-    flex: 1,
-    marginRight: 8,
+  rowIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 9,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  itemTitle: {
-    fontSize: 16,
-  },
-  itemSubtitle: {
-    fontSize: 12,
-    marginTop: 2,
-  },
+  rowContent: { flex: 1 },
+  rowLabel: { fontSize: 15, fontWeight: "500" },
+  rowSubtitle: { fontSize: 12, marginTop: 1 },
 });

@@ -1,3 +1,4 @@
+// src/services/database.ts
 import * as SQLite from "expo-sqlite";
 import { Category, HistoryEntry, Novel } from "../types";
 
@@ -88,8 +89,14 @@ async function openDb(): Promise<Db> {
   return dbPromise;
 }
 
-async function getTableColumnNames(db: Db, tableName: string): Promise<string[]> {
-  const rows = await getAll<{ name: string }>(db, `PRAGMA table_info(${tableName})`);
+async function getTableColumnNames(
+  db: Db,
+  tableName: string,
+): Promise<string[]> {
+  const rows = await getAll<{ name: string }>(
+    db,
+    `PRAGMA table_info(${tableName})`,
+  );
   return rows.map((r) => r.name);
 }
 
@@ -112,7 +119,10 @@ async function ensureCategoriesOrderingColumn(db: Db): Promise<void> {
   await run(db, "ALTER TABLE categories ADD COLUMN ordering INTEGER");
 
   if (sourceColumn) {
-    await run(db, `UPDATE categories SET ordering = ${sourceColumn} WHERE ordering IS NULL`);
+    await run(
+      db,
+      `UPDATE categories SET ordering = ${sourceColumn} WHERE ordering IS NULL`,
+    );
   } else {
     // Best-effort fallback: preserve stable ordering using insertion order.
     await run(db, "UPDATE categories SET ordering = COALESCE(ordering, rowid)");
@@ -130,9 +140,14 @@ async function ensureJsonDataColumn(
 
   await run(db, `ALTER TABLE ${tableName} ADD COLUMN data TEXT`);
 
-  const candidate = ["json", "payload", "value", "content", "blob", "data_json"].find((c) =>
-    names.includes(c),
-  );
+  const candidate = [
+    "json",
+    "payload",
+    "value",
+    "content",
+    "blob",
+    "data_json",
+  ].find((c) => names.includes(c));
   if (candidate) {
     await run(
       db,
@@ -146,18 +161,17 @@ async function ensureJsonDataColumn(
       if (id == null) continue;
       const { data: _data, ...rest } = row || {};
       const json = JSON.stringify(rest);
-      await run(db, `UPDATE ${tableName} SET data = ? WHERE id = ? AND data IS NULL`, [
-        json,
-        String(id),
-      ]);
+      await run(
+        db,
+        `UPDATE ${tableName} SET data = ? WHERE id = ? AND data IS NULL`,
+        [json, String(id)],
+      );
     }
   }
 
-  await run(
-    db,
-    `UPDATE ${tableName} SET data = ? WHERE data IS NULL`,
-    [JSON.stringify({ migratedAt: new Date().toISOString() })],
-  );
+  await run(db, `UPDATE ${tableName} SET data = ? WHERE data IS NULL`, [
+    JSON.stringify({ migratedAt: new Date().toISOString() }),
+  ]);
 }
 
 async function ensureCanonicalJsonTable(
@@ -444,11 +458,10 @@ export const DatabaseService = {
     const db = await openDb();
     await this.initialize();
     const payload = JSON.stringify(serializeNovel(novel));
-    await run(
-      db,
-      "INSERT OR REPLACE INTO novels (id, data) VALUES (?, ?)",
-      [novel.id, payload],
-    );
+    await run(db, "INSERT OR REPLACE INTO novels (id, data) VALUES (?, ?)", [
+      novel.id,
+      payload,
+    ]);
   },
 
   async deleteNovel(novelId: string): Promise<void> {
@@ -523,11 +536,11 @@ export const DatabaseService = {
       txRun(tx, "DELETE FROM history_entries");
 
       payload.categories.forEach((c) => {
-        txRun(tx, "INSERT INTO categories (id, name, ordering) VALUES (?, ?, ?)", [
-          c.id,
-          c.name,
-          c.order,
-        ]);
+        txRun(
+          tx,
+          "INSERT INTO categories (id, name, ordering) VALUES (?, ?, ?)",
+          [c.id, c.name, c.order],
+        );
       });
 
       payload.novels.forEach((n) => {

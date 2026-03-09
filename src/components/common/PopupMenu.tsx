@@ -1,12 +1,20 @@
 // src/components/common/PopupMenu.tsx
-import React, { useEffect, useRef, useState } from "react";
-import { Dimensions, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import React, { useEffect, useRef } from "react";
+import {
+  Animated,
+  Dimensions,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+} from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 
-interface MenuItem {
+export interface MenuItem {
   id: string;
   label: string;
-  icon?: string;
+  icon?: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
   isDestructive?: boolean;
 }
@@ -15,8 +23,18 @@ interface PopupMenuProps {
   visible: boolean;
   onClose: () => void;
   items: MenuItem[];
+  /**
+   * Optional coords of the tapped button (pageX, pageY from measure()).
+   * When omitted the menu anchors to the top-right corner — the correct
+   * default for header "⋮" buttons.
+   */
   anchorPosition?: { x: number; y: number };
 }
+
+const MENU_WIDTH = 220;
+const ITEM_HEIGHT = 46;
+const V_PAD = 6;
+const MARGIN = 12;
 
 export const PopupMenu: React.FC<PopupMenuProps> = ({
   visible,
@@ -25,102 +43,146 @@ export const PopupMenu: React.FC<PopupMenuProps> = ({
   anchorPosition,
 }) => {
   const { theme } = useTheme();
-  const menuRef = useRef<View>(null);
-  const [menuPosition, setMenuPosition] = useState({ top: 50, left: 16 });
-  const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+  const { width: SW, height: SH } = Dimensions.get("window");
+
+  // ── Animation ─────────────────────────────────────────────────────────────
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (visible && anchorPosition) {
-      // Calculate optimal menu position
-      const menuWidth = 200;
-      const menuHeight = items.length * 48 + 16; // Approximate height
-      
-      let top = anchorPosition.y + 8;
-      let left = anchorPosition.x - 16; // Position to the right of anchor
-      
-      // Ensure menu stays within screen bounds
-      if (left + menuWidth > screenWidth - 16) {
-        left = screenWidth - menuWidth - 16; // Adjust if too far right
-      }
-      if (left < 16) left = 16; // Ensure not too far left
-      if (top + menuHeight > screenHeight - 100) {
-        top = anchorPosition.y - menuHeight - 8; // Show above if too low
-      }
-      if (top < 50) top = 50; // Ensure not too high
-      
-      setMenuPosition({ top, left });
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 300,
+          friction: 22,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(scaleAnim, {
+          toValue: 0,
+          duration: 90,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 0,
+          duration: 90,
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
-  }, [visible, anchorPosition, items.length, screenWidth, screenHeight]);
+  }, [opacityAnim, scaleAnim, visible]);
 
-  const handleOverlayPress = (e: any) => {
-    // Prevent the press from propagating to menu items
-    e.stopPropagation();
-    onClose();
-  };
+  // ── Position calculation ──────────────────────────────────────────────────
+  const menuHeight = items.length * ITEM_HEIGHT + V_PAD * 2;
 
-  const handleMenuItemPress = (item: MenuItem) => {
-    // Use setTimeout to prevent immediate onClose from interfering with onPress
-    setTimeout(() => {
-      item.onPress();
-    }, 0);
+  // Default anchor: top-right of screen (header ⋮ button zone)
+  const anchorX = anchorPosition?.x ?? SW - MARGIN;
+  const anchorY = anchorPosition?.y ?? 56;
+
+  // Right-align to anchor; clamp within screen
+  let left = anchorX - MENU_WIDTH + 8;
+  if (left + MENU_WIDTH > SW - MARGIN) left = SW - MENU_WIDTH - MARGIN;
+  if (left < MARGIN) left = MARGIN;
+
+  // Below anchor by default; flip up if too close to bottom
+  let top = anchorY + 6;
+  if (top + menuHeight > SH - 80) {
+    top = Math.max(MARGIN, anchorY - menuHeight - 6);
+  }
+
+  // Scale origin: top-right corner so the menu "pops out" of the button
+  const ox = MENU_WIDTH - 16;
+  const oy = top > anchorY ? 0 : menuHeight;
+
+  const handleItemPress = (item: MenuItem) => {
     onClose();
+    setTimeout(() => item.onPress(), 80);
   };
 
   return (
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType="none"
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <TouchableOpacity 
-        style={styles.overlay} 
-        onPress={handleOverlayPress}
+      {/* Backdrop */}
+      <TouchableOpacity
+        style={styles.overlay}
         activeOpacity={1}
+        onPress={onClose}
       >
-        <TouchableOpacity
-          ref={menuRef}
+        {/* Menu card */}
+        <Animated.View
           style={[
             styles.menu,
             {
               backgroundColor: theme.colors.surface,
               borderColor: theme.colors.border,
-              top: menuPosition.top,
-              left: menuPosition.left,
+              top,
+              left,
+              opacity: opacityAnim,
+              transform: [
+                { translateX: ox },
+                { translateY: oy },
+                { scale: scaleAnim },
+                { translateX: -ox },
+                { translateY: -oy },
+              ],
             },
           ]}
-          activeOpacity={1}
-          onPress={(e) => e.stopPropagation()}
         >
-          {items.map((item, index) => (
-            <TouchableOpacity
-              key={item.id}
-              style={[
-                styles.menuItem,
-                index < items.length - 1 && {
-                  borderBottomWidth: 1,
-                  borderBottomColor: theme.colors.divider,
-                },
-              ]}
-              onPress={() => handleMenuItemPress(item)}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.menuItemText,
-                  {
-                    color: item.isDestructive
-                      ? theme.colors.error
-                      : theme.colors.text,
-                  },
-                ]}
-              >
-                {item.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </TouchableOpacity>
+          {/* Inner touch-stopper prevents backdrop dismissal on menu tap */}
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            {items.map((item, index) => {
+              const isLast = index === items.length - 1;
+              const textColor = item.isDestructive
+                ? theme.colors.error
+                : theme.colors.text;
+              const iconColor = item.isDestructive
+                ? theme.colors.error
+                : theme.colors.textSecondary;
+
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[
+                    styles.item,
+                    !isLast && {
+                      borderBottomWidth: StyleSheet.hairlineWidth,
+                      borderBottomColor: theme.colors.divider,
+                    },
+                    item.isDestructive && {
+                      backgroundColor: theme.colors.error + "0C",
+                    },
+                  ]}
+                  onPress={() => handleItemPress(item)}
+                  activeOpacity={0.6}
+                >
+                  {/* Icon slot — always present for consistent text indent */}
+                  <Ionicons
+                    name={item.icon ?? "ellipse-outline"}
+                    size={16}
+                    color={item.icon ? iconColor : "transparent"}
+                    style={styles.icon}
+                  />
+                  <Text style={[styles.label, { color: textColor }]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </TouchableOpacity>
+        </Animated.View>
       </TouchableOpacity>
     </Modal>
   );
@@ -129,24 +191,35 @@ export const PopupMenu: React.FC<PopupMenuProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.20)",
   },
   menu: {
     position: "absolute",
-    minWidth: 200,
-    borderRadius: 8,
-    borderWidth: 1,
-    elevation: 8,
+    width: MENU_WIDTH,
+    borderRadius: 13,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: "hidden",
+    paddingVertical: V_PAD,
+    elevation: 14,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
   },
-  menuItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+  item: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: ITEM_HEIGHT,
+    paddingHorizontal: 14,
+    gap: 10,
   },
-  menuItemText: {
-    fontSize: 16,
+  icon: {
+    width: 20,
+    textAlign: "center",
+  },
+  label: {
+    fontSize: 15,
+    fontWeight: "500",
+    flex: 1,
   },
 });

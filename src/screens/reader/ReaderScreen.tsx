@@ -1,3 +1,4 @@
+// src/screens/reader/ReaderScreen.tsx
 import { useNavigation, useRoute } from "@react-navigation/native";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -33,13 +34,21 @@ export const ReaderScreen: React.FC = () => {
   const { novels, updateNovel } = useLibrary();
   const { historyEntries, upsertHistoryEntry } = useHistory();
 
-  const { novelId, chapterId } = route.params as { novelId: string; chapterId: string };
+  const { novelId, chapterId } = route.params as {
+    novelId: string;
+    chapterId: string;
+  };
 
-  const novel = useMemo(() => novels.find((n) => n.id === novelId), [novels, novelId]);
+  const novel = useMemo(
+    () => novels.find((n) => n.id === novelId),
+    [novels, novelId],
+  );
 
   // FIX: always-current ref so callbacks never capture stale novel state
   const novelRef = useRef(novel);
-  useEffect(() => { novelRef.current = novel; }, [novel]);
+  useEffect(() => {
+    novelRef.current = novel;
+  }, [novel]);
 
   const pluginId = novel?.pluginId;
   const novelPath = novel?.pluginNovelPath;
@@ -60,9 +69,13 @@ export const ReaderScreen: React.FC = () => {
   const chapters: ReaderChapterItem[] = useMemo(() => {
     const fromDb = novel?.pluginCache?.chapters;
     const fromMem = cached?.chapters;
-    const raw = Array.isArray(fromDb) && fromDb.length ? fromDb : (fromMem ?? []);
+    const raw =
+      Array.isArray(fromDb) && fromDb.length ? fromDb : (fromMem ?? []);
     return raw
-      .map((c: any) => ({ name: String(c?.name || ""), path: String(c?.path || "") }))
+      .map((c: any) => ({
+        name: String(c?.name || ""),
+        path: String(c?.path || ""),
+      }))
       .filter((c) => c.path);
   }, [cached?.chapters, novel?.pluginCache?.chapters]);
 
@@ -85,7 +98,10 @@ export const ReaderScreen: React.FC = () => {
       // 3. Numeric 1-based index
       const numeric = Number(chapterId);
       if (Number.isFinite(numeric) && numeric > 0) {
-        const idx = Math.min(chapters.length - 1, Math.max(0, Math.floor(numeric) - 1));
+        const idx = Math.min(
+          chapters.length - 1,
+          Math.max(0, Math.floor(numeric) - 1),
+        );
         return { path: chapters[idx].path, title: chapters[idx].name };
       }
     }
@@ -96,7 +112,9 @@ export const ReaderScreen: React.FC = () => {
 
   const initialChapters: ReaderChapterItem[] = useMemo(() => {
     if (chapters.length > 0) return chapters;
-    return [{ name: initialChapter.title || "Chapter", path: initialChapter.path }];
+    return [
+      { name: initialChapter.title || "Chapter", path: initialChapter.path },
+    ];
   }, [chapters, initialChapter.path, initialChapter.title]);
 
   const baseUrl = useMemo(() => {
@@ -141,7 +159,9 @@ export const ReaderScreen: React.FC = () => {
   );
 
   const historyEntriesRef = useRef(historyEntries);
-  useEffect(() => { historyEntriesRef.current = historyEntries; }, [historyEntries]);
+  useEffect(() => {
+    historyEntriesRef.current = historyEntries;
+  }, [historyEntries]);
 
   // FIX: onChapterRead — called when the user scrolls to the bottom of a chapter.
   // Uses novelRef so it always works with current data, not a stale closure snapshot.
@@ -151,9 +171,10 @@ export const ReaderScreen: React.FC = () => {
       const n = novelRef.current;
       if (!n) return;
 
-      const total = n.totalChapters > 0
-        ? n.totalChapters
-        : Math.max(index + 1, chapters.length);
+      const total =
+        n.totalChapters > 0
+          ? n.totalChapters
+          : Math.max(index + 1, chapters.length);
 
       const nextLastRead = Math.max(n.lastReadChapter || 0, index + 1);
       const nextUnread = Math.max(0, total - nextLastRead);
@@ -186,7 +207,12 @@ export const ReaderScreen: React.FC = () => {
 
       upsertHistoryEntry({
         id: n.id,
-        novel: stripNovelForHistory({ ...n, lastReadChapter: nextLastRead, unreadChapters: nextUnread, lastReadDate: new Date() }),
+        novel: stripNovelForHistory({
+          ...n,
+          lastReadChapter: nextLastRead,
+          unreadChapters: nextUnread,
+          lastReadDate: new Date(),
+        }),
         lastReadChapter: chapter,
         progress,
         totalChaptersRead,
@@ -195,11 +221,14 @@ export const ReaderScreen: React.FC = () => {
       });
     },
     // chapters.length is stable enough as a dependency; novelRef is a ref so excluded
-     
+
     [chapters.length, updateNovel, upsertHistoryEntry],
   );
 
-  const lastChapterRef = useRef<{ chapter: ReaderChapterItem; index: number } | null>(null);
+  const lastChapterRef = useRef<{
+    chapter: ReaderChapterItem;
+    index: number;
+  } | null>(null);
   const sessionStartRef = useRef<number>(Date.now());
 
   // FIX: handleChapterChange also uses novelRef to avoid stale state
@@ -235,7 +264,7 @@ export const ReaderScreen: React.FC = () => {
         timeSpentReading: existing?.timeSpentReading || 0,
       });
     },
-     
+
     [chapters.length, novelId, updateNovel, upsertHistoryEntry],
   );
 
@@ -276,7 +305,6 @@ export const ReaderScreen: React.FC = () => {
         timeSpentReading: (existing?.timeSpentReading || 0) + minutes,
       });
     };
-     
   }, [chapters.length, novelId, upsertHistoryEntry]);
 
   const handleMarkRead = useCallback(() => {
@@ -325,10 +353,17 @@ export const ReaderScreen: React.FC = () => {
 
   if (!novel) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <Header title="Reader" onBackPress={() => (navigation as any).goBack()} />
+      <View
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+      >
+        <Header
+          title="Reader"
+          onBackPress={() => (navigation as any).goBack()}
+        />
         <View style={styles.center}>
-          <Text style={[styles.message, { color: theme.colors.error }]}>Novel not found.</Text>
+          <Text style={[styles.message, { color: theme.colors.error }]}>
+            Novel not found.
+          </Text>
         </View>
       </View>
     );
@@ -336,8 +371,13 @@ export const ReaderScreen: React.FC = () => {
 
   if (!pluginId || !novelPath) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <Header title="Reader" onBackPress={() => (navigation as any).goBack()} />
+      <View
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+      >
+        <Header
+          title="Reader"
+          onBackPress={() => (navigation as any).goBack()}
+        />
         <View style={styles.center}>
           <Text style={[styles.message, { color: theme.colors.textSecondary }]}>
             This reader currently supports plugin novels only.
@@ -371,6 +411,11 @@ export const ReaderScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
   message: { fontSize: 13, textAlign: "center" },
 });

@@ -1,3 +1,4 @@
+// src/services/extensions.ts
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
 import type { ExtensionRepoPlugin } from "../types";
@@ -33,7 +34,8 @@ const coerceNovelNestApiIndexUrl = (repoUrl: string): string => {
   return `${trimmed}/api/sources`;
 };
 
-const getCacheKey = (repoUrl: string): string => `${CACHE_PREFIX}${hashString(repoUrl)}`;
+const getCacheKey = (repoUrl: string): string =>
+  `${CACHE_PREFIX}${hashString(repoUrl)}`;
 
 type RepoCache = {
   repoUrl: string;
@@ -58,15 +60,17 @@ const isPlugin = (value: any): value is ExtensionRepoPlugin => {
 export const ExtensionsService = {
   normalizeRepoUrl: (url: string): string => url.trim(),
 
-  loadCachedRepoIndex: async (
-    repoUrl: string,
-  ): Promise<RepoCache | null> => {
+  loadCachedRepoIndex: async (repoUrl: string): Promise<RepoCache | null> => {
     const key = getCacheKey(repoUrl);
     const raw = await AsyncStorage.getItem(key);
     if (!raw) return null;
     try {
       const parsed = JSON.parse(raw) as RepoCache;
-      if (!parsed || parsed.repoUrl !== repoUrl || !Array.isArray(parsed.plugins))
+      if (
+        !parsed ||
+        parsed.repoUrl !== repoUrl ||
+        !Array.isArray(parsed.plugins)
+      )
         return null;
       return parsed;
     } catch {
@@ -93,7 +97,11 @@ export const ExtensionsService = {
       let plugins: ExtensionRepoPlugin[] = data.filter(isPlugin);
 
       // NovelNest API repo: /api/sources
-      if (plugins.length === 0 && data.length > 0 && looksLikeNovelNestApiSource(data[0])) {
+      if (
+        plugins.length === 0 &&
+        data.length > 0 &&
+        looksLikeNovelNestApiSource(data[0])
+      ) {
         const apiBase = indexUrl.replace(/\/sources$/, "");
         const repoHash = hashString(apiBase);
 
