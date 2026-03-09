@@ -19,6 +19,7 @@ import {
 import { Header } from "../../components/common/Header";
 import { PopupMenu } from "../../components/common/PopupMenu";
 import { useDownloadQueue } from "../../context/DownloadQueueContext";
+import { useHistory } from "../../context/HistoryContext";
 import { useLibrary } from "../../context/LibraryContext";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
@@ -33,6 +34,7 @@ import {
   computeTotalEffectiveReadCount,
   detectChapterListOrder,
   getEffectiveReadForChapter,
+  pickResumeChapter,
   updateReadOverridesForSelection,
 } from "../../utils/chapterState";
 import { clamp } from "../../utils/responsive";
@@ -166,6 +168,7 @@ export const NovelDetailScreen: React.FC = () => {
   const { theme } = useTheme();
   const { settings } = useSettings();
   const { novels, updateNovel, removeNovel, categories } = useLibrary();
+  const { historyEntries, upsertHistoryEntry } = useHistory();
   const { tasks: downloadTasks, enqueue, cancelTask, cancelNovelTasks } = useDownloadQueue();
   const { width: SW } = useWindowDimensions();
 
@@ -344,7 +347,9 @@ export const NovelDetailScreen: React.FC = () => {
           coverUrl: String(normalizedDetail?.cover || novel.coverUrl),
           status: nextStatus,
           summary: String(normalizedDetail?.summary || novel.summary || ""),
-          genres: Array.isArray(normalizedDetail?.genres) ? normalizedDetail.genres : novel.genres,
+          genres: Array.isArray(normalizedDetail?.genres)
+            ? (normalizedDetail?.genres as any)
+            : novel.genres,
           totalChapters: totalFromDetail != null ? totalFromDetail : chaptersMapped.length || novel.totalChapters,
           pluginCache: cacheEntry,
         });
@@ -389,7 +394,16 @@ export const NovelDetailScreen: React.FC = () => {
   }, [novel, progressTotal]);
   const effectiveReadCount = useMemo(() => {
     if (!novel) return 0;
-    return computeTotalEffectiveReadCount({ total: progressTotal, baseReadCount, order: chapterListOrder, chapters: remoteChapters, readOverrides: novel.chapterReadOverrides });
+    // If we don't have the full chapter list loaded, we cannot reliably map
+    // per-chapter overrides into the overall progress count.
+    if (remoteChapters.length !== progressTotal) return baseReadCount;
+    return computeTotalEffectiveReadCount({
+      total: progressTotal,
+      baseReadCount,
+      order: chapterListOrder,
+      chapters: remoteChapters,
+      readOverrides: novel.chapterReadOverrides,
+    });
   }, [baseReadCount, chapterListOrder, novel, progressTotal, remoteChapters]);
   const progressPercent = progressTotal > 0 ? (effectiveReadCount / progressTotal) * 100 : 0;
 
@@ -397,10 +411,42 @@ export const NovelDetailScreen: React.FC = () => {
     const map = new Map<string, boolean>();
     if (!novel) return map;
     remoteChapters.forEach((c, index) => {
-      map.set(c.path, getEffectiveReadForChapter({ chapterPath: c.path, index, total: progressTotal, baseReadCount, order: chapterListOrder, readOverrides: novel.chapterReadOverrides }));
+      map.set(
+        c.path,
+        getEffectiveReadForChapter({
+          chapterPath: c.path,
+          index,
+          total: remoteChapters.length,
+          baseReadCount: Math.min(baseReadCount, remoteChapters.length),
+          order: chapterListOrder,
+          readOverrides: novel.chapterReadOverrides,
+        }),
+      );
     });
     return map;
-  }, [baseReadCount, chapterListOrder, novel, progressTotal, remoteChapters]);
+  }, [baseReadCount, chapterListOrder, novel, remoteChapters]);
+
+  const historyEntry = useMemo(
+    () => historyEntries.find((e) => e.id === novel?.id),
+    [historyEntries, novel?.id],
+  );
+
+  const resumeTarget = useMemo(() => {
+    if (!novel || remoteChapters.length === 0) return null;
+    return pickResumeChapter({
+      chapters: remoteChapters,
+      order: chapterListOrder,
+      baseReadCount: Math.min(baseReadCount, remoteChapters.length),
+      readOverrides: novel.chapterReadOverrides,
+      lastReadPath: historyEntry?.lastReadChapter?.id,
+    });
+  }, [
+    baseReadCount,
+    chapterListOrder,
+    historyEntry?.lastReadChapter?.id,
+    novel,
+    remoteChapters,
+  ]);
 
   const downloadTaskByPath = useMemo(() => {
     const map = new Map<string, { id: string; status: string }>();
@@ -432,9 +478,19 @@ export const NovelDetailScreen: React.FC = () => {
 
   const handleDownloadUnread = useCallback((limit?: number) => {
     if (!novel?.pluginId || remoteChapters.length === 0) return;
-    const unread = remoteChapters.filter((c, index) => !getEffectiveReadForChapter({ chapterPath: c.path, index, total: progressTotal, baseReadCount, order: chapterListOrder, readOverrides: novel.chapterReadOverrides }));
+    const unread = remoteChapters.filter(
+      (c, index) =>
+        !getEffectiveReadForChapter({
+          chapterPath: c.path,
+          index,
+          total: remoteChapters.length,
+          baseReadCount: Math.min(baseReadCount, remoteChapters.length),
+          order: chapterListOrder,
+          readOverrides: novel.chapterReadOverrides,
+        }),
+    );
     enqueueManyChapterDownloads(typeof limit === "number" ? unread.slice(0, limit) : unread);
-  }, [baseReadCount, chapterListOrder, enqueueManyChapterDownloads, novel, progressTotal, remoteChapters]);
+  }, [baseReadCount, chapterListOrder, enqueueManyChapterDownloads, novel, remoteChapters]);
 
   const handleDownloadNext = useCallback((limit: number) => {
     if (!novel?.pluginId || remoteChapters.length === 0) return;
@@ -469,12 +525,82 @@ export const NovelDetailScreen: React.FC = () => {
   const handleMarkRead = () => {
     if (!novel) return;
     const total = novel.totalChapters > 0 ? novel.totalChapters : chaptersTotal;
-    updateNovel(novel.id, { unreadChapters: 0, lastReadChapter: total, lastReadDate: new Date(), chapterReadOverrides: undefined });
+    const now = new Date();
+    updateNovel(novel.id, {
+      unreadChapters: 0,
+      lastReadChapter: total,
+      lastReadDate: now,
+      chapterReadOverrides: undefined,
+    });
+
+    if (remoteChapters.length > 0) {
+      const target =
+        pickResumeChapter({
+          chapters: remoteChapters,
+          order: chapterListOrder,
+          baseReadCount: remoteChapters.length,
+          readOverrides: undefined,
+          lastReadPath: null,
+        })?.chapter ?? remoteChapters[0];
+
+      upsertHistoryEntry({
+        id: novel.id,
+        novel: { ...novel, pluginCache: undefined } as any,
+        lastReadChapter: {
+          id: target.path,
+          novelId: novel.id,
+          title: target.name || "Chapter",
+          number: Math.min(total, remoteChapters.length),
+          isRead: true,
+          isDownloaded: Boolean(novel?.chapterDownloaded?.[target.path]),
+          releaseDate: now,
+        },
+        progress: 100,
+        totalChaptersRead: total,
+        lastReadDate: now,
+        timeSpentReading: historyEntry?.timeSpentReading || 0,
+      });
+    }
   };
   const handleMarkUnread = () => {
     if (!novel) return;
     const total = novel.totalChapters > 0 ? novel.totalChapters : chaptersTotal;
-    updateNovel(novel.id, { unreadChapters: total, lastReadChapter: 0, lastReadDate: undefined, chapterReadOverrides: undefined });
+    const now = new Date();
+    updateNovel(novel.id, {
+      unreadChapters: total,
+      lastReadChapter: 0,
+      lastReadDate: undefined,
+      chapterReadOverrides: undefined,
+    });
+
+    if (remoteChapters.length > 0) {
+      const target =
+        pickResumeChapter({
+          chapters: remoteChapters,
+          order: chapterListOrder,
+          baseReadCount: 0,
+          readOverrides: undefined,
+          lastReadPath: null,
+        })?.chapter ?? remoteChapters[0];
+
+      upsertHistoryEntry({
+        id: novel.id,
+        novel: { ...novel, pluginCache: undefined } as any,
+        lastReadChapter: {
+          id: target.path,
+          novelId: novel.id,
+          title: target.name || "Chapter",
+          number: 1,
+          isRead: false,
+          isDownloaded: Boolean(novel?.chapterDownloaded?.[target.path]),
+          releaseDate: now,
+        },
+        progress: 0,
+        totalChaptersRead: 0,
+        lastReadDate: now,
+        timeSpentReading: historyEntry?.timeSpentReading || 0,
+      });
+    }
   };
 
   const handleLibraryToggle = useCallback(() => {
@@ -492,14 +618,9 @@ export const NovelDetailScreen: React.FC = () => {
 
   const handleProgressPress = useCallback(() => {
     if (!novel?.pluginId || remoteChapters.length === 0) return;
-    const total = novel.totalChapters > 0 ? novel.totalChapters : remoteChapters.length;
-    const lastRead = Math.max(0, Math.min(total, Math.floor(novel.lastReadChapter || 0)));
-    if (lastRead === 0) { const first = remoteChapters[0]; if (first) handlePluginChapterPress(first); return; }
-    const unread = Math.max(0, Math.min(total, Math.floor(novel.unreadChapters || 0)));
-    if (unread === 0) { const last = remoteChapters[remoteChapters.length - 1]; if (last) handlePluginChapterPress(last); return; }
-    const target = remoteChapters[Math.min(remoteChapters.length - 1, Math.max(0, lastRead - 1))];
+    const target = resumeTarget?.chapter ?? remoteChapters[0];
     if (target) handlePluginChapterPress(target);
-  }, [handlePluginChapterPress, novel, remoteChapters]);
+  }, [handlePluginChapterPress, novel?.pluginId, remoteChapters, resumeTarget]);
 
   const handleRefresh = useCallback(async () => {
     if (!novel?.pluginId || !novel?.pluginNovelPath) return;
@@ -526,7 +647,27 @@ export const NovelDetailScreen: React.FC = () => {
       const stableKey = cacheKey ?? NovelDetailCache.key(novel.pluginId, novel.pluginNovelPath);
       NovelDetailCache.set(stableKey, cacheEntry);
       const statusRaw = String(normalizedDetail?.status || "").toLowerCase();
-      updateNovel(novel.id, { title: String(normalizedDetail?.name || novel.title), author: String(normalizedDetail?.author || novel.author || "Unknown"), coverUrl: String(normalizedDetail?.cover || novel.coverUrl), status: normalizedDetail?.status ? (statusRaw.includes("complete") || statusRaw.includes("end") || statusRaw.includes("finished") ? "completed" : "ongoing") : novel.status, summary: String(normalizedDetail?.summary || novel.summary || ""), genres: Array.isArray(normalizedDetail?.genres) ? normalizedDetail.genres : novel.genres, totalChapters: totalFromDetail != null ? totalFromDetail : chaptersMapped.length || novel.totalChapters, pluginCache: cacheEntry });
+      updateNovel(novel.id, {
+        title: String(normalizedDetail?.name || novel.title),
+        author: String(normalizedDetail?.author || novel.author || "Unknown"),
+        coverUrl: String(normalizedDetail?.cover || novel.coverUrl),
+        status: normalizedDetail?.status
+          ? statusRaw.includes("complete") ||
+            statusRaw.includes("end") ||
+            statusRaw.includes("finished")
+            ? "completed"
+            : "ongoing"
+          : novel.status,
+        summary: String(normalizedDetail?.summary || novel.summary || ""),
+        genres: Array.isArray(normalizedDetail?.genres)
+          ? (normalizedDetail?.genres as any)
+          : novel.genres,
+        totalChapters:
+          totalFromDetail != null
+            ? totalFromDetail
+            : chaptersMapped.length || novel.totalChapters,
+        pluginCache: cacheEntry,
+      });
     } catch (e: any) {
       setRemoteError(e?.message || "Failed to refresh.");
     } finally {
@@ -574,21 +715,196 @@ export const NovelDetailScreen: React.FC = () => {
 
   const markSelectedChaptersRead = useCallback(() => {
     if (!novel || selectedChapterPaths.size === 0) return;
-    if (remoteChapters.length > 0 && selectedChapterPaths.size === remoteChapters.length) { updateNovel(novel.id, { unreadChapters: 0, lastReadChapter: progressTotal, lastReadDate: new Date(), chapterReadOverrides: undefined }); clearChapterSelection(); return; }
+    const now = new Date();
+    if (remoteChapters.length > 0 && selectedChapterPaths.size === remoteChapters.length) {
+      updateNovel(novel.id, {
+        unreadChapters: 0,
+        lastReadChapter: progressTotal,
+        lastReadDate: now,
+        chapterReadOverrides: undefined,
+      });
+      const last =
+        pickResumeChapter({
+          chapters: remoteChapters,
+          order: chapterListOrder,
+          baseReadCount: remoteChapters.length,
+          readOverrides: undefined,
+          lastReadPath: null,
+        })?.chapter ?? remoteChapters[0];
+
+      upsertHistoryEntry({
+        id: novel.id,
+        novel: { ...novel, pluginCache: undefined } as any,
+        lastReadChapter: {
+          id: last.path,
+          novelId: novel.id,
+          title: last.name || "Chapter",
+          number: Math.max(1, remoteChapters.length),
+          isRead: true,
+          isDownloaded: Boolean(novel?.chapterDownloaded?.[last.path]),
+          releaseDate: now,
+        },
+        progress: 100,
+        totalChaptersRead: progressTotal,
+        lastReadDate: now,
+        timeSpentReading: historyEntry?.timeSpentReading || 0,
+      });
+
+      clearChapterSelection();
+      return;
+    }
     const nextOverrides = updateReadOverridesForSelection({ total: progressTotal, baseReadCount, order: chapterListOrder, chapters: remoteChapters, selectedPaths: selectedChapterPaths, readOverrides: novel.chapterReadOverrides, markAs: "read" });
     const nextReadCount = computeTotalEffectiveReadCount({ total: progressTotal, baseReadCount, order: chapterListOrder, chapters: remoteChapters, readOverrides: nextOverrides });
-    updateNovel(novel.id, { unreadChapters: Math.max(0, progressTotal - nextReadCount), lastReadDate: new Date(), chapterReadOverrides: nextOverrides });
+    updateNovel(novel.id, {
+      unreadChapters: Math.max(0, progressTotal - nextReadCount),
+      lastReadDate: now,
+      chapterReadOverrides: nextOverrides,
+    });
+
+    const resume = pickResumeChapter({
+      chapters: remoteChapters,
+      order: chapterListOrder,
+      baseReadCount: Math.min(baseReadCount, remoteChapters.length),
+      readOverrides: nextOverrides,
+      lastReadPath: historyEntry?.lastReadChapter?.id,
+    });
+    const target = resume?.chapter ?? remoteChapters[0];
+    const isRead = getEffectiveReadForChapter({
+      chapterPath: target.path,
+      index: resume?.index ?? 0,
+      total: remoteChapters.length,
+      baseReadCount: Math.min(baseReadCount, remoteChapters.length),
+      order: chapterListOrder,
+      readOverrides: nextOverrides,
+    });
+
+    upsertHistoryEntry({
+      id: novel.id,
+      novel: { ...novel, pluginCache: undefined } as any,
+      lastReadChapter: {
+        id: target.path,
+        novelId: novel.id,
+        title: target.name || "Chapter",
+        number: (resume?.index ?? 0) + 1,
+        isRead,
+        isDownloaded: Boolean(novel?.chapterDownloaded?.[target.path]),
+        releaseDate: now,
+      },
+      progress: progressTotal > 0 ? (nextReadCount / progressTotal) * 100 : 0,
+      totalChaptersRead: nextReadCount,
+      lastReadDate: now,
+      timeSpentReading: historyEntry?.timeSpentReading || 0,
+    });
     clearChapterSelection();
-  }, [baseReadCount, chapterListOrder, clearChapterSelection, novel, progressTotal, remoteChapters, selectedChapterPaths, updateNovel]);
+  }, [
+    baseReadCount,
+    chapterListOrder,
+    clearChapterSelection,
+    historyEntry?.lastReadChapter?.id,
+    historyEntry?.timeSpentReading,
+    novel,
+    progressTotal,
+    remoteChapters,
+    selectedChapterPaths,
+    updateNovel,
+    upsertHistoryEntry,
+  ]);
 
   const markSelectedChaptersUnread = useCallback(() => {
     if (!novel || selectedChapterPaths.size === 0) return;
-    if (remoteChapters.length > 0 && selectedChapterPaths.size === remoteChapters.length) { updateNovel(novel.id, { unreadChapters: progressTotal, lastReadChapter: 0, lastReadDate: undefined, chapterReadOverrides: undefined }); clearChapterSelection(); return; }
+    const now = new Date();
+    if (remoteChapters.length > 0 && selectedChapterPaths.size === remoteChapters.length) {
+      updateNovel(novel.id, {
+        unreadChapters: progressTotal,
+        lastReadChapter: 0,
+        lastReadDate: undefined,
+        chapterReadOverrides: undefined,
+      });
+      const first =
+        pickResumeChapter({
+          chapters: remoteChapters,
+          order: chapterListOrder,
+          baseReadCount: 0,
+          readOverrides: undefined,
+          lastReadPath: null,
+        })?.chapter ?? remoteChapters[0];
+
+      upsertHistoryEntry({
+        id: novel.id,
+        novel: { ...novel, pluginCache: undefined } as any,
+        lastReadChapter: {
+          id: first.path,
+          novelId: novel.id,
+          title: first.name || "Chapter",
+          number: 1,
+          isRead: false,
+          isDownloaded: Boolean(novel?.chapterDownloaded?.[first.path]),
+          releaseDate: now,
+        },
+        progress: 0,
+        totalChaptersRead: 0,
+        lastReadDate: now,
+        timeSpentReading: historyEntry?.timeSpentReading || 0,
+      });
+      clearChapterSelection();
+      return;
+    }
     const nextOverrides = updateReadOverridesForSelection({ total: progressTotal, baseReadCount, order: chapterListOrder, chapters: remoteChapters, selectedPaths: selectedChapterPaths, readOverrides: novel.chapterReadOverrides, markAs: "unread" });
     const nextReadCount = computeTotalEffectiveReadCount({ total: progressTotal, baseReadCount, order: chapterListOrder, chapters: remoteChapters, readOverrides: nextOverrides });
-    updateNovel(novel.id, { unreadChapters: Math.max(0, progressTotal - nextReadCount), lastReadDate: nextReadCount === 0 ? undefined : novel.lastReadDate, chapterReadOverrides: nextOverrides });
+    updateNovel(novel.id, {
+      unreadChapters: Math.max(0, progressTotal - nextReadCount),
+      lastReadDate: nextReadCount === 0 ? undefined : novel.lastReadDate,
+      chapterReadOverrides: nextOverrides,
+    });
+
+    const resume = pickResumeChapter({
+      chapters: remoteChapters,
+      order: chapterListOrder,
+      baseReadCount: Math.min(baseReadCount, remoteChapters.length),
+      readOverrides: nextOverrides,
+      lastReadPath: historyEntry?.lastReadChapter?.id,
+    });
+    const target = resume?.chapter ?? remoteChapters[0];
+    const isRead = getEffectiveReadForChapter({
+      chapterPath: target.path,
+      index: resume?.index ?? 0,
+      total: remoteChapters.length,
+      baseReadCount: Math.min(baseReadCount, remoteChapters.length),
+      order: chapterListOrder,
+      readOverrides: nextOverrides,
+    });
+
+    upsertHistoryEntry({
+      id: novel.id,
+      novel: { ...novel, pluginCache: undefined } as any,
+      lastReadChapter: {
+        id: target.path,
+        novelId: novel.id,
+        title: target.name || "Chapter",
+        number: (resume?.index ?? 0) + 1,
+        isRead,
+        isDownloaded: Boolean(novel?.chapterDownloaded?.[target.path]),
+        releaseDate: now,
+      },
+      progress: progressTotal > 0 ? (nextReadCount / progressTotal) * 100 : 0,
+      totalChaptersRead: nextReadCount,
+      lastReadDate: now,
+      timeSpentReading: historyEntry?.timeSpentReading || 0,
+    });
     clearChapterSelection();
-  }, [baseReadCount, chapterListOrder, clearChapterSelection, novel, progressTotal, remoteChapters, selectedChapterPaths, updateNovel]);
+  }, [
+    baseReadCount,
+    chapterListOrder,
+    clearChapterSelection,
+    historyEntry?.lastReadChapter?.id,
+    historyEntry?.timeSpentReading,
+    novel,
+    progressTotal,
+    remoteChapters,
+    selectedChapterPaths,
+    updateNovel,
+    upsertHistoryEntry,
+  ]);
 
   const deleteSelectedChapterDownloads = useCallback(() => {
     if (!novel?.pluginId) return;
@@ -726,7 +1042,7 @@ export const NovelDetailScreen: React.FC = () => {
           >
             <Ionicons name="play" size={15} color="#FFF" />
             <Text style={[styles.actionBtnText, { color: "#FFF" }]}>
-              {(novel?.lastReadChapter ?? 0) > 0 ? "Resume" : "Start"}
+              {effectiveReadCount > 0 ? "Resume" : "Start"}
             </Text>
           </TouchableOpacity>
         )}
@@ -847,7 +1163,7 @@ export const NovelDetailScreen: React.FC = () => {
     chaptersHasMore, coverHeight, coverWidth, displayAuthor, displayCover, displayGenres,
     displayStatus, displaySummary, displayTitle, effectiveReadCount, handleLibraryToggle,
     handleProgressPress, handleWebView, isChaptersLoadingMore, isInLibrary, isRemoteLoading,
-    loadMoreChapters, navigation, novel?.lastReadChapter, novel?.pluginId, novel?.source,
+    loadMoreChapters, navigation, novel?.pluginId, novel?.source,
     progressPercent, progressTotal, remoteChapters.length, remoteDetail, remoteError,
     summaryExpanded, theme,
   ]);

@@ -495,27 +495,10 @@ export const ChapterReader: React.FC<Props> = ({
     }
 
     if (msg.type === "tap") {
-      const yRatioRaw =
-        typeof msg.yRatio === "number" && Number.isFinite(msg.yRatio)
-          ? msg.yRatio
-          : 0.5;
-      const yRatio = Math.max(0, Math.min(1, yRatioRaw));
-
-      if (tapToScrollRef.current) {
-        if (yRatio < 0.33) {
-          webViewRef.current?.injectJavaScript(
-            `(()=>{try{const h=window.innerHeight||document.documentElement.clientHeight||400;window.scrollBy({top:-0.6*h,behavior:'smooth'});}catch{}})();true;`,
-          );
-        } else if (yRatio > 0.66) {
-          webViewRef.current?.injectJavaScript(
-            `(()=>{try{const h=window.innerHeight||document.documentElement.clientHeight||400;window.scrollBy({top:0.6*h,behavior:'smooth'});}catch{}})();true;`,
-          );
-        } else {
-          setControlsHidden((prev) => !prev);
-        }
-      } else {
-        setControlsHidden((prev) => !prev);
-      }
+      // Simple behavior: any tap toggles the reader controls.
+      // This avoids glitches on older Android WebViews where tap-to-scroll
+      // gestures could conflict with showing/hiding the top/bottom bars.
+      setControlsHidden((prev) => !prev);
       return;
     }
 

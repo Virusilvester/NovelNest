@@ -20,7 +20,7 @@ type BackupPayloadV1 = {
   history: HistoryEntry[];
 };
 
-type BackupPayloadV2 = BackupPayloadV1 & {
+type BackupPayloadV2 = Omit<BackupPayloadV1, "version"> & {
   version: 2;
   settings?: AppSettings;
 };
@@ -616,7 +616,7 @@ export const DatabaseService = {
     }
 
     // Persist settings if present in a version 2 backup.
-    if (payload.version === 2 && payload.settings) {
+    if (payload.version === 2 && "settings" in payload && payload.settings) {
       await StorageService.saveSettings(payload.settings);
     }
   },

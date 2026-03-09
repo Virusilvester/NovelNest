@@ -21,6 +21,7 @@ import {
 import { Header } from "../../components/common/Header";
 import { PopupMenu } from "../../components/common/PopupMenu";
 import { useDownloadQueue } from "../../context/DownloadQueueContext";
+import { useHistory } from "../../context/HistoryContext";
 import { useLibrary } from "../../context/LibraryContext";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
@@ -37,6 +38,7 @@ import {
   computeTotalEffectiveReadCount,
   detectChapterListOrder,
   getEffectiveReadForChapter,
+  pickResumeChapter,
   updateReadOverridesForSelection,
 } from "../../utils/chapterState";
 import { clamp } from "../../utils/responsive";
@@ -206,6 +208,7 @@ export const PluginNovelDetailScreen: React.FC = () => {
   const { theme } = useTheme();
   const { settings } = useSettings();
   const { novels, addNovel, updateNovel, categories } = useLibrary();
+  const { historyEntries, upsertHistoryEntry } = useHistory();
   const { tasks: downloadTasks, enqueue, cancelTask, cancelNovelTasks } = useDownloadQueue();
   const { width: SW } = useWindowDimensions();
 
@@ -503,9 +506,38 @@ export const PluginNovelDetailScreen: React.FC = () => {
   }, [existingNovel, progressTotal]);
   const effectiveReadCount = useMemo(() => {
     if (!existingNovel) return 0;
-    return computeTotalEffectiveReadCount({ total: progressTotal, baseReadCount, order: chapterListOrder, chapters, readOverrides: existingNovel.chapterReadOverrides });
+    if (chapters.length !== progressTotal) return baseReadCount;
+    return computeTotalEffectiveReadCount({
+      total: progressTotal,
+      baseReadCount,
+      order: chapterListOrder,
+      chapters,
+      readOverrides: existingNovel.chapterReadOverrides,
+    });
   }, [baseReadCount, chapterListOrder, chapters, existingNovel, progressTotal]);
   const progressPercent = progressTotal > 0 ? (effectiveReadCount / progressTotal) * 100 : 0;
+
+  const historyEntry = useMemo(
+    () => historyEntries.find((e) => e.id === existingNovel?.id),
+    [existingNovel?.id, historyEntries],
+  );
+
+  const resumeTarget = useMemo(() => {
+    if (!existingNovel || chapters.length === 0) return null;
+    return pickResumeChapter({
+      chapters,
+      order: chapterListOrder,
+      baseReadCount: Math.min(baseReadCount, chapters.length),
+      readOverrides: existingNovel.chapterReadOverrides,
+      lastReadPath: historyEntry?.lastReadChapter?.id,
+    });
+  }, [
+    baseReadCount,
+    chapterListOrder,
+    chapters,
+    existingNovel,
+    historyEntry?.lastReadChapter?.id,
+  ]);
   const downloadTaskByPath = useMemo(() => {
     const map = new Map<string, { id: string; status: string }>();
     for (const task of downloadTasks) {
@@ -534,7 +566,17 @@ export const PluginNovelDetailScreen: React.FC = () => {
   const handleDownloadUnread = useCallback((limit?: number) => {
     if (!existingNovel) { Alert.alert("Not in library", "Add this novel to your library to download chapters."); return; }
     if (chapters.length === 0) return;
-    const unread = chapters.filter((c, index) => !getEffectiveReadForChapter({ chapterPath: c.path, index, total: progressTotal, baseReadCount, order: chapterListOrder, readOverrides: existingNovel.chapterReadOverrides }));
+    const unread = chapters.filter(
+      (c, index) =>
+        !getEffectiveReadForChapter({
+          chapterPath: c.path,
+          index,
+          total: chapters.length,
+          baseReadCount: Math.min(baseReadCount, chapters.length),
+          order: chapterListOrder,
+          readOverrides: existingNovel.chapterReadOverrides,
+        }),
+    );
     enqueueManyChapterDownloads(typeof limit === "number" ? unread.slice(0, limit) : unread);
   }, [baseReadCount, chapterListOrder, chapters, enqueueManyChapterDownloads, existingNovel, progressTotal]);
 
@@ -567,12 +609,82 @@ export const PluginNovelDetailScreen: React.FC = () => {
   const handleMarkRead = () => {
     if (!existingNovel) return;
     const total = existingNovel.totalChapters > 0 ? existingNovel.totalChapters : chapters.length;
-    updateNovel(existingNovel.id, { unreadChapters: 0, lastReadChapter: total, lastReadDate: new Date() });
+    const now = new Date();
+    updateNovel(existingNovel.id, {
+      unreadChapters: 0,
+      lastReadChapter: total,
+      lastReadDate: now,
+      chapterReadOverrides: undefined,
+    });
+
+    if (chapters.length > 0) {
+      const last =
+        pickResumeChapter({
+          chapters,
+          order: chapterListOrder,
+          baseReadCount: chapters.length,
+          readOverrides: undefined,
+          lastReadPath: null,
+        })?.chapter ?? chapters[0];
+
+      upsertHistoryEntry({
+        id: existingNovel.id,
+        novel: { ...existingNovel, pluginCache: undefined } as any,
+        lastReadChapter: {
+          id: last.path,
+          novelId: existingNovel.id,
+          title: last.name || "Chapter",
+          number: Math.max(1, chapters.length),
+          isRead: true,
+          isDownloaded: Boolean(existingNovel?.chapterDownloaded?.[last.path]),
+          releaseDate: now,
+        },
+        progress: 100,
+        totalChaptersRead: total,
+        lastReadDate: now,
+        timeSpentReading: historyEntry?.timeSpentReading || 0,
+      });
+    }
   };
   const handleMarkUnread = () => {
     if (!existingNovel) return;
     const total = existingNovel.totalChapters > 0 ? existingNovel.totalChapters : chapters.length;
-    updateNovel(existingNovel.id, { unreadChapters: total, lastReadChapter: 0, lastReadDate: undefined });
+    const now = new Date();
+    updateNovel(existingNovel.id, {
+      unreadChapters: total,
+      lastReadChapter: 0,
+      lastReadDate: undefined,
+      chapterReadOverrides: undefined,
+    });
+
+    if (chapters.length > 0) {
+      const first =
+        pickResumeChapter({
+          chapters,
+          order: chapterListOrder,
+          baseReadCount: 0,
+          readOverrides: undefined,
+          lastReadPath: null,
+        })?.chapter ?? chapters[0];
+
+      upsertHistoryEntry({
+        id: existingNovel.id,
+        novel: { ...existingNovel, pluginCache: undefined } as any,
+        lastReadChapter: {
+          id: first.path,
+          novelId: existingNovel.id,
+          title: first.name || "Chapter",
+          number: 1,
+          isRead: false,
+          isDownloaded: Boolean(existingNovel?.chapterDownloaded?.[first.path]),
+          releaseDate: now,
+        },
+        progress: 0,
+        totalChaptersRead: 0,
+        lastReadDate: now,
+        timeSpentReading: historyEntry?.timeSpentReading || 0,
+      });
+    }
   };
 
   const moreOptions = [
@@ -597,28 +709,190 @@ export const PluginNovelDetailScreen: React.FC = () => {
   const markSelectedChaptersRead = useCallback(() => {
     if (!existingNovel) { Alert.alert("Not in library", "Add this novel to your library to track progress."); return; }
     if (selectedChapterPaths.size === 0) return;
+    const now = new Date();
     if (chapters.length > 0 && selectedChapterPaths.size === chapters.length) {
-      updateNovel(existingNovel.id, { unreadChapters: 0, lastReadChapter: progressTotal, lastReadDate: new Date(), chapterReadOverrides: undefined });
-      clearChapterSelection(); return;
+      updateNovel(existingNovel.id, {
+        unreadChapters: 0,
+        lastReadChapter: progressTotal,
+        lastReadDate: now,
+        chapterReadOverrides: undefined,
+      });
+      const last =
+        pickResumeChapter({
+          chapters,
+          order: chapterListOrder,
+          baseReadCount: chapters.length,
+          readOverrides: undefined,
+          lastReadPath: null,
+        })?.chapter ?? chapters[0];
+      upsertHistoryEntry({
+        id: existingNovel.id,
+        novel: { ...existingNovel, pluginCache: undefined } as any,
+        lastReadChapter: {
+          id: last.path,
+          novelId: existingNovel.id,
+          title: last.name || "Chapter",
+          number: Math.max(1, chapters.length),
+          isRead: true,
+          isDownloaded: Boolean(existingNovel?.chapterDownloaded?.[last.path]),
+          releaseDate: now,
+        },
+        progress: 100,
+        totalChaptersRead: progressTotal,
+        lastReadDate: now,
+        timeSpentReading: historyEntry?.timeSpentReading || 0,
+      });
+      clearChapterSelection();
+      return;
     }
     const nextOverrides = updateReadOverridesForSelection({ total: progressTotal, baseReadCount, order: chapterListOrder, chapters, selectedPaths: selectedChapterPaths, readOverrides: existingNovel.chapterReadOverrides, markAs: "read" });
     const nextReadCount = computeTotalEffectiveReadCount({ total: progressTotal, baseReadCount, order: chapterListOrder, chapters, readOverrides: nextOverrides });
-    updateNovel(existingNovel.id, { unreadChapters: Math.max(0, progressTotal - nextReadCount), lastReadDate: new Date(), chapterReadOverrides: nextOverrides });
+    updateNovel(existingNovel.id, {
+      unreadChapters: Math.max(0, progressTotal - nextReadCount),
+      lastReadDate: now,
+      chapterReadOverrides: nextOverrides,
+    });
+
+    const resume = pickResumeChapter({
+      chapters,
+      order: chapterListOrder,
+      baseReadCount: Math.min(baseReadCount, chapters.length),
+      readOverrides: nextOverrides,
+      lastReadPath: historyEntry?.lastReadChapter?.id,
+    });
+    const target = resume?.chapter ?? chapters[0];
+    const isRead = getEffectiveReadForChapter({
+      chapterPath: target.path,
+      index: resume?.index ?? 0,
+      total: chapters.length,
+      baseReadCount: Math.min(baseReadCount, chapters.length),
+      order: chapterListOrder,
+      readOverrides: nextOverrides,
+    });
+
+    upsertHistoryEntry({
+      id: existingNovel.id,
+      novel: { ...existingNovel, pluginCache: undefined } as any,
+      lastReadChapter: {
+        id: target.path,
+        novelId: existingNovel.id,
+        title: target.name || "Chapter",
+        number: (resume?.index ?? 0) + 1,
+        isRead,
+        isDownloaded: Boolean(existingNovel?.chapterDownloaded?.[target.path]),
+        releaseDate: now,
+      },
+      progress: progressTotal > 0 ? (nextReadCount / progressTotal) * 100 : 0,
+      totalChaptersRead: nextReadCount,
+      lastReadDate: now,
+      timeSpentReading: historyEntry?.timeSpentReading || 0,
+    });
     clearChapterSelection();
-  }, [baseReadCount, chapterListOrder, chapters, clearChapterSelection, existingNovel, progressTotal, selectedChapterPaths, updateNovel]);
+  }, [
+    baseReadCount,
+    chapterListOrder,
+    chapters,
+    clearChapterSelection,
+    existingNovel,
+    historyEntry?.lastReadChapter?.id,
+    historyEntry?.timeSpentReading,
+    progressTotal,
+    selectedChapterPaths,
+    updateNovel,
+    upsertHistoryEntry,
+  ]);
 
   const markSelectedChaptersUnread = useCallback(() => {
     if (!existingNovel) { Alert.alert("Not in library", "Add this novel to your library to track progress."); return; }
     if (selectedChapterPaths.size === 0) return;
+    const now = new Date();
     if (chapters.length > 0 && selectedChapterPaths.size === chapters.length) {
-      updateNovel(existingNovel.id, { unreadChapters: progressTotal, lastReadChapter: 0, lastReadDate: undefined, chapterReadOverrides: undefined });
-      clearChapterSelection(); return;
+      updateNovel(existingNovel.id, {
+        unreadChapters: progressTotal,
+        lastReadChapter: 0,
+        lastReadDate: undefined,
+        chapterReadOverrides: undefined,
+      });
+      const first =
+        pickResumeChapter({
+          chapters,
+          order: chapterListOrder,
+          baseReadCount: 0,
+          readOverrides: undefined,
+          lastReadPath: null,
+        })?.chapter ?? chapters[0];
+      upsertHistoryEntry({
+        id: existingNovel.id,
+        novel: { ...existingNovel, pluginCache: undefined } as any,
+        lastReadChapter: {
+          id: first.path,
+          novelId: existingNovel.id,
+          title: first.name || "Chapter",
+          number: 1,
+          isRead: false,
+          isDownloaded: Boolean(existingNovel?.chapterDownloaded?.[first.path]),
+          releaseDate: now,
+        },
+        progress: 0,
+        totalChaptersRead: 0,
+        lastReadDate: now,
+        timeSpentReading: historyEntry?.timeSpentReading || 0,
+      });
+      clearChapterSelection();
+      return;
     }
     const nextOverrides = updateReadOverridesForSelection({ total: progressTotal, baseReadCount, order: chapterListOrder, chapters, selectedPaths: selectedChapterPaths, readOverrides: existingNovel.chapterReadOverrides, markAs: "unread" });
     const nextReadCount = computeTotalEffectiveReadCount({ total: progressTotal, baseReadCount, order: chapterListOrder, chapters, readOverrides: nextOverrides });
     updateNovel(existingNovel.id, { unreadChapters: Math.max(0, progressTotal - nextReadCount), lastReadDate: nextReadCount === 0 ? undefined : existingNovel.lastReadDate, chapterReadOverrides: nextOverrides });
+
+    const resume = pickResumeChapter({
+      chapters,
+      order: chapterListOrder,
+      baseReadCount: Math.min(baseReadCount, chapters.length),
+      readOverrides: nextOverrides,
+      lastReadPath: historyEntry?.lastReadChapter?.id,
+    });
+    const target = resume?.chapter ?? chapters[0];
+    const isRead = getEffectiveReadForChapter({
+      chapterPath: target.path,
+      index: resume?.index ?? 0,
+      total: chapters.length,
+      baseReadCount: Math.min(baseReadCount, chapters.length),
+      order: chapterListOrder,
+      readOverrides: nextOverrides,
+    });
+
+    upsertHistoryEntry({
+      id: existingNovel.id,
+      novel: { ...existingNovel, pluginCache: undefined } as any,
+      lastReadChapter: {
+        id: target.path,
+        novelId: existingNovel.id,
+        title: target.name || "Chapter",
+        number: (resume?.index ?? 0) + 1,
+        isRead,
+        isDownloaded: Boolean(existingNovel?.chapterDownloaded?.[target.path]),
+        releaseDate: now,
+      },
+      progress: progressTotal > 0 ? (nextReadCount / progressTotal) * 100 : 0,
+      totalChaptersRead: nextReadCount,
+      lastReadDate: now,
+      timeSpentReading: historyEntry?.timeSpentReading || 0,
+    });
     clearChapterSelection();
-  }, [baseReadCount, chapterListOrder, chapters, clearChapterSelection, existingNovel, progressTotal, selectedChapterPaths, updateNovel]);
+  }, [
+    baseReadCount,
+    chapterListOrder,
+    chapters,
+    clearChapterSelection,
+    existingNovel,
+    historyEntry?.lastReadChapter?.id,
+    historyEntry?.timeSpentReading,
+    progressTotal,
+    selectedChapterPaths,
+    updateNovel,
+    upsertHistoryEntry,
+  ]);
 
   const deleteSelectedChapterDownloads = useCallback(() => {
     if (!existingNovel) { Alert.alert("Not in library", "Add novel to library to manage downloads."); return; }
@@ -662,13 +936,9 @@ export const PluginNovelDetailScreen: React.FC = () => {
 
   const handleProgressPress = useCallback(() => {
     if (chapters.length === 0) return;
-    const total = (existingNovel?.totalChapters && existingNovel.totalChapters > 0 ? existingNovel.totalChapters : chapters.length) || chapters.length;
-    const lastRead = Math.max(0, Math.min(total, Math.floor(existingNovel?.lastReadChapter || 0)));
-    const unread = Math.max(0, Math.min(total, Math.floor(existingNovel?.unreadChapters ?? total)));
-    const targetIndex = unread === 0 ? Math.max(0, Math.min(chapters.length - 1, lastRead - 1)) : Math.min(chapters.length - 1, lastRead);
-    const target = chapters[targetIndex] ?? chapters[0];
+    const target = resumeTarget?.chapter ?? chapters[0];
     if (target) openChapter(target);
-  }, [chapters, existingNovel?.lastReadChapter, existingNovel?.totalChapters, existingNovel?.unreadChapters, openChapter]);
+  }, [chapters, openChapter, resumeTarget]);
 
   const handleHeaderBackPress = useCallback(() => {
     if (isChapterSelectionMode) { clearChapterSelection(); return; }
@@ -763,7 +1033,7 @@ export const PluginNovelDetailScreen: React.FC = () => {
           >
             <Ionicons name="play" size={15} color="#FFF" />
             <Text style={[styles.actionBtnText, { color: "#FFF" }]}>
-              {(existingNovel?.lastReadChapter ?? 0) > 0 ? "Resume" : "Start"}
+              {effectiveReadCount > 0 ? "Resume" : "Start"}
             </Text>
           </TouchableOpacity>
         )}

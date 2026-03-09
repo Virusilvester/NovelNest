@@ -79,9 +79,10 @@ export const ReaderScreen: React.FC = () => {
       .filter((c) => c.path);
   }, [cached?.chapters, novel?.pluginCache?.chapters]);
 
-  // FIX: Resume-reading support. The caller can pass chapterId="resume" to have
-  // the reader open the chapter the user was on last. We also fall back to
-  // lastReadChapter index when no exact path match is found.
+  // Resume-reading support. We prioritise:
+  // 1) Exact chapter path match
+  // 2) "resume" sentinel or empty -> lastReadChapter index
+  // 3) Fallback: treat chapterId as a raw path
   const initialChapter = useMemo(() => {
     if (chapters.length > 0) {
       // 1. Exact path match
@@ -94,19 +95,9 @@ export const ReaderScreen: React.FC = () => {
         const idx = Math.min(chapters.length - 1, lastIdx);
         return { path: chapters[idx].path, title: chapters[idx].name };
       }
-
-      // 3. Numeric 1-based index
-      const numeric = Number(chapterId);
-      if (Number.isFinite(numeric) && numeric > 0) {
-        const idx = Math.min(
-          chapters.length - 1,
-          Math.max(0, Math.floor(numeric) - 1),
-        );
-        return { path: chapters[idx].path, title: chapters[idx].name };
-      }
     }
 
-    // 4. Fallback: treat chapterId as a raw path
+    // 3. Fallback: treat chapterId as a raw path
     return { path: chapterId, title: undefined };
   }, [chapterId, chapters, novel?.lastReadChapter]);
 

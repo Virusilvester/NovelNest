@@ -138,3 +138,45 @@ export const updateReadOverridesForSelection = (opts: {
   const keys = Object.keys(next);
   return keys.length ? next : undefined;
 };
+
+export const pickResumeChapter = <T extends { path: string }>(opts: {
+  chapters: T[];
+  order: ChapterListOrder;
+  baseReadCount: number;
+  readOverrides?: Record<string, boolean>;
+  lastReadPath?: string | null;
+}): { chapter: T; index: number } | null => {
+  const total = Math.max(0, opts.chapters.length);
+  if (total === 0) return null;
+
+  const safeBase = clampInt(opts.baseReadCount, 0, total);
+
+  const lastReadPath = opts.lastReadPath ? String(opts.lastReadPath) : "";
+  if (lastReadPath) {
+    const idx = opts.chapters.findIndex((c) => String(c?.path) === lastReadPath);
+    if (idx >= 0) return { chapter: opts.chapters[idx], index: idx };
+  }
+
+  const indices =
+    opts.order === "asc"
+      ? Array.from({ length: total }, (_, i) => i)
+      : Array.from({ length: total }, (_, i) => total - 1 - i);
+
+  for (const index of indices) {
+    const chapter = opts.chapters[index];
+    if (!chapter?.path) continue;
+    const isRead = getEffectiveReadForChapter({
+      chapterPath: String(chapter.path),
+      index,
+      total,
+      baseReadCount: safeBase,
+      order: opts.order,
+      readOverrides: opts.readOverrides,
+    });
+    if (!isRead) return { chapter, index };
+  }
+
+  // Completed: open the last chapter in reading order.
+  const completedIndex = opts.order === "asc" ? total - 1 : 0;
+  return { chapter: opts.chapters[completedIndex], index: completedIndex };
+};
