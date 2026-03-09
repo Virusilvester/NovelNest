@@ -1,8 +1,6 @@
 // src/screens/settings/DataManagementScreen.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system/legacy";
 import React, { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
@@ -127,104 +125,6 @@ export const DataManagementScreen: React.FC = () => {
       history: history.historyEntries.length,
     };
   }, [library.novels.length, library.categories.length, history.historyEntries.length]);
-
-  const handleExportBackup = async () => {
-    setIsLoading(true);
-    try {
-      const payload = await DatabaseService.exportBackup();
-      const json = JSON.stringify(payload, null, 2);
-
-      const filename = `novelnest-backup-${new Date()
-        .toISOString()
-        .replace(/[:.]/g, "-")}.json`;
-
-      let uri: string | null = null;
-
-      if (Platform.OS === "android" && FileSystem.StorageAccessFramework) {
-        const perm =
-          await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
-        if (perm.granted) {
-          const targetUri = await FileSystem.StorageAccessFramework.createFileAsync(
-            perm.directoryUri,
-            filename,
-            "application/json",
-          );
-          await FileSystem.writeAsStringAsync(targetUri, json, {
-            encoding: FileSystem.EncodingType.UTF8,
-          });
-          uri = targetUri;
-        }
-      }
-
-      if (!uri) {
-        const base = FileSystem.documentDirectory;
-        if (!base) throw new Error("Missing document directory.");
-        const path = `${base}${filename}`;
-        await FileSystem.writeAsStringAsync(path, json, {
-          encoding: FileSystem.EncodingType.UTF8,
-        });
-        uri = path;
-      }
-
-      Alert.alert("Backup Exported", `Saved to:\n${uri}`);
-    } catch (e: any) {
-      Alert.alert("Export Failed", e?.message || "Could not export backup.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const importBackupFromUri = async (uri: string, mode: "replace" | "merge") => {
-    setIsLoading(true);
-    try {
-      const json = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-      const parsed = JSON.parse(json);
-
-      await DatabaseService.importBackup(parsed, { mode });
-      await Promise.all([library.reloadFromDatabase(), history.reloadFromDatabase()]);
-
-      Alert.alert(
-        "Import Complete",
-        mode === "replace"
-          ? "Your library database was replaced with the backup."
-          : "Backup was merged into your library database.",
-      );
-    } catch (e: any) {
-      Alert.alert("Import Failed", e?.message || "Could not import backup.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleImportBackup = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ["application/json", "text/json", "text/plain", "*/*"],
-        multiple: false,
-        copyToCacheDirectory: true,
-      });
-      if (result.canceled || !result.assets?.[0]?.uri) return;
-      const uri = result.assets[0].uri;
-
-      Alert.alert(
-        "Import Backup",
-        "How do you want to import this backup?",
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Merge", onPress: () => void importBackupFromUri(uri, "merge") },
-          {
-            text: "Replace",
-            style: "destructive",
-            onPress: () => void importBackupFromUri(uri, "replace"),
-          },
-        ],
-      );
-    } catch (e: any) {
-      Alert.alert("Import Failed", e?.message || "Could not open file picker.");
-    }
-  };
 
   const handleClearDatabase = () => {
     Alert.alert(
@@ -361,26 +261,6 @@ export const DataManagementScreen: React.FC = () => {
               </Text>
             </View>
           </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
-            Backups
-          </Text>
-          <DataAction
-            title="Export backup"
-            description="Save your library + history to a JSON file"
-            icon="download-outline"
-            onPress={() => void handleExportBackup()}
-            isLoading={isLoading}
-          />
-          <DataAction
-            title="Import backup"
-            description="Restore a previously exported JSON backup"
-            icon="cloud-upload-outline"
-            onPress={() => void handleImportBackup()}
-            isLoading={isLoading}
-          />
         </View>
 
         <View style={styles.section}>
@@ -522,11 +402,6 @@ export const DataManagementScreen: React.FC = () => {
           />
         </View>
 
-        <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>
-            Backups are stored as JSON files.
-          </Text>
-        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );

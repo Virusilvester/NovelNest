@@ -1,6 +1,7 @@
 // src/services/database.ts
 import * as SQLite from "expo-sqlite";
-import { Category, HistoryEntry, Novel } from "../types";
+import { Category, HistoryEntry, Novel, AppSettings } from "../types";
+import { StorageService } from "./storage";
 
 type Db = any;
 
@@ -18,6 +19,13 @@ type BackupPayloadV1 = {
   };
   history: HistoryEntry[];
 };
+
+type BackupPayloadV2 = BackupPayloadV1 & {
+  version: 2;
+  settings?: AppSettings;
+};
+
+export type BackupPayload = BackupPayloadV1 | BackupPayloadV2;
 
 function toISOStringOrNull(value: unknown): string | null {
   if (!value) return null;
@@ -559,14 +567,17 @@ export const DatabaseService = {
     });
   },
 
-  async exportBackup(): Promise<BackupPayloadV1> {
+  async exportBackup(): Promise<BackupPayload> {
     const { categories, novels } = await this.getLibrary();
     const history = await this.getHistory();
+    const settings = await StorageService.loadSettings();
+
     return {
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       library: { categories, novels },
       history,
+      settings,
     };
   },
 
@@ -578,8 +589,13 @@ export const DatabaseService = {
       throw new Error("Invalid backup file.");
     }
 
-    const payload = input as Partial<BackupPayloadV1>;
-    if (payload.version !== 1 || !payload.library) {
+    const payload = input as Partial<BackupPayload>;
+
+    if (!payload.library) {
+      throw new Error("Unsupported backup format: missing library.");
+    }
+
+    if (payload.version !== 1 && payload.version !== 2) {
       throw new Error("Unsupported backup version.");
     }
 
@@ -593,11 +609,15 @@ export const DatabaseService = {
 
     if (options.mode === "replace") {
       await this.replaceAll({ categories, novels, history });
-      return;
+    } else {
+      await Promise.all(categories.map((c) => this.upsertCategory(c)));
+      await Promise.all(novels.map((n) => this.upsertNovel(n)));
+      await Promise.all(history.map((h) => this.upsertHistoryEntry(h)));
     }
 
-    await Promise.all(categories.map((c) => this.upsertCategory(c)));
-    await Promise.all(novels.map((n) => this.upsertNovel(n)));
-    await Promise.all(history.map((h) => this.upsertHistoryEntry(h)));
+    // Persist settings if present in a version 2 backup.
+    if (payload.version === 2 && payload.settings) {
+      await StorageService.saveSettings(payload.settings);
+    }
   },
 };
