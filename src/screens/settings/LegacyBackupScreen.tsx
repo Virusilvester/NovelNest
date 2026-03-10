@@ -87,7 +87,10 @@ const DataAction: React.FC<DataActionProps> = ({
           {title}
         </Text>
         <Text
-          style={[styles.actionDescription, { color: theme.colors.textSecondary }]}
+          style={[
+            styles.actionDescription,
+            { color: theme.colors.textSecondary },
+          ]}
         >
           {description}
         </Text>
@@ -125,11 +128,12 @@ export const LegacyBackupScreen: React.FC = () => {
         const perm =
           await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
         if (perm.granted) {
-          const targetUri = await FileSystem.StorageAccessFramework.createFileAsync(
-            perm.directoryUri,
-            filename,
-            "application/json",
-          );
+          const targetUri =
+            await FileSystem.StorageAccessFramework.createFileAsync(
+              perm.directoryUri,
+              filename,
+              "application/json",
+            );
           await FileSystem.writeAsStringAsync(targetUri, json, {
             encoding: FileSystem.EncodingType.UTF8,
           });
@@ -163,7 +167,10 @@ export const LegacyBackupScreen: React.FC = () => {
     }
   };
 
-  const importBackupFromUri = async (uri: string, mode: "replace" | "merge") => {
+  const importBackupFromUri = async (
+    uri: string,
+    mode: "replace" | "merge",
+  ) => {
     setIsLoading(true);
     try {
       const json = await FileSystem.readAsStringAsync(uri, {
@@ -190,7 +197,11 @@ export const LegacyBackupScreen: React.FC = () => {
           "Confirm Import",
           `You are about to ${mode === "replace" ? "replace" : "merge"} your library with this backup:\n\n${summaryLines}\n\nProceed?`,
           [
-            { text: "Cancel", style: "cancel", onPress: () => reject(new Error("Import cancelled")) },
+            {
+              text: "Cancel",
+              style: "cancel",
+              onPress: () => reject(new Error("Import cancelled")),
+            },
             {
               text: mode === "replace" ? "Replace" : "Merge",
               style: mode === "replace" ? "destructive" : "default",
@@ -201,7 +212,10 @@ export const LegacyBackupScreen: React.FC = () => {
       });
 
       await DatabaseService.importBackup(parsed, { mode });
-      await Promise.all([library.reloadFromDatabase(), history.reloadFromDatabase()]);
+      await Promise.all([
+        library.reloadFromDatabase(),
+        history.reloadFromDatabase(),
+      ]);
 
       const hasSettingsInBackup = !!(parsed as any).settings;
 
@@ -232,19 +246,18 @@ export const LegacyBackupScreen: React.FC = () => {
       if (result.canceled || !result.assets?.[0]?.uri) return;
       const uri = result.assets[0].uri;
 
-      Alert.alert(
-        "Import Backup",
-        "How do you want to import this backup?",
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Merge", onPress: () => void importBackupFromUri(uri, "merge") },
-          {
-            text: "Replace",
-            style: "destructive",
-            onPress: () => void importBackupFromUri(uri, "replace"),
-          },
-        ],
-      );
+      Alert.alert("Import Backup", "How do you want to import this backup?", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Merge",
+          onPress: () => void importBackupFromUri(uri, "merge"),
+        },
+        {
+          text: "Replace",
+          style: "destructive",
+          onPress: () => void importBackupFromUri(uri, "replace"),
+        },
+      ]);
     } catch (e: any) {
       Alert.alert("Import Failed", e?.message || "Could not open file picker.");
     }
@@ -261,7 +274,9 @@ export const LegacyBackupScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
+          <Text
+            style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}
+          >
             Backups
           </Text>
           <DataAction
@@ -281,7 +296,9 @@ export const LegacyBackupScreen: React.FC = () => {
         </View>
 
         <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>
+          <Text
+            style={[styles.footerText, { color: theme.colors.textSecondary }]}
+          >
             Backups are stored as JSON files.
           </Text>
         </View>

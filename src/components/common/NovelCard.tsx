@@ -2,12 +2,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import React from "react";
-import {
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { DisplayMode, Novel } from "../../types";
 
@@ -51,7 +46,9 @@ const NovelCardComponent: React.FC<NovelCardProps> = ({
           {
             backgroundColor: theme.colors.surface,
             borderWidth: isSelectionMode ? 2 : 0,
-            borderColor: isSelected ? theme.colors.primary : theme.colors.border,
+            borderColor: isSelected
+              ? theme.colors.primary
+              : theme.colors.border,
           },
         ]}
         onPress={onPress}
@@ -227,7 +224,9 @@ const NovelCardComponent: React.FC<NovelCardProps> = ({
           styles.gridCoverContainer,
           isSelectionMode && {
             borderWidth: 2,
-            borderColor: isSelected ? theme.colors.primary : theme.colors.border,
+            borderColor: isSelected
+              ? theme.colors.primary
+              : theme.colors.border,
           },
         ]}
       >

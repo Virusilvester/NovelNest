@@ -22,22 +22,25 @@ export const ImprovedSwitch: React.FC<ImprovedSwitchProps> = ({
     setLocalValue(value);
   }, [value]);
 
-  const handleValueChange = useCallback((newValue: boolean) => {
-    if (disabled) return;
-    
-    // Clear any pending timeout
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-    
-    // Update local state immediately for responsive UI
-    setLocalValue(newValue);
-    
-    // Debounce the onChange call to prevent rapid toggling
-    timeoutRef.current = setTimeout(() => {
-      onValueChange(newValue);
-    }, 100);
-  }, [onValueChange, disabled]);
+  const handleValueChange = useCallback(
+    (newValue: boolean) => {
+      if (disabled) return;
+
+      // Clear any pending timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+
+      // Update local state immediately for responsive UI
+      setLocalValue(newValue);
+
+      // Debounce the onChange call to prevent rapid toggling
+      timeoutRef.current = setTimeout(() => {
+        onValueChange(newValue);
+      }, 100);
+    },
+    [onValueChange, disabled],
+  );
 
   useEffect(() => {
     return () => {
@@ -58,7 +61,9 @@ export const ImprovedSwitch: React.FC<ImprovedSwitchProps> = ({
           true: disabled ? theme.colors.primary + "80" : theme.colors.primary,
         }}
         thumbColor={localValue ? "#FFF" : "#f4f3f4"}
-        ios_backgroundColor={disabled ? theme.colors.border + "80" : theme.colors.border}
+        ios_backgroundColor={
+          disabled ? theme.colors.border + "80" : theme.colors.border
+        }
       />
     </View>
   );

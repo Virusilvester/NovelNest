@@ -2,7 +2,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import React, { useCallback, useMemo, useState } from "react";
-import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  Alert,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { FilterPanel } from "../../components/common/FilterPanel";
 import { Header } from "../../components/common/Header";
 import { PopupMenu } from "../../components/common/PopupMenu";
@@ -48,15 +55,21 @@ export const LibraryScreen: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [isSelectionMenuVisible, setIsSelectionMenuVisible] = useState(false);
   const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
-  const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(null);
+  const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(
+    null,
+  );
 
-  const filteredNovels = useMemo(() => getFilteredNovels(), [getFilteredNovels]);
+  const filteredNovels = useMemo(
+    () => getFilteredNovels(),
+    [getFilteredNovels],
+  );
 
   const displayedNovels = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return filteredNovels;
     return filteredNovels.filter(
-      (n) => n.title.toLowerCase().includes(q) || n.author.toLowerCase().includes(q),
+      (n) =>
+        n.title.toLowerCase().includes(q) || n.author.toLowerCase().includes(q),
     );
   }, [filteredNovels, searchQuery]);
 
@@ -167,7 +180,9 @@ export const LibraryScreen: React.FC = () => {
     }
     const common =
       selectedNovels.length > 0
-        ? selectedNovels.every((n) => n.categoryId === selectedNovels[0].categoryId)
+        ? selectedNovels.every(
+            (n) => n.categoryId === selectedNovels[0].categoryId,
+          )
           ? selectedNovels[0].categoryId
           : null
         : null;
@@ -244,8 +259,17 @@ export const LibraryScreen: React.FC = () => {
       { id: "read", label: "Mark as read", onPress: markSelectedRead },
       { id: "unread", label: "Mark as unread", onPress: markSelectedUnread },
       { id: "download", label: "Download", onPress: markSelectedDownloaded },
-      { id: "removeDownloads", label: "Remove downloads", onPress: markSelectedUndownloaded },
-      { id: "delete", label: "Delete", isDestructive: true, onPress: bulkDelete },
+      {
+        id: "removeDownloads",
+        label: "Remove downloads",
+        onPress: markSelectedUndownloaded,
+      },
+      {
+        id: "delete",
+        label: "Delete",
+        isDestructive: true,
+        onPress: bulkDelete,
+      },
     ],
     [
       bulkDelete,
@@ -317,14 +341,35 @@ export const LibraryScreen: React.FC = () => {
           onBackPress={clearSelection}
           rightButtons={
             <>
-              <TouchableOpacity onPress={selectAllDisplayed} style={styles.iconButton}>
-                <Ionicons name="checkbox-outline" size={24} color={theme.colors.text} />
+              <TouchableOpacity
+                onPress={selectAllDisplayed}
+                style={styles.iconButton}
+              >
+                <Ionicons
+                  name="checkbox-outline"
+                  size={24}
+                  color={theme.colors.text}
+                />
               </TouchableOpacity>
-              <TouchableOpacity onPress={invertSelection} style={styles.iconButton}>
-                <Ionicons name="swap-horizontal" size={24} color={theme.colors.text} />
+              <TouchableOpacity
+                onPress={invertSelection}
+                style={styles.iconButton}
+              >
+                <Ionicons
+                  name="swap-horizontal"
+                  size={24}
+                  color={theme.colors.text}
+                />
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setIsSelectionMenuVisible(true)} style={styles.iconButton}>
-                <Ionicons name="ellipsis-vertical" size={24} color={theme.colors.text} />
+              <TouchableOpacity
+                onPress={() => setIsSelectionMenuVisible(true)}
+                style={styles.iconButton}
+              >
+                <Ionicons
+                  name="ellipsis-vertical"
+                  size={24}
+                  color={theme.colors.text}
+                />
               </TouchableOpacity>
             </>
           }
@@ -430,7 +475,12 @@ export const LibraryScreen: React.FC = () => {
               <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
                 Change category
               </Text>
-              <Text style={[styles.modalSubtitle, { color: theme.colors.textSecondary }]}>
+              <Text
+                style={[
+                  styles.modalSubtitle,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
                 Select a category to move {selectedNovels.length} novel(s).
               </Text>
             </View>
@@ -444,17 +494,28 @@ export const LibraryScreen: React.FC = () => {
                     style={[
                       styles.modalRow,
                       { borderBottomColor: theme.colors.divider },
-                      selected && { backgroundColor: theme.colors.primary + "15" },
+                      selected && {
+                        backgroundColor: theme.colors.primary + "15",
+                      },
                     ]}
                     onPress={() => setPendingCategoryId(c.id)}
                   >
-                    <Text style={[styles.modalRowText, { color: theme.colors.text }]}>
+                    <Text
+                      style={[
+                        styles.modalRowText,
+                        { color: theme.colors.text },
+                      ]}
+                    >
                       {c.name}
                     </Text>
                     <Ionicons
                       name={selected ? "radio-button-on" : "radio-button-off"}
                       size={20}
-                      color={selected ? theme.colors.primary : theme.colors.textSecondary}
+                      color={
+                        selected
+                          ? theme.colors.primary
+                          : theme.colors.textSecondary
+                      }
                     />
                   </TouchableOpacity>
                 );
@@ -472,7 +533,9 @@ export const LibraryScreen: React.FC = () => {
                 ]}
                 onPress={() => setIsCategoryModalVisible(false)}
               >
-                <Text style={[styles.modalButtonText, { color: theme.colors.text }]}>
+                <Text
+                  style={[styles.modalButtonText, { color: theme.colors.text }]}
+                >
                   Cancel
                 </Text>
               </TouchableOpacity>
@@ -493,7 +556,9 @@ export const LibraryScreen: React.FC = () => {
                   style={[
                     styles.modalButtonText,
                     {
-                      color: pendingCategoryId ? "#FFF" : theme.colors.textSecondary,
+                      color: pendingCategoryId
+                        ? "#FFF"
+                        : theme.colors.textSecondary,
                     },
                   ]}
                 >

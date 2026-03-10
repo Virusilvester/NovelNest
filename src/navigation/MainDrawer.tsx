@@ -29,13 +29,13 @@ export const MainDrawer: React.FC = () => {
         headerShown: false,
         drawerType: "front",
         overlayColor: "rgba(0,0,0,0.5)",
-        drawerStyle: { 
+        drawerStyle: {
           width: drawerWidth,
-          backgroundColor: theme.colors.background 
+          backgroundColor: theme.colors.background,
         },
         drawerActiveTintColor: theme.colors.primary,
         drawerInactiveTintColor: theme.colors.text,
-        drawerActiveBackgroundColor: theme.colors.primary + '20'
+        drawerActiveBackgroundColor: theme.colors.primary + "20",
       }}
     >
       <Drawer.Screen

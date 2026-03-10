@@ -69,7 +69,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({
   const reloadFromDatabase = useCallback(async () => {
     const next = await DatabaseService.getLibrary();
     const dbCategories = next.categories;
-    
+
     // Always include the "All" category as the first category
     const allCategories: Category[] = [
       {
@@ -79,7 +79,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({
       },
       ...dbCategories.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
     ];
-    
+
     setCategories(allCategories);
     setNovels(next.novels);
   }, []);
@@ -163,16 +163,16 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({
       const newCategory: Category = {
         id: Date.now().toString(),
         name: trimmed,
-        order: categories.filter(c => c.id !== "all").length, // Exclude "All" from count
+        order: categories.filter((c) => c.id !== "all").length, // Exclude "All" from count
       };
-      
+
       // Add new category while keeping "All" first
       const allCategories = [
-        categories.find(c => c.id === "all")!, // Keep "All" category
-        ...categories.filter(c => c.id !== "all"), // Existing categories except "All"
+        categories.find((c) => c.id === "all")!, // Keep "All" category
+        ...categories.filter((c) => c.id !== "all"), // Existing categories except "All"
         newCategory, // New category
       ];
-      
+
       setCategories(allCategories);
       void DatabaseService.upsertCategory(newCategory);
     },
@@ -189,28 +189,31 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({
     [selectedCategoryId],
   );
 
-  const reorderCategories = useCallback((orderedIds: string[]) => {
-    // Ensure "All" category is always first and not included in reordering
-    const allCategory = categories.find(c => c.id === "all");
-    const reorderableCategories = orderedIds.filter(id => id !== "all");
-    
-    const categoryMap = new Map(
-      categories
-        .filter(c => c.id !== "all") // Exclude "All" from mapping
-        .map((c) => [c.id, c])
-    );
-    
-    const reordered = [
-      allCategory!, // Always keep "All" first
-      ...reorderableCategories.map((id, index) => ({
-        ...categoryMap.get(id)!,
-        order: index,
-      })),
-    ];
-    
-    setCategories(reordered);
-    void DatabaseService.reorderCategories(reorderableCategories); // Pass only the IDs
-  }, [categories]);
+  const reorderCategories = useCallback(
+    (orderedIds: string[]) => {
+      // Ensure "All" category is always first and not included in reordering
+      const allCategory = categories.find((c) => c.id === "all");
+      const reorderableCategories = orderedIds.filter((id) => id !== "all");
+
+      const categoryMap = new Map(
+        categories
+          .filter((c) => c.id !== "all") // Exclude "All" from mapping
+          .map((c) => [c.id, c]),
+      );
+
+      const reordered = [
+        allCategory!, // Always keep "All" first
+        ...reorderableCategories.map((id, index) => ({
+          ...categoryMap.get(id)!,
+          order: index,
+        })),
+      ];
+
+      setCategories(reordered);
+      void DatabaseService.reorderCategories(reorderableCategories); // Pass only the IDs
+    },
+    [categories],
+  );
 
   const selectCategory = useCallback((id: string) => {
     setSelectedCategoryId(id);
@@ -265,9 +268,12 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({
       filtered = filtered.filter((n) => n.categoryId === selectedCategoryId);
     }
 
-    if (filterOptions.downloaded) filtered = filtered.filter((n) => n.isDownloaded);
-    if (filterOptions.unread) filtered = filtered.filter((n) => n.unreadChapters > 0);
-    if (filterOptions.completed) filtered = filtered.filter((n) => n.status === "completed");
+    if (filterOptions.downloaded)
+      filtered = filtered.filter((n) => n.isDownloaded);
+    if (filterOptions.unread)
+      filtered = filtered.filter((n) => n.unreadChapters > 0);
+    if (filterOptions.completed)
+      filtered = filtered.filter((n) => n.status === "completed");
 
     filtered = [...filtered];
     filtered.sort((a, b) => {
@@ -335,6 +341,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({
 
 export const useLibrary = () => {
   const context = useContext(LibraryContext);
-  if (!context) throw new Error("useLibrary must be used within LibraryProvider");
+  if (!context)
+    throw new Error("useLibrary must be used within LibraryProvider");
   return context;
 };

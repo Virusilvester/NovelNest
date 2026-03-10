@@ -2,7 +2,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import React from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { Header } from "../../components/common/Header";
 import { ImprovedSwitch } from "../../components/common/ImprovedSwitch";
 import { useSettings } from "../../context/SettingsContext";
@@ -13,7 +19,9 @@ import { useTheme } from "../../context/ThemeContext";
 const SectionHeader: React.FC<{ title: string }> = ({ title }) => {
   const { theme } = useTheme();
   return (
-    <Text style={[sectionHeaderStyle.text, { color: theme.colors.textSecondary }]}>
+    <Text
+      style={[sectionHeaderStyle.text, { color: theme.colors.textSecondary }]}
+    >
       {title}
     </Text>
   );
@@ -52,14 +60,24 @@ const ToggleRow: React.FC<ToggleRowProps> = ({
     <View
       style={[
         styles.row,
-        !isLast && { borderBottomWidth: 1, borderBottomColor: theme.colors.divider },
+        !isLast && {
+          borderBottomWidth: 1,
+          borderBottomColor: theme.colors.divider,
+        },
       ]}
     >
-      <View style={[styles.rowIconWrap, { backgroundColor: theme.colors.primary + "1A" }]}>
+      <View
+        style={[
+          styles.rowIconWrap,
+          { backgroundColor: theme.colors.primary + "1A" },
+        ]}
+      >
         <Ionicons name={icon} size={18} color={theme.colors.primary} />
       </View>
       <View style={styles.rowText}>
-        <Text style={[styles.rowLabel, { color: theme.colors.text }]}>{label}</Text>
+        <Text style={[styles.rowLabel, { color: theme.colors.text }]}>
+          {label}
+        </Text>
         {description ? (
           <Text style={[styles.rowDesc, { color: theme.colors.textSecondary }]}>
             {description}
@@ -103,14 +121,24 @@ const StepperRow: React.FC<StepperRowProps> = ({
     <View
       style={[
         styles.row,
-        !isLast && { borderBottomWidth: 1, borderBottomColor: theme.colors.divider },
+        !isLast && {
+          borderBottomWidth: 1,
+          borderBottomColor: theme.colors.divider,
+        },
       ]}
     >
-      <View style={[styles.rowIconWrap, { backgroundColor: theme.colors.primary + "1A" }]}>
+      <View
+        style={[
+          styles.rowIconWrap,
+          { backgroundColor: theme.colors.primary + "1A" },
+        ]}
+      >
         <Ionicons name={icon} size={18} color={theme.colors.primary} />
       </View>
       <View style={styles.rowText}>
-        <Text style={[styles.rowLabel, { color: theme.colors.text }]}>{label}</Text>
+        <Text style={[styles.rowLabel, { color: theme.colors.text }]}>
+          {label}
+        </Text>
       </View>
       <View style={styles.stepperWrap}>
         <TouchableOpacity
@@ -122,9 +150,23 @@ const StepperRow: React.FC<StepperRowProps> = ({
           onPress={onDecrement}
           disabled={value <= min}
         >
-          <Text style={[styles.stepBtnText, { color: value <= min ? theme.colors.textSecondary : theme.colors.primary }]}>−</Text>
+          <Text
+            style={[
+              styles.stepBtnText,
+              {
+                color:
+                  value <= min
+                    ? theme.colors.textSecondary
+                    : theme.colors.primary,
+              },
+            ]}
+          >
+            −
+          </Text>
         </TouchableOpacity>
-        <Text style={[styles.stepValue, { color: theme.colors.text }]}>{display}</Text>
+        <Text style={[styles.stepValue, { color: theme.colors.text }]}>
+          {display}
+        </Text>
         <TouchableOpacity
           style={[
             styles.stepBtn,
@@ -134,7 +176,19 @@ const StepperRow: React.FC<StepperRowProps> = ({
           onPress={onIncrement}
           disabled={value >= max}
         >
-          <Text style={[styles.stepBtnText, { color: value >= max ? theme.colors.textSecondary : theme.colors.primary }]}>+</Text>
+          <Text
+            style={[
+              styles.stepBtnText,
+              {
+                color:
+                  value >= max
+                    ? theme.colors.textSecondary
+                    : theme.colors.primary,
+              },
+            ]}
+          >
+            +
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -163,14 +217,24 @@ const ChipGroupRow: React.FC<ChipGroupRowProps> = ({
     <View
       style={[
         styles.chipRow,
-        !isLast && { borderBottomWidth: 1, borderBottomColor: theme.colors.divider },
+        !isLast && {
+          borderBottomWidth: 1,
+          borderBottomColor: theme.colors.divider,
+        },
       ]}
     >
       <View style={styles.chipRowTop}>
-        <View style={[styles.rowIconWrap, { backgroundColor: theme.colors.primary + "1A" }]}>
+        <View
+          style={[
+            styles.rowIconWrap,
+            { backgroundColor: theme.colors.primary + "1A" },
+          ]}
+        >
           <Ionicons name={icon} size={18} color={theme.colors.primary} />
         </View>
-        <Text style={[styles.rowLabel, { color: theme.colors.text }]}>{label}</Text>
+        <Text style={[styles.rowLabel, { color: theme.colors.text }]}>
+          {label}
+        </Text>
       </View>
       <View style={styles.chipList}>
         {options.map((opt) => (
@@ -180,9 +244,13 @@ const ChipGroupRow: React.FC<ChipGroupRowProps> = ({
               styles.chip,
               {
                 backgroundColor:
-                  selected === opt.value ? theme.colors.primary : theme.colors.border,
+                  selected === opt.value
+                    ? theme.colors.primary
+                    : theme.colors.border,
                 borderColor:
-                  selected === opt.value ? theme.colors.primary : theme.colors.border,
+                  selected === opt.value
+                    ? theme.colors.primary
+                    : theme.colors.border,
               },
             ]}
             onPress={() => onSelect(opt.value)}
@@ -226,14 +294,17 @@ const Card: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 export const ReaderSettingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { theme } = useTheme();
-  const { settings, updateReaderSettings, updateReaderSettingsBatch } = useSettings();
+  const { settings, updateReaderSettings, updateReaderSettingsBatch } =
+    useSettings();
 
   const g = settings.reader.general;
   const d = settings.reader.display;
   const t = settings.reader.theme;
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
       <Header title="Reader Settings" onBackPress={() => navigation.goBack()} />
 
       <ScrollView
@@ -249,35 +320,45 @@ export const ReaderSettingsScreen: React.FC = () => {
             label="Keep screen on"
             description="Prevent the screen from sleeping while reading"
             value={g.keepScreenOn}
-            onValueChange={(v) => updateReaderSettings("general", "keepScreenOn", v)}
+            onValueChange={(v) =>
+              updateReaderSettings("general", "keepScreenOn", v)
+            }
           />
           <ToggleRow
             icon="swap-horizontal-outline"
             label="Swipe left / right to navigate"
             description="Swipe to go to the next or previous chapter"
             value={g.swipeToNavigate}
-            onValueChange={(v) => updateReaderSettings("general", "swipeToNavigate", v)}
+            onValueChange={(v) =>
+              updateReaderSettings("general", "swipeToNavigate", v)
+            }
           />
           <ToggleRow
             icon="hand-left-outline"
             label="Tap to scroll"
             description="Tap bottom of screen to scroll down, top to scroll up. Middle tap toggles the navigation bars."
             value={g.tapToScroll}
-            onValueChange={(v) => updateReaderSettings("general", "tapToScroll", v)}
+            onValueChange={(v) =>
+              updateReaderSettings("general", "tapToScroll", v)
+            }
           />
           <ToggleRow
             icon="volume-high-outline"
             label="Volume buttons scroll"
             description="Use device volume buttons to scroll"
             value={g.volumeButtonsScroll}
-            onValueChange={(v) => updateReaderSettings("general", "volumeButtonsScroll", v)}
+            onValueChange={(v) =>
+              updateReaderSettings("general", "volumeButtonsScroll", v)
+            }
           />
           <ToggleRow
             icon="play-circle-outline"
             label="Auto-scroll"
             description="Automatically scroll at a steady pace"
             value={g.autoScroll}
-            onValueChange={(v) => updateReaderSettings("general", "autoScroll", v)}
+            onValueChange={(v) =>
+              updateReaderSettings("general", "autoScroll", v)
+            }
             isLast
           />
         </Card>
@@ -290,14 +371,18 @@ export const ReaderSettingsScreen: React.FC = () => {
             label="Fullscreen"
             description="Hide the status bar while reading"
             value={d.fullscreen}
-            onValueChange={(v) => updateReaderSettings("display", "fullscreen", v)}
+            onValueChange={(v) =>
+              updateReaderSettings("display", "fullscreen", v)
+            }
           />
           <ToggleRow
             icon="analytics-outline"
             label="Show progress %"
             description="Display reading progress percentage and bar in the bottom nav"
             value={d.showProgressPercentage}
-            onValueChange={(v) => updateReaderSettings("display", "showProgressPercentage", v)}
+            onValueChange={(v) =>
+              updateReaderSettings("display", "showProgressPercentage", v)
+            }
             isLast
           />
         </Card>
@@ -306,13 +391,28 @@ export const ReaderSettingsScreen: React.FC = () => {
         <SectionHeader title="Navigation bars" />
         <Card>
           <View style={[styles.row, { paddingVertical: 14 }]}>
-            <View style={[styles.rowIconWrap, { backgroundColor: theme.colors.primary + "1A" }]}>
-              <Ionicons name="eye-outline" size={18} color={theme.colors.primary} />
+            <View
+              style={[
+                styles.rowIconWrap,
+                { backgroundColor: theme.colors.primary + "1A" },
+              ]}
+            >
+              <Ionicons
+                name="eye-outline"
+                size={18}
+                color={theme.colors.primary}
+              />
             </View>
             <View style={styles.rowText}>
-              <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Auto-hide on scroll</Text>
-              <Text style={[styles.rowDesc, { color: theme.colors.textSecondary }]}>
-                {"The top and bottom bars hide when you scroll down and reappear when you scroll up or tap the middle of the screen."}
+              <Text style={[styles.rowLabel, { color: theme.colors.text }]}>
+                Auto-hide on scroll
+              </Text>
+              <Text
+                style={[styles.rowDesc, { color: theme.colors.textSecondary }]}
+              >
+                {
+                  "The top and bottom bars hide when you scroll down and reappear when you scroll up or tap the middle of the screen."
+                }
               </Text>
             </View>
           </View>
@@ -329,8 +429,20 @@ export const ReaderSettingsScreen: React.FC = () => {
             min={10}
             max={40}
             step={1}
-            onDecrement={() => updateReaderSettings("theme", "textSize", Math.max(10, t.textSize - 1))}
-            onIncrement={() => updateReaderSettings("theme", "textSize", Math.min(40, t.textSize + 1))}
+            onDecrement={() =>
+              updateReaderSettings(
+                "theme",
+                "textSize",
+                Math.max(10, t.textSize - 1),
+              )
+            }
+            onIncrement={() =>
+              updateReaderSettings(
+                "theme",
+                "textSize",
+                Math.min(40, t.textSize + 1),
+              )
+            }
           />
           <StepperRow
             icon="reorder-four-outline"
@@ -363,8 +475,20 @@ export const ReaderSettingsScreen: React.FC = () => {
             min={0}
             max={64}
             step={2}
-            onDecrement={() => updateReaderSettings("theme", "padding", Math.max(0, t.padding - 2))}
-            onIncrement={() => updateReaderSettings("theme", "padding", Math.min(64, t.padding + 2))}
+            onDecrement={() =>
+              updateReaderSettings(
+                "theme",
+                "padding",
+                Math.max(0, t.padding - 2),
+              )
+            }
+            onIncrement={() =>
+              updateReaderSettings(
+                "theme",
+                "padding",
+                Math.min(64, t.padding + 2),
+              )
+            }
           />
           <ChipGroupRow
             icon="text"
@@ -406,8 +530,13 @@ export const ReaderSettingsScreen: React.FC = () => {
               },
             ]}
           >
-            <Text style={[styles.previewTitle, { color: t.textColor }]}>Aa</Text>
-            <Text style={[styles.previewBody, { color: t.textColor }]} numberOfLines={2}>
+            <Text style={[styles.previewTitle, { color: t.textColor }]}>
+              Aa
+            </Text>
+            <Text
+              style={[styles.previewBody, { color: t.textColor }]}
+              numberOfLines={2}
+            >
               The quick brown fox jumps over the lazy dog.
             </Text>
           </View>
@@ -425,7 +554,13 @@ export const ReaderSettingsScreen: React.FC = () => {
                 key={p.key}
                 style={[
                   styles.presetChip,
-                  { backgroundColor: p.bg, borderColor: p.bg === t.backgroundColor ? theme.colors.primary : theme.colors.border },
+                  {
+                    backgroundColor: p.bg,
+                    borderColor:
+                      p.bg === t.backgroundColor
+                        ? theme.colors.primary
+                        : theme.colors.border,
+                  },
                   p.bg === t.backgroundColor && styles.presetChipActive,
                 ]}
                 onPress={async () => {
@@ -437,22 +572,36 @@ export const ReaderSettingsScreen: React.FC = () => {
                   ]);
                 }}
               >
-                <Text style={[styles.presetChipLabel, { color: p.fg }]}>{p.key}</Text>
+                <Text style={[styles.presetChipLabel, { color: p.fg }]}>
+                  {p.key}
+                </Text>
                 {p.bg === t.backgroundColor && (
-                  <Ionicons name="checkmark" size={12} color={theme.colors.primary} style={{ marginLeft: 2 }} />
+                  <Ionicons
+                    name="checkmark"
+                    size={12}
+                    color={theme.colors.primary}
+                    style={{ marginLeft: 2 }}
+                  />
                 )}
               </TouchableOpacity>
             ))}
           </View>
           {/* Navigate to full theme editor */}
           <TouchableOpacity
-            style={[styles.linkRow, { borderTopWidth: 1, borderTopColor: theme.colors.divider }]}
+            style={[
+              styles.linkRow,
+              { borderTopWidth: 1, borderTopColor: theme.colors.divider },
+            ]}
             onPress={() => (navigation as any).navigate("ReaderTheme")}
           >
             <Text style={[styles.linkText, { color: theme.colors.primary }]}>
               Advanced colour settings
             </Text>
-            <Ionicons name="chevron-forward" size={16} color={theme.colors.primary} />
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={theme.colors.primary}
+            />
           </TouchableOpacity>
         </Card>
 

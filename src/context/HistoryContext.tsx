@@ -1,10 +1,10 @@
 // src/context/HistoryContext.tsx
 import React, {
-    createContext,
-    useCallback,
-    useContext,
-    useEffect,
-    useState,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
 } from "react";
 import { DatabaseService } from "../services/database";
 import { HistoryEntry } from "../types";
@@ -29,8 +29,7 @@ const HistoryContext = createContext<HistoryContextType | undefined>(undefined);
 export const HistoryProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [historyEntries, setHistoryEntries] =
-    useState<HistoryEntry[]>([]);
+  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
 
   const reloadFromDatabase = useCallback(async () => {
     const next = await DatabaseService.getHistory();
@@ -48,7 +47,7 @@ export const HistoryProvider: React.FC<{ children: React.ReactNode }> = ({
           // If database is completely empty, LibraryContext will seed via replaceAll.
           const lib = await DatabaseService.getLibrary();
           if (lib.categories.length > 0 || lib.novels.length > 0) {
-            }
+          }
         }
         if (cancelled) return;
         await reloadFromDatabase();
@@ -132,17 +131,18 @@ export const HistoryProvider: React.FC<{ children: React.ReactNode }> = ({
         updateProgress,
         getTotalReadingTime,
         getTotalChaptersRead,
-      reloadFromDatabase,
-      upsertHistoryEntry,
-    }}
-  >
-    {children}
-  </HistoryContext.Provider>
+        reloadFromDatabase,
+        upsertHistoryEntry,
+      }}
+    >
+      {children}
+    </HistoryContext.Provider>
   );
 };
 
 export const useHistory = () => {
   const context = useContext(HistoryContext);
-  if (!context) throw new Error("useHistory must be used within HistoryProvider");
+  if (!context)
+    throw new Error("useHistory must be used within HistoryProvider");
   return context;
 };

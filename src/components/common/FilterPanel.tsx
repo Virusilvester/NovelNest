@@ -2,21 +2,21 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TouchableOpacity,
-    useWindowDimensions,
-    View,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
 } from "react-native";
 import { LIBRARY_SORT_OPTIONS } from "../../constants";
 import { useTheme } from "../../context/ThemeContext";
 import {
-    DisplayMode,
-    LibraryFilterOption,
-    LibrarySortOption,
+  DisplayMode,
+  LibraryFilterOption,
+  LibrarySortOption,
 } from "../../types";
 
 interface FilterPanelProps {
@@ -252,20 +252,23 @@ const FilterSwitch: React.FC<{
     setLocalValue(value);
   }, [value]);
 
-  const handleValueChange = useCallback((newValue: boolean) => {
-    // Clear any pending timeout
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-    
-    // Update local state immediately for responsive UI
-    setLocalValue(newValue);
-    
-    // Debounce the onChange call to prevent rapid toggling
-    timeoutRef.current = setTimeout(() => {
-      onChange(newValue);
-    }, 100);
-  }, [onChange]);
+  const handleValueChange = useCallback(
+    (newValue: boolean) => {
+      // Clear any pending timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+
+      // Update local state immediately for responsive UI
+      setLocalValue(newValue);
+
+      // Debounce the onChange call to prevent rapid toggling
+      timeoutRef.current = setTimeout(() => {
+        onChange(newValue);
+      }, 100);
+    },
+    [onChange],
+  );
 
   useEffect(() => {
     return () => {

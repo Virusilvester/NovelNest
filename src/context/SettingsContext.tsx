@@ -1,21 +1,21 @@
 // src/context/SettingsContext.tsx
 import React, {
-    createContext,
-    useCallback,
-    useContext,
-    useEffect,
-    useState,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
 } from "react";
 import { StorageService } from "../services/storage";
 import {
-    AppSettings,
-    DEFAULT_SETTINGS,
-    DisplayMode,
-    ExtensionRepoPlugin,
-    InstalledExtensionPlugin,
-    LibraryFilterOption,
-    LibrarySortOption,
-    StartScreen,
+  AppSettings,
+  DEFAULT_SETTINGS,
+  DisplayMode,
+  ExtensionRepoPlugin,
+  InstalledExtensionPlugin,
+  LibraryFilterOption,
+  LibrarySortOption,
+  StartScreen,
 } from "../types";
 
 interface ExtendedSettings extends AppSettings {
@@ -105,7 +105,10 @@ interface SettingsContextType {
     localPath?: string,
   ) => Promise<void>;
   uninstallExtensionPlugin: (pluginId: string) => Promise<void>;
-  setExtensionPluginEnabled: (pluginId: string, enabled: boolean) => Promise<void>;
+  setExtensionPluginEnabled: (
+    pluginId: string,
+    enabled: boolean,
+  ) => Promise<void>;
 
   setLibraryDisplayMode: (mode: DisplayMode) => Promise<void>;
   setShowDownloadBadges: (show: boolean) => Promise<void>;
@@ -118,7 +121,9 @@ interface SettingsContextType {
   resetToDefaults: () => Promise<void>;
 }
 
-const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
+const SettingsContext = createContext<SettingsContextType | undefined>(
+  undefined,
+);
 
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -238,7 +243,10 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
           ...currentSettings,
           reader: {
             ...currentSettings.reader,
-            [section]: { ...(currentSettings.reader as any)[section], [key]: value },
+            [section]: {
+              ...(currentSettings.reader as any)[section],
+              [key]: value,
+            },
           },
         };
         // Save asynchronously without blocking the state update
@@ -250,26 +258,31 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const updateReaderSettingsBatch = useCallback(
-    async (updates: {
-      section: keyof AppSettings["reader"];
-      key: string;
-      value: any;
-    }[]) => {
+    async (
+      updates: {
+        section: keyof AppSettings["reader"];
+        key: string;
+        value: any;
+      }[],
+    ) => {
       setSettings((currentSettings) => {
         let newReaderSettings = { ...currentSettings.reader };
-        
+
         for (const update of updates) {
           newReaderSettings = {
             ...newReaderSettings,
-            [update.section]: { ...(newReaderSettings as any)[update.section], [update.key]: update.value },
+            [update.section]: {
+              ...(newReaderSettings as any)[update.section],
+              [update.key]: update.value,
+            },
           };
         }
-        
+
         const newSettings = {
           ...currentSettings,
           reader: newReaderSettings,
         };
-        
+
         // Save asynchronously without blocking the state update
         void StorageService.saveSettings(newSettings);
         return newSettings;
@@ -521,14 +534,17 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
 
 export const useSettings = () => {
   const context = useContext(SettingsContext);
-  if (!context) throw new Error("useSettings must be used within SettingsProvider");
+  if (!context)
+    throw new Error("useSettings must be used within SettingsProvider");
   return context;
 };
 
 function deepMerge<T>(defaults: T, saved: any): T {
   if (!saved || typeof saved !== "object") return defaults;
 
-  const result: any = Array.isArray(defaults) ? [...(defaults as any)] : { ...(defaults as any) };
+  const result: any = Array.isArray(defaults)
+    ? [...(defaults as any)]
+    : { ...(defaults as any) };
   for (const key of Object.keys(saved)) {
     const savedValue = saved[key];
     const defaultValue = (defaults as any)?.[key];
@@ -549,4 +565,3 @@ function deepMerge<T>(defaults: T, saved: any): T {
 
   return result as T;
 }
-

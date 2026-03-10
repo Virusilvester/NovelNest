@@ -19,7 +19,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { WebViewMessageEvent } from "react-native-webview";
@@ -61,7 +61,12 @@ type Props = {
 
 type WebMsg =
   | { type: "scroll"; progress: number }
-  | { type: "tap"; yRatio: number; xRatio: number; zone: "top" | "middle" | "bottom" }
+  | {
+      type: "tap";
+      yRatio: number;
+      xRatio: number;
+      zone: "top" | "middle" | "bottom";
+    }
   | { type: "swipe"; direction: "left" | "right" };
 
 const isAbsoluteUrl = (url: string) => {
@@ -146,22 +151,22 @@ const buildReaderHtml = (opts: {
 // ── Colour presets ────────────────────────────────────────────────────────────
 const COLOR_PRESETS = [
   { key: "Default", bg: "#FFFFFF", fg: "#1A1A1A", label: "White" },
-  { key: "Dark",    bg: "#111111", fg: "#E8E8E8", label: "Dark" },
-  { key: "Sepia",   bg: "#F4E6C4", fg: "#4A3B2A", label: "Sepia" },
-  { key: "Green",   bg: "#E6F4EA", fg: "#143D1F", label: "Green" },
-  { key: "Amoled",  bg: "#000000", fg: "#FFFFFF", label: "AMOLED" },
+  { key: "Dark", bg: "#111111", fg: "#E8E8E8", label: "Dark" },
+  { key: "Sepia", bg: "#F4E6C4", fg: "#4A3B2A", label: "Sepia" },
+  { key: "Green", bg: "#E6F4EA", fg: "#143D1F", label: "Green" },
+  { key: "Amoled", bg: "#000000", fg: "#FFFFFF", label: "AMOLED" },
 ] as const;
 
 const FONT_OPTIONS = [
-  { value: "System",  label: "Sys" },
-  { value: "Serif",   label: "Serif" },
-  { value: "Sans",    label: "Sans" },
-  { value: "Mono",    label: "Mono" },
+  { value: "System", label: "Sys" },
+  { value: "Serif", label: "Serif" },
+  { value: "Sans", label: "Sans" },
+  { value: "Mono", label: "Mono" },
 ];
 
 const ALIGN_OPTIONS = [
-  { value: "left",    icon: "reorder-two-outline" as const },
-  { value: "center",  icon: "menu-outline" as const },
+  { value: "left", icon: "reorder-two-outline" as const },
+  { value: "center", icon: "menu-outline" as const },
   { value: "justify", icon: "reorder-four-outline" as const },
 ];
 
@@ -185,7 +190,8 @@ export const ChapterReader: React.FC<Props> = ({
 }) => {
   const navigation = useNavigation();
   const { theme } = useTheme();
-  const { settings, updateReaderSettings, updateReaderSettingsBatch } = useSettings();
+  const { settings, updateReaderSettings, updateReaderSettingsBatch } =
+    useSettings();
   const insets = useSafeAreaInsets();
 
   const webViewRef = useRef<any>(null);
@@ -193,7 +199,9 @@ export const ChapterReader: React.FC<Props> = ({
   const chapterHtmlCacheRef = useRef(new Map<string, string>());
 
   const [currentPath, setCurrentPath] = useState(initialChapterPath);
-  const [currentTitle, setCurrentTitle] = useState<string | undefined>(initialChapterTitle);
+  const [currentTitle, setCurrentTitle] = useState<string | undefined>(
+    initialChapterTitle,
+  );
   const [rawHtml, setRawHtml] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -217,7 +225,9 @@ export const ChapterReader: React.FC<Props> = ({
       tension: 80,
       friction: 12,
       useNativeDriver: true,
-    }).start(() => { isAnimatingRef.current = false; });
+    }).start(() => {
+      isAnimatingRef.current = false;
+    });
   }, [barsAnim]);
 
   const hideBars = useCallback(() => {
@@ -241,29 +251,44 @@ export const ChapterReader: React.FC<Props> = ({
 
   // refs for stability
   const controlsVisibleRef = useRef(controlsVisible);
-  useEffect(() => { controlsVisibleRef.current = controlsVisible; }, [controlsVisible]);
+  useEffect(() => {
+    controlsVisibleRef.current = controlsVisible;
+  }, [controlsVisible]);
 
   const hasMarkedReadRef = useRef(false);
   const onChapterChangeRef = useRef(onChapterChange);
   const onChapterReadRef = useRef(onChapterRead);
-  useEffect(() => { onChapterChangeRef.current = onChapterChange; }, [onChapterChange]);
-  useEffect(() => { onChapterReadRef.current = onChapterRead; }, [onChapterRead]);
+  useEffect(() => {
+    onChapterChangeRef.current = onChapterChange;
+  }, [onChapterChange]);
+  useEffect(() => {
+    onChapterReadRef.current = onChapterRead;
+  }, [onChapterRead]);
 
   const swipeToNavigateRef = useRef(settings.reader.general.swipeToNavigate);
   const tapToScrollRef = useRef(settings.reader.general.tapToScroll);
-  useEffect(() => { swipeToNavigateRef.current = settings.reader.general.swipeToNavigate; }, [settings.reader.general.swipeToNavigate]);
-  useEffect(() => { tapToScrollRef.current = settings.reader.general.tapToScroll; }, [settings.reader.general.tapToScroll]);
+  useEffect(() => {
+    swipeToNavigateRef.current = settings.reader.general.swipeToNavigate;
+  }, [settings.reader.general.swipeToNavigate]);
+  useEffect(() => {
+    tapToScrollRef.current = settings.reader.general.tapToScroll;
+  }, [settings.reader.general.tapToScroll]);
 
   const chapterIndex = useMemo(
     () => chapters.findIndex((c) => c.path === currentPath),
     [chapters, currentPath],
   );
   const chapterIndexRef = useRef(chapterIndex);
-  useEffect(() => { chapterIndexRef.current = chapterIndex; }, [chapterIndex]);
+  useEffect(() => {
+    chapterIndexRef.current = chapterIndex;
+  }, [chapterIndex]);
   const chaptersRef = useRef(chapters);
-  useEffect(() => { chaptersRef.current = chapters; }, [chapters]);
+  useEffect(() => {
+    chaptersRef.current = chapters;
+  }, [chapters]);
 
-  const resolvedTitle = currentTitle || chapters[chapterIndex]?.name || "Reader";
+  const resolvedTitle =
+    currentTitle || chapters[chapterIndex]?.name || "Reader";
   const canGoPrev = chapterIndex > 0;
   const canGoNext = chapterIndex >= 0 && chapterIndex < chapters.length - 1;
 
@@ -327,13 +352,18 @@ export const ChapterReader: React.FC<Props> = ({
     };
 
     void run();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [currentPath, loadChapterHtml, reloadToken]);
 
   // FIX: skip spurious onChapterChange on mount
   const isMountedRef = useRef(false);
   useEffect(() => {
-    if (!isMountedRef.current) { isMountedRef.current = true; return; }
+    if (!isMountedRef.current) {
+      isMountedRef.current = true;
+      return;
+    }
     if (chapterIndex < 0) return;
     onChapterChangeRef.current?.(chapters[chapterIndex], chapterIndex);
   }, [chapterIndex, chapters]);
@@ -372,11 +402,17 @@ export const ChapterReader: React.FC<Props> = ({
 
   const goPrevRef = useRef(goPrev);
   const goNextRef = useRef(goNext);
-  useEffect(() => { goPrevRef.current = goPrev; }, [goPrev]);
-  useEffect(() => { goNextRef.current = goNext; }, [goNext]);
+  useEffect(() => {
+    goPrevRef.current = goPrev;
+  }, [goPrev]);
+  useEffect(() => {
+    goNextRef.current = goNext;
+  }, [goNext]);
 
   const toggleBarsRef = useRef(toggleBars);
-  useEffect(() => { toggleBarsRef.current = toggleBars; }, [toggleBars]);
+  useEffect(() => {
+    toggleBarsRef.current = toggleBars;
+  }, [toggleBars]);
 
   // ── WebView injected JS ──────────────────────────────────────────────────
   // Sends scroll progress, tap zones, and swipe events.
@@ -479,77 +515,86 @@ export const ChapterReader: React.FC<Props> = ({
   }, []);
 
   // ── Stable message handler ───────────────────────────────────────────────
-  const handleMessage = useCallback((event: WebViewMessageEvent) => {
-    const raw = event?.nativeEvent?.data;
-    if (!raw) return;
-    let msg: WebMsg | null = null;
-    try { msg = JSON.parse(raw); } catch { return; }
-    if (!msg || typeof msg !== "object" || !("type" in msg)) return;
-
-    if (msg.type === "scroll") {
-      const value = typeof msg.progress === "number" && Number.isFinite(msg.progress)
-        ? msg.progress : 0;
-      setScrollProgress(value);
-
-      // Auto-hide bars when user starts scrolling
-      if (controlsVisibleRef.current && value > 0 && value < 99) {
-        // small debounce — only hide after the user actually scrolls
-        hideBars();
+  const handleMessage = useCallback(
+    (event: WebViewMessageEvent) => {
+      const raw = event?.nativeEvent?.data;
+      if (!raw) return;
+      let msg: WebMsg | null = null;
+      try {
+        msg = JSON.parse(raw);
+      } catch {
+        return;
       }
+      if (!msg || typeof msg !== "object" || !("type" in msg)) return;
 
-      // Mark as read at 90%
-      const idx = chapterIndexRef.current;
-      const ch = chaptersRef.current;
-      if (value >= 90 && !hasMarkedReadRef.current && idx >= 0 && ch[idx]) {
-        hasMarkedReadRef.current = true;
-        onChapterReadRef.current?.(ch[idx], idx);
-        showBars(); // Show nav when chapter is done
-      }
-      return;
-    }
+      if (msg.type === "scroll") {
+        const value =
+          typeof msg.progress === "number" && Number.isFinite(msg.progress)
+            ? msg.progress
+            : 0;
+        setScrollProgress(value);
 
-    if (msg.type === "tap") {
-      const { zone, yRatio, xRatio } = msg as any;
-      const tapScroll = tapToScrollRef.current;
-
-      if (tapScroll) {
-        // tapToScroll: middle zone — left 40% scrolls up, right 40% scrolls down
-        // centre 20% (0.4 < xRatio < 0.6) and top/bottom zones always toggle bars
-        if (zone === "top" || zone === "bottom") {
-          toggleBarsRef.current();
-          return;
+        // Auto-hide bars when user starts scrolling
+        if (controlsVisibleRef.current && value > 0 && value < 99) {
+          // small debounce — only hide after the user actually scrolls
+          hideBars();
         }
-        if (zone === "middle") {
-          if (xRatio < 0.4) {
-            // Tap left side → scroll up
-            webViewRef.current?.injectJavaScript(
-              `(()=>{ try { window.scrollBy({ top: -280, behavior: 'smooth' }); } catch {} })(); true;`
-            );
-            return;
-          } else if (xRatio > 0.6) {
-            // Tap right side → scroll down
-            webViewRef.current?.injectJavaScript(
-              `(()=>{ try { window.scrollBy({ top: 280, behavior: 'smooth' }); } catch {} })(); true;`
-            );
+
+        // Mark as read at 90%
+        const idx = chapterIndexRef.current;
+        const ch = chaptersRef.current;
+        if (value >= 90 && !hasMarkedReadRef.current && idx >= 0 && ch[idx]) {
+          hasMarkedReadRef.current = true;
+          onChapterReadRef.current?.(ch[idx], idx);
+          showBars(); // Show nav when chapter is done
+        }
+        return;
+      }
+
+      if (msg.type === "tap") {
+        const { zone, yRatio, xRatio } = msg as any;
+        const tapScroll = tapToScrollRef.current;
+
+        if (tapScroll) {
+          // tapToScroll: middle zone — left 40% scrolls up, right 40% scrolls down
+          // centre 20% (0.4 < xRatio < 0.6) and top/bottom zones always toggle bars
+          if (zone === "top" || zone === "bottom") {
+            toggleBarsRef.current();
             return;
           }
-          // Centre strip toggles bars
-          toggleBarsRef.current();
-          return;
+          if (zone === "middle") {
+            if (xRatio < 0.4) {
+              // Tap left side → scroll up
+              webViewRef.current?.injectJavaScript(
+                `(()=>{ try { window.scrollBy({ top: -280, behavior: 'smooth' }); } catch {} })(); true;`,
+              );
+              return;
+            } else if (xRatio > 0.6) {
+              // Tap right side → scroll down
+              webViewRef.current?.injectJavaScript(
+                `(()=>{ try { window.scrollBy({ top: 280, behavior: 'smooth' }); } catch {} })(); true;`,
+              );
+              return;
+            }
+            // Centre strip toggles bars
+            toggleBarsRef.current();
+            return;
+          }
         }
+
+        // Default: any tap toggles bars
+        toggleBarsRef.current();
+        return;
       }
 
-      // Default: any tap toggles bars
-      toggleBarsRef.current();
-      return;
-    }
-
-    if (msg.type === "swipe") {
-      if (!swipeToNavigateRef.current) return;
-      if (msg.direction === "left") goNextRef.current();
-      else goPrevRef.current();
-    }
-  }, []); // stable — all values read from refs
+      if (msg.type === "swipe") {
+        if (!swipeToNavigateRef.current) return;
+        if (msg.direction === "left") goNextRef.current();
+        else goPrevRef.current();
+      }
+    },
+    [hideBars, showBars],
+  ); // stable — all values read from refs
 
   // ── Auto-scroll ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -561,13 +606,21 @@ export const ChapterReader: React.FC<Props> = ({
         `(()=>{try{window.scrollBy({top:2,behavior:'smooth'});}catch{}})();true;`,
       );
     }, 80);
-    return () => { cancelled = true; clearInterval(id); };
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
   }, [settings.reader.general.autoScroll]);
 
   const shouldStartLoad = useCallback((request: any) => {
     const url = String(request?.url || "");
     if (!url) return false;
-    if (url.startsWith("about:blank") || url.startsWith("data:") || url.startsWith("file:")) return true;
+    if (
+      url.startsWith("about:blank") ||
+      url.startsWith("data:") ||
+      url.startsWith("file:")
+    )
+      return true;
     Linking.openURL(url).catch(() => {});
     return false;
   }, []);
@@ -639,7 +692,12 @@ export const ChapterReader: React.FC<Props> = ({
   const bottomBarHeight = insets.bottom + 64;
 
   return (
-    <View style={[styles.container, { backgroundColor: readerTheme.backgroundColor }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: readerTheme.backgroundColor },
+      ]}
+    >
       {settings.reader.general.keepScreenOn ? <KeepAwakeGuard /> : null}
       <StatusBar
         hidden={settings.reader.display.fullscreen && !controlsVisible}
@@ -665,10 +723,25 @@ export const ChapterReader: React.FC<Props> = ({
 
       {/* ── Loading overlay ──────────────────────────────────────────── */}
       {loading ? (
-        <View style={[styles.center, { backgroundColor: readerTheme.backgroundColor }]}>
-          <View style={[styles.loadingCard, { backgroundColor: theme.colors.surface }]}>
+        <View
+          style={[
+            styles.center,
+            { backgroundColor: readerTheme.backgroundColor },
+          ]}
+        >
+          <View
+            style={[
+              styles.loadingCard,
+              { backgroundColor: theme.colors.surface },
+            ]}
+          >
             <ActivityIndicator color={theme.colors.primary} size="large" />
-            <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+            <Text
+              style={[
+                styles.loadingText,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
               Loading chapter…
             </Text>
           </View>
@@ -677,19 +750,43 @@ export const ChapterReader: React.FC<Props> = ({
 
       {/* ── Error overlay ────────────────────────────────────────────── */}
       {error ? (
-        <View style={[styles.center, { backgroundColor: readerTheme.backgroundColor }]}>
-          <View style={[styles.errorCard, { backgroundColor: theme.colors.surface }]}>
-            <View style={[styles.errorIcon, { backgroundColor: theme.colors.error + "20" }]}>
-              <Ionicons name="alert-circle" size={32} color={theme.colors.error} />
+        <View
+          style={[
+            styles.center,
+            { backgroundColor: readerTheme.backgroundColor },
+          ]}
+        >
+          <View
+            style={[
+              styles.errorCard,
+              { backgroundColor: theme.colors.surface },
+            ]}
+          >
+            <View
+              style={[
+                styles.errorIcon,
+                { backgroundColor: theme.colors.error + "20" },
+              ]}
+            >
+              <Ionicons
+                name="alert-circle"
+                size={32}
+                color={theme.colors.error}
+              />
             </View>
             <Text style={[styles.errorTitle, { color: theme.colors.text }]}>
               Failed to load
             </Text>
-            <Text style={[styles.errorMsg, { color: theme.colors.textSecondary }]}>
+            <Text
+              style={[styles.errorMsg, { color: theme.colors.textSecondary }]}
+            >
               {error}
             </Text>
             <TouchableOpacity
-              style={[styles.retryBtn, { backgroundColor: theme.colors.primary }]}
+              style={[
+                styles.retryBtn,
+                { backgroundColor: theme.colors.primary },
+              ]}
               onPress={() => {
                 chapterHtmlCacheRef.current.delete(currentPath);
                 setError(null);
@@ -718,17 +815,31 @@ export const ChapterReader: React.FC<Props> = ({
             },
           ]}
         >
-          <TouchableOpacity onPress={goBack} style={styles.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <TouchableOpacity
+            onPress={goBack}
+            style={styles.iconBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
             <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
           </TouchableOpacity>
 
           <View style={styles.titleWrap}>
-            <Text style={[styles.chapterTitle, { color: theme.colors.text }]} numberOfLines={1}>
+            <Text
+              style={[styles.chapterTitle, { color: theme.colors.text }]}
+              numberOfLines={1}
+            >
               {resolvedTitle}
             </Text>
             {chapters.length > 0 && (
-              <Text style={[styles.chapterCount, { color: theme.colors.textSecondary }]}>
-                {chapterIndex >= 0 ? `${chapterIndex + 1} / ${chapters.length}` : ""}
+              <Text
+                style={[
+                  styles.chapterCount,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                {chapterIndex >= 0
+                  ? `${chapterIndex + 1} / ${chapters.length}`
+                  : ""}
               </Text>
             )}
           </View>
@@ -746,7 +857,11 @@ export const ChapterReader: React.FC<Props> = ({
             style={styles.iconBtn}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="ellipsis-vertical" size={20} color={theme.colors.text} />
+            <Ionicons
+              name="ellipsis-vertical"
+              size={20}
+              color={theme.colors.text}
+            />
           </TouchableOpacity>
         </Animated.View>
       ) : null}
@@ -770,15 +885,36 @@ export const ChapterReader: React.FC<Props> = ({
             <TouchableOpacity
               onPress={goPrev}
               disabled={!canGoPrev}
-              style={[styles.navBtn, { backgroundColor: canGoPrev ? theme.colors.primary + "18" : "transparent" }]}
+              style={[
+                styles.navBtn,
+                {
+                  backgroundColor: canGoPrev
+                    ? theme.colors.primary + "18"
+                    : "transparent",
+                },
+              ]}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
-              <Ionicons name="chevron-back" size={20} color={canGoPrev ? theme.colors.primary : theme.colors.textSecondary} />
+              <Ionicons
+                name="chevron-back"
+                size={20}
+                color={
+                  canGoPrev ? theme.colors.primary : theme.colors.textSecondary
+                }
+              />
             </TouchableOpacity>
-          ) : <View style={styles.navBtn} />}
+          ) : (
+            <View style={styles.navBtn} />
+          )}
 
           {/* Scroll to top */}
-          <TouchableOpacity onPress={scrollToTop} style={[styles.navBtn, { backgroundColor: theme.colors.primary + "14" }]}>
+          <TouchableOpacity
+            onPress={scrollToTop}
+            style={[
+              styles.navBtn,
+              { backgroundColor: theme.colors.primary + "14" },
+            ]}
+          >
             <Ionicons name="arrow-up" size={19} color={theme.colors.primary} />
           </TouchableOpacity>
 
@@ -788,24 +924,36 @@ export const ChapterReader: React.FC<Props> = ({
               <Text style={[styles.progressPct, { color: theme.colors.text }]}>
                 {Math.round(scrollProgress)}%
               </Text>
-              <View style={[styles.progressTrack, { backgroundColor: theme.colors.border }]}>
+              <View
+                style={[
+                  styles.progressTrack,
+                  { backgroundColor: theme.colors.border },
+                ]}
+              >
                 <View
                   style={[
                     styles.progressFill,
                     {
-                      width: `${Math.max(0, Math.min(100, scrollProgress))}%` as any,
-                      backgroundColor: scrollProgress >= 99 ? "#22C55E" : theme.colors.primary,
+                      width:
+                        `${Math.max(0, Math.min(100, scrollProgress))}%` as any,
+                      backgroundColor:
+                        scrollProgress >= 99 ? "#22C55E" : theme.colors.primary,
                     },
                   ]}
                 />
               </View>
             </View>
-          ) : <View style={{ flex: 1 }} />}
+          ) : (
+            <View style={{ flex: 1 }} />
+          )}
 
           {/* Quick settings */}
           <TouchableOpacity
             onPress={() => setQuickSettingsVisible(true)}
-            style={[styles.navBtn, { backgroundColor: theme.colors.primary + "14" }]}
+            style={[
+              styles.navBtn,
+              { backgroundColor: theme.colors.primary + "14" },
+            ]}
           >
             <Ionicons name="text" size={18} color={theme.colors.primary} />
           </TouchableOpacity>
@@ -815,12 +963,27 @@ export const ChapterReader: React.FC<Props> = ({
             <TouchableOpacity
               onPress={goNext}
               disabled={!canGoNext}
-              style={[styles.navBtn, { backgroundColor: canGoNext ? theme.colors.primary + "18" : "transparent" }]}
+              style={[
+                styles.navBtn,
+                {
+                  backgroundColor: canGoNext
+                    ? theme.colors.primary + "18"
+                    : "transparent",
+                },
+              ]}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
-              <Ionicons name="chevron-forward" size={20} color={canGoNext ? theme.colors.primary : theme.colors.textSecondary} />
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={
+                  canGoNext ? theme.colors.primary : theme.colors.textSecondary
+                }
+              />
             </TouchableOpacity>
-          ) : <View style={styles.navBtn} />}
+          ) : (
+            <View style={styles.navBtn} />
+          )}
         </Animated.View>
       ) : null}
 
@@ -865,46 +1028,86 @@ export const ChapterReader: React.FC<Props> = ({
             onPress={() => {}}
           >
             {/* Handle pill */}
-            <View style={[styles.sheetHandle, { backgroundColor: theme.colors.border }]} />
+            <View
+              style={[
+                styles.sheetHandle,
+                { backgroundColor: theme.colors.border },
+              ]}
+            />
 
             {/* Header */}
             <View style={styles.sheetHeader}>
-              <Text style={[styles.sheetTitle, { color: theme.colors.text }]}>Reading Settings</Text>
+              <Text style={[styles.sheetTitle, { color: theme.colors.text }]}>
+                Reading Settings
+              </Text>
               <TouchableOpacity
                 onPress={() => setQuickSettingsVisible(false)}
-                style={[styles.sheetCloseBtn, { backgroundColor: theme.colors.border }]}
+                style={[
+                  styles.sheetCloseBtn,
+                  { backgroundColor: theme.colors.border },
+                ]}
               >
-                <Ionicons name="close" size={16} color={theme.colors.textSecondary} />
+                <Ionicons
+                  name="close"
+                  size={16}
+                  color={theme.colors.textSecondary}
+                />
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 480 }}>
-
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              style={{ maxHeight: 480 }}
+            >
               {/* ── Colour themes ────────────────────────────── */}
               <View style={styles.qs_section}>
-                <Text style={[styles.qs_label, { color: theme.colors.textSecondary }]}>Background</Text>
+                <Text
+                  style={[
+                    styles.qs_label,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  Background
+                </Text>
                 <View style={styles.qs_colorRow}>
                   {COLOR_PRESETS.map((p) => {
-                    const active = t.backgroundColor === p.bg && t.textColor === p.fg;
+                    const active =
+                      t.backgroundColor === p.bg && t.textColor === p.fg;
                     return (
                       <TouchableOpacity
                         key={p.key}
                         style={[
                           styles.colorChip,
-                          { backgroundColor: p.bg, borderColor: active ? theme.colors.primary : theme.colors.border },
+                          {
+                            backgroundColor: p.bg,
+                            borderColor: active
+                              ? theme.colors.primary
+                              : theme.colors.border,
+                          },
                           active && styles.colorChipActive,
                         ]}
                         onPress={() =>
                           void updateReaderSettingsBatch([
-                            { section: "theme", key: "backgroundColor", value: p.bg },
+                            {
+                              section: "theme",
+                              key: "backgroundColor",
+                              value: p.bg,
+                            },
                             { section: "theme", key: "textColor", value: p.fg },
                             { section: "theme", key: "preset", value: p.key },
                           ])
                         }
                       >
-                        <Text style={[styles.colorChipLabel, { color: p.fg }]}>{p.label}</Text>
+                        <Text style={[styles.colorChipLabel, { color: p.fg }]}>
+                          {p.label}
+                        </Text>
                         {active && (
-                          <View style={[styles.colorChipCheck, { backgroundColor: theme.colors.primary }]}>
+                          <View
+                            style={[
+                              styles.colorChipCheck,
+                              { backgroundColor: theme.colors.primary },
+                            ]}
+                          >
                             <Ionicons name="checkmark" size={9} color="#FFF" />
                           </View>
                         )}
@@ -915,92 +1118,290 @@ export const ChapterReader: React.FC<Props> = ({
               </View>
 
               {/* ── Font size ────────────────────────────────── */}
-              <View style={[styles.qs_section, styles.qs_divider, { borderColor: theme.colors.divider }]}>
+              <View
+                style={[
+                  styles.qs_section,
+                  styles.qs_divider,
+                  { borderColor: theme.colors.divider },
+                ]}
+              >
                 <View style={styles.qs_row}>
                   <View style={styles.qs_rowLeft}>
-                    <Ionicons name="text-outline" size={16} color={theme.colors.primary} style={styles.qs_icon} />
-                    <Text style={[styles.qs_rowLabel, { color: theme.colors.text }]}>Font size</Text>
+                    <Ionicons
+                      name="text-outline"
+                      size={16}
+                      color={theme.colors.primary}
+                      style={styles.qs_icon}
+                    />
+                    <Text
+                      style={[styles.qs_rowLabel, { color: theme.colors.text }]}
+                    >
+                      Font size
+                    </Text>
                   </View>
                   <View style={styles.stepperRow}>
                     <TouchableOpacity
-                      style={[styles.stepperBtn, { borderColor: theme.colors.border }]}
-                      onPress={() => void updateReaderSettings("theme", "textSize", Math.max(10, t.textSize - 1))}
+                      style={[
+                        styles.stepperBtn,
+                        { borderColor: theme.colors.border },
+                      ]}
+                      onPress={() =>
+                        void updateReaderSettings(
+                          "theme",
+                          "textSize",
+                          Math.max(10, t.textSize - 1),
+                        )
+                      }
                       disabled={t.textSize <= 10}
                     >
-                      <Text style={[styles.stepperBtnTxt, { color: t.textSize <= 10 ? theme.colors.textSecondary : theme.colors.primary }]}>−</Text>
+                      <Text
+                        style={[
+                          styles.stepperBtnTxt,
+                          {
+                            color:
+                              t.textSize <= 10
+                                ? theme.colors.textSecondary
+                                : theme.colors.primary,
+                          },
+                        ]}
+                      >
+                        −
+                      </Text>
                     </TouchableOpacity>
-                    <Text style={[styles.stepperVal, { color: theme.colors.text }]}>{t.textSize}px</Text>
+                    <Text
+                      style={[styles.stepperVal, { color: theme.colors.text }]}
+                    >
+                      {t.textSize}px
+                    </Text>
                     <TouchableOpacity
-                      style={[styles.stepperBtn, { borderColor: theme.colors.border }]}
-                      onPress={() => void updateReaderSettings("theme", "textSize", Math.min(40, t.textSize + 1))}
+                      style={[
+                        styles.stepperBtn,
+                        { borderColor: theme.colors.border },
+                      ]}
+                      onPress={() =>
+                        void updateReaderSettings(
+                          "theme",
+                          "textSize",
+                          Math.min(40, t.textSize + 1),
+                        )
+                      }
                       disabled={t.textSize >= 40}
                     >
-                      <Text style={[styles.stepperBtnTxt, { color: t.textSize >= 40 ? theme.colors.textSecondary : theme.colors.primary }]}>+</Text>
+                      <Text
+                        style={[
+                          styles.stepperBtnTxt,
+                          {
+                            color:
+                              t.textSize >= 40
+                                ? theme.colors.textSecondary
+                                : theme.colors.primary,
+                          },
+                        ]}
+                      >
+                        +
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
               </View>
 
               {/* ── Line height ──────────────────────────────── */}
-              <View style={[styles.qs_section, styles.qs_divider, { borderColor: theme.colors.divider }]}>
+              <View
+                style={[
+                  styles.qs_section,
+                  styles.qs_divider,
+                  { borderColor: theme.colors.divider },
+                ]}
+              >
                 <View style={styles.qs_row}>
                   <View style={styles.qs_rowLeft}>
-                    <Ionicons name="reorder-four-outline" size={16} color={theme.colors.primary} style={styles.qs_icon} />
-                    <Text style={[styles.qs_rowLabel, { color: theme.colors.text }]}>Line height</Text>
+                    <Ionicons
+                      name="reorder-four-outline"
+                      size={16}
+                      color={theme.colors.primary}
+                      style={styles.qs_icon}
+                    />
+                    <Text
+                      style={[styles.qs_rowLabel, { color: theme.colors.text }]}
+                    >
+                      Line height
+                    </Text>
                   </View>
                   <View style={styles.stepperRow}>
                     <TouchableOpacity
-                      style={[styles.stepperBtn, { borderColor: theme.colors.border }]}
-                      onPress={() => void updateReaderSettings("theme", "lineHeight", Math.round(Math.max(1, t.lineHeight - 0.1) * 10) / 10)}
+                      style={[
+                        styles.stepperBtn,
+                        { borderColor: theme.colors.border },
+                      ]}
+                      onPress={() =>
+                        void updateReaderSettings(
+                          "theme",
+                          "lineHeight",
+                          Math.round(Math.max(1, t.lineHeight - 0.1) * 10) / 10,
+                        )
+                      }
                       disabled={t.lineHeight <= 1}
                     >
-                      <Text style={[styles.stepperBtnTxt, { color: t.lineHeight <= 1 ? theme.colors.textSecondary : theme.colors.primary }]}>−</Text>
+                      <Text
+                        style={[
+                          styles.stepperBtnTxt,
+                          {
+                            color:
+                              t.lineHeight <= 1
+                                ? theme.colors.textSecondary
+                                : theme.colors.primary,
+                          },
+                        ]}
+                      >
+                        −
+                      </Text>
                     </TouchableOpacity>
-                    <Text style={[styles.stepperVal, { color: theme.colors.text }]}>{t.lineHeight.toFixed(1)}</Text>
+                    <Text
+                      style={[styles.stepperVal, { color: theme.colors.text }]}
+                    >
+                      {t.lineHeight.toFixed(1)}
+                    </Text>
                     <TouchableOpacity
-                      style={[styles.stepperBtn, { borderColor: theme.colors.border }]}
-                      onPress={() => void updateReaderSettings("theme", "lineHeight", Math.round(Math.min(3, t.lineHeight + 0.1) * 10) / 10)}
+                      style={[
+                        styles.stepperBtn,
+                        { borderColor: theme.colors.border },
+                      ]}
+                      onPress={() =>
+                        void updateReaderSettings(
+                          "theme",
+                          "lineHeight",
+                          Math.round(Math.min(3, t.lineHeight + 0.1) * 10) / 10,
+                        )
+                      }
                       disabled={t.lineHeight >= 3}
                     >
-                      <Text style={[styles.stepperBtnTxt, { color: t.lineHeight >= 3 ? theme.colors.textSecondary : theme.colors.primary }]}>+</Text>
+                      <Text
+                        style={[
+                          styles.stepperBtnTxt,
+                          {
+                            color:
+                              t.lineHeight >= 3
+                                ? theme.colors.textSecondary
+                                : theme.colors.primary,
+                          },
+                        ]}
+                      >
+                        +
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
               </View>
 
               {/* ── Padding ──────────────────────────────────── */}
-              <View style={[styles.qs_section, styles.qs_divider, { borderColor: theme.colors.divider }]}>
+              <View
+                style={[
+                  styles.qs_section,
+                  styles.qs_divider,
+                  { borderColor: theme.colors.divider },
+                ]}
+              >
                 <View style={styles.qs_row}>
                   <View style={styles.qs_rowLeft}>
-                    <Ionicons name="contract-outline" size={16} color={theme.colors.primary} style={styles.qs_icon} />
-                    <Text style={[styles.qs_rowLabel, { color: theme.colors.text }]}>Padding</Text>
+                    <Ionicons
+                      name="contract-outline"
+                      size={16}
+                      color={theme.colors.primary}
+                      style={styles.qs_icon}
+                    />
+                    <Text
+                      style={[styles.qs_rowLabel, { color: theme.colors.text }]}
+                    >
+                      Padding
+                    </Text>
                   </View>
                   <View style={styles.stepperRow}>
                     <TouchableOpacity
-                      style={[styles.stepperBtn, { borderColor: theme.colors.border }]}
-                      onPress={() => void updateReaderSettings("theme", "padding", Math.max(0, t.padding - 4))}
+                      style={[
+                        styles.stepperBtn,
+                        { borderColor: theme.colors.border },
+                      ]}
+                      onPress={() =>
+                        void updateReaderSettings(
+                          "theme",
+                          "padding",
+                          Math.max(0, t.padding - 4),
+                        )
+                      }
                       disabled={t.padding <= 0}
                     >
-                      <Text style={[styles.stepperBtnTxt, { color: t.padding <= 0 ? theme.colors.textSecondary : theme.colors.primary }]}>−</Text>
+                      <Text
+                        style={[
+                          styles.stepperBtnTxt,
+                          {
+                            color:
+                              t.padding <= 0
+                                ? theme.colors.textSecondary
+                                : theme.colors.primary,
+                          },
+                        ]}
+                      >
+                        −
+                      </Text>
                     </TouchableOpacity>
-                    <Text style={[styles.stepperVal, { color: theme.colors.text }]}>{t.padding}px</Text>
+                    <Text
+                      style={[styles.stepperVal, { color: theme.colors.text }]}
+                    >
+                      {t.padding}px
+                    </Text>
                     <TouchableOpacity
-                      style={[styles.stepperBtn, { borderColor: theme.colors.border }]}
-                      onPress={() => void updateReaderSettings("theme", "padding", Math.min(64, t.padding + 4))}
+                      style={[
+                        styles.stepperBtn,
+                        { borderColor: theme.colors.border },
+                      ]}
+                      onPress={() =>
+                        void updateReaderSettings(
+                          "theme",
+                          "padding",
+                          Math.min(64, t.padding + 4),
+                        )
+                      }
                       disabled={t.padding >= 64}
                     >
-                      <Text style={[styles.stepperBtnTxt, { color: t.padding >= 64 ? theme.colors.textSecondary : theme.colors.primary }]}>+</Text>
+                      <Text
+                        style={[
+                          styles.stepperBtnTxt,
+                          {
+                            color:
+                              t.padding >= 64
+                                ? theme.colors.textSecondary
+                                : theme.colors.primary,
+                          },
+                        ]}
+                      >
+                        +
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
               </View>
 
               {/* ── Font style ───────────────────────────────── */}
-              <View style={[styles.qs_section, styles.qs_divider, { borderColor: theme.colors.divider }]}>
+              <View
+                style={[
+                  styles.qs_section,
+                  styles.qs_divider,
+                  { borderColor: theme.colors.divider },
+                ]}
+              >
                 <View style={styles.qs_row}>
                   <View style={styles.qs_rowLeft}>
-                    <Ionicons name="language-outline" size={16} color={theme.colors.primary} style={styles.qs_icon} />
-                    <Text style={[styles.qs_rowLabel, { color: theme.colors.text }]}>Font</Text>
+                    <Ionicons
+                      name="language-outline"
+                      size={16}
+                      color={theme.colors.primary}
+                      style={styles.qs_icon}
+                    />
+                    <Text
+                      style={[styles.qs_rowLabel, { color: theme.colors.text }]}
+                    >
+                      Font
+                    </Text>
                   </View>
                   <View style={styles.chipRow}>
                     {FONT_OPTIONS.map((f) => {
@@ -1011,13 +1412,28 @@ export const ChapterReader: React.FC<Props> = ({
                           style={[
                             styles.optionChip,
                             {
-                              backgroundColor: active ? theme.colors.primary : theme.colors.primary + "12",
-                              borderColor: active ? theme.colors.primary : "transparent",
+                              backgroundColor: active
+                                ? theme.colors.primary
+                                : theme.colors.primary + "12",
+                              borderColor: active
+                                ? theme.colors.primary
+                                : "transparent",
                             },
                           ]}
-                          onPress={() => void updateReaderSettings("theme", "fontStyle", f.value)}
+                          onPress={() =>
+                            void updateReaderSettings(
+                              "theme",
+                              "fontStyle",
+                              f.value,
+                            )
+                          }
                         >
-                          <Text style={[styles.optionChipTxt, { color: active ? "#FFF" : theme.colors.primary }]}>
+                          <Text
+                            style={[
+                              styles.optionChipTxt,
+                              { color: active ? "#FFF" : theme.colors.primary },
+                            ]}
+                          >
                             {f.label}
                           </Text>
                         </TouchableOpacity>
@@ -1028,11 +1444,26 @@ export const ChapterReader: React.FC<Props> = ({
               </View>
 
               {/* ── Text alignment ───────────────────────────── */}
-              <View style={[styles.qs_section, styles.qs_divider, { borderColor: theme.colors.divider }]}>
+              <View
+                style={[
+                  styles.qs_section,
+                  styles.qs_divider,
+                  { borderColor: theme.colors.divider },
+                ]}
+              >
                 <View style={styles.qs_row}>
                   <View style={styles.qs_rowLeft}>
-                    <Ionicons name="reorder-two-outline" size={16} color={theme.colors.primary} style={styles.qs_icon} />
-                    <Text style={[styles.qs_rowLabel, { color: theme.colors.text }]}>Align</Text>
+                    <Ionicons
+                      name="reorder-two-outline"
+                      size={16}
+                      color={theme.colors.primary}
+                      style={styles.qs_icon}
+                    />
+                    <Text
+                      style={[styles.qs_rowLabel, { color: theme.colors.text }]}
+                    >
+                      Align
+                    </Text>
                   </View>
                   <View style={styles.chipRow}>
                     {ALIGN_OPTIONS.map((a) => {
@@ -1043,12 +1474,24 @@ export const ChapterReader: React.FC<Props> = ({
                           style={[
                             styles.iconChip,
                             {
-                              backgroundColor: active ? theme.colors.primary : theme.colors.primary + "12",
+                              backgroundColor: active
+                                ? theme.colors.primary
+                                : theme.colors.primary + "12",
                             },
                           ]}
-                          onPress={() => void updateReaderSettings("theme", "textAlign", a.value)}
+                          onPress={() =>
+                            void updateReaderSettings(
+                              "theme",
+                              "textAlign",
+                              a.value,
+                            )
+                          }
                         >
-                          <Ionicons name={a.icon} size={18} color={active ? "#FFF" : theme.colors.primary} />
+                          <Ionicons
+                            name={a.icon}
+                            size={18}
+                            color={active ? "#FFF" : theme.colors.primary}
+                          />
                         </TouchableOpacity>
                       );
                     })}
@@ -1057,31 +1500,84 @@ export const ChapterReader: React.FC<Props> = ({
               </View>
 
               {/* ── Toggles ──────────────────────────────────── */}
-              <View style={[styles.qs_section, styles.qs_divider, { borderColor: theme.colors.divider }]}>
+              <View
+                style={[
+                  styles.qs_section,
+                  styles.qs_divider,
+                  { borderColor: theme.colors.divider },
+                ]}
+              >
                 <View style={[styles.qs_toggleRow]}>
                   {[
-                    { key: "fullscreen", label: "Fullscreen", icon: "expand-outline" as const, val: d.fullscreen, section: "display" as const },
-                    { key: "showProgressPercentage", label: "Progress", icon: "analytics-outline" as const, val: d.showProgressPercentage, section: "display" as const },
-                    { key: "keepScreenOn", label: "Keep awake", icon: "phone-portrait-outline" as const, val: g.keepScreenOn, section: "general" as const },
-                    { key: "swipeToNavigate", label: "Swipe nav", icon: "swap-horizontal-outline" as const, val: g.swipeToNavigate, section: "general" as const },
+                    {
+                      key: "fullscreen",
+                      label: "Fullscreen",
+                      icon: "expand-outline" as const,
+                      val: d.fullscreen,
+                      section: "display" as const,
+                    },
+                    {
+                      key: "showProgressPercentage",
+                      label: "Progress",
+                      icon: "analytics-outline" as const,
+                      val: d.showProgressPercentage,
+                      section: "display" as const,
+                    },
+                    {
+                      key: "keepScreenOn",
+                      label: "Keep awake",
+                      icon: "phone-portrait-outline" as const,
+                      val: g.keepScreenOn,
+                      section: "general" as const,
+                    },
+                    {
+                      key: "swipeToNavigate",
+                      label: "Swipe nav",
+                      icon: "swap-horizontal-outline" as const,
+                      val: g.swipeToNavigate,
+                      section: "general" as const,
+                    },
                   ].map((toggle) => (
                     <TouchableOpacity
                       key={toggle.key}
                       style={[
                         styles.toggleChip,
                         {
-                          backgroundColor: toggle.val ? theme.colors.primary + "18" : theme.colors.border + "60",
-                          borderColor: toggle.val ? theme.colors.primary + "60" : theme.colors.border,
+                          backgroundColor: toggle.val
+                            ? theme.colors.primary + "18"
+                            : theme.colors.border + "60",
+                          borderColor: toggle.val
+                            ? theme.colors.primary + "60"
+                            : theme.colors.border,
                         },
                       ]}
-                      onPress={() => void updateReaderSettings(toggle.section, toggle.key, !toggle.val)}
+                      onPress={() =>
+                        void updateReaderSettings(
+                          toggle.section,
+                          toggle.key,
+                          !toggle.val,
+                        )
+                      }
                     >
                       <Ionicons
                         name={toggle.icon}
                         size={14}
-                        color={toggle.val ? theme.colors.primary : theme.colors.textSecondary}
+                        color={
+                          toggle.val
+                            ? theme.colors.primary
+                            : theme.colors.textSecondary
+                        }
                       />
-                      <Text style={[styles.toggleChipTxt, { color: toggle.val ? theme.colors.primary : theme.colors.textSecondary }]}>
+                      <Text
+                        style={[
+                          styles.toggleChipTxt,
+                          {
+                            color: toggle.val
+                              ? theme.colors.primary
+                              : theme.colors.textSecondary,
+                          },
+                        ]}
+                      >
                         {toggle.label}
                       </Text>
                     </TouchableOpacity>
@@ -1091,18 +1587,29 @@ export const ChapterReader: React.FC<Props> = ({
 
               {/* ── Link to full settings ────────────────────── */}
               <TouchableOpacity
-                style={[styles.qs_linkRow, { borderColor: theme.colors.divider }]}
+                style={[
+                  styles.qs_linkRow,
+                  { borderColor: theme.colors.divider },
+                ]}
                 onPress={() => {
                   setQuickSettingsVisible(false);
-                  setTimeout(() => (navigation as any).navigate("ReaderSettings"), 200);
+                  setTimeout(
+                    () => (navigation as any).navigate("ReaderSettings"),
+                    200,
+                  );
                 }}
               >
-                <Text style={[styles.qs_linkTxt, { color: theme.colors.primary }]}>
+                <Text
+                  style={[styles.qs_linkTxt, { color: theme.colors.primary }]}
+                >
                   All reader settings
                 </Text>
-                <Ionicons name="chevron-forward" size={15} color={theme.colors.primary} />
+                <Ionicons
+                  name="chevron-forward"
+                  size={15}
+                  color={theme.colors.primary}
+                />
               </TouchableOpacity>
-
             </ScrollView>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -1118,7 +1625,10 @@ const styles = StyleSheet.create({
   // Loading / error
   center: {
     position: "absolute",
-    top: 0, left: 0, right: 0, bottom: 0,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: "center",
     alignItems: "center",
     padding: 24,
@@ -1148,8 +1658,11 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   errorIcon: {
-    width: 60, height: 60, borderRadius: 18,
-    justifyContent: "center", alignItems: "center",
+    width: 60,
+    height: 60,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 4,
   },
   errorTitle: { fontSize: 17, fontWeight: "800" },
@@ -1168,7 +1681,9 @@ const styles = StyleSheet.create({
   // Top bar
   topBar: {
     position: "absolute",
-    top: 0, left: 0, right: 0,
+    top: 0,
+    left: 0,
+    right: 0,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 4,
@@ -1183,7 +1698,9 @@ const styles = StyleSheet.create({
   // Bottom bar
   bottomBar: {
     position: "absolute",
-    left: 0, right: 0, bottom: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
@@ -1192,14 +1709,17 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   navBtn: {
-    width: 40, height: 40,
+    width: 40,
+    height: 40,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
   progressWrap: { flex: 1, gap: 5, paddingHorizontal: 6 },
   progressPct: {
-    fontSize: 12, fontWeight: "700", textAlign: "center",
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
   },
   progressTrack: { height: 4, borderRadius: 999, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 999 },
@@ -1216,7 +1736,8 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   sheetHandle: {
-    width: 36, height: 4,
+    width: 36,
+    height: 4,
     borderRadius: 999,
     alignSelf: "center",
     marginBottom: 8,
@@ -1231,7 +1752,8 @@ const styles = StyleSheet.create({
   },
   sheetTitle: { fontSize: 17, fontWeight: "800" },
   sheetCloseBtn: {
-    width: 28, height: 28,
+    width: 28,
+    height: 28,
     borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
@@ -1241,8 +1763,10 @@ const styles = StyleSheet.create({
   qs_section: { paddingHorizontal: 20, paddingVertical: 14 },
   qs_divider: { borderTopWidth: StyleSheet.hairlineWidth },
   qs_label: {
-    fontSize: 11, fontWeight: "700",
-    textTransform: "uppercase", letterSpacing: 0.6,
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
     marginBottom: 12,
   },
   qs_row: {
@@ -1261,16 +1785,21 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   colorChip: {
-    paddingHorizontal: 14, paddingVertical: 9,
-    borderRadius: 22, borderWidth: 2,
-    alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 22,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
   },
   colorChipActive: { borderWidth: 2.5 },
   colorChipLabel: { fontSize: 12, fontWeight: "700" },
   colorChipCheck: {
     position: "absolute",
-    top: -4, right: -4,
-    width: 16, height: 16,
+    top: -4,
+    right: -4,
+    width: 16,
+    height: 16,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
@@ -1279,27 +1808,36 @@ const styles = StyleSheet.create({
   // Stepper
   stepperRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   stepperBtn: {
-    width: 32, height: 32,
-    borderRadius: 9, borderWidth: 1.5,
-    alignItems: "center", justifyContent: "center",
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
   },
   stepperBtnTxt: { fontSize: 18, fontWeight: "600", lineHeight: 22 },
   stepperVal: {
-    minWidth: 52, textAlign: "center",
-    fontSize: 14, fontWeight: "600",
+    minWidth: 52,
+    textAlign: "center",
+    fontSize: 14,
+    fontWeight: "600",
   },
 
   // Option / icon chips
   chipRow: { flexDirection: "row", gap: 6 },
   optionChip: {
-    paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: 20, borderWidth: 1.5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1.5,
   },
   optionChipTxt: { fontSize: 12, fontWeight: "700" },
   iconChip: {
-    width: 36, height: 36,
+    width: 36,
+    height: 36,
     borderRadius: 10,
-    alignItems: "center", justifyContent: "center",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   // Toggle chips

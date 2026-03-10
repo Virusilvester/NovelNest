@@ -36,31 +36,61 @@ export const UpdatesScreen: React.FC = () => {
       activeOpacity={0.8}
     >
       {item.coverUrl ? (
-        <Image source={{ uri: item.coverUrl }} style={styles.cover} resizeMode="cover" />
+        <Image
+          source={{ uri: item.coverUrl }}
+          style={styles.cover}
+          resizeMode="cover"
+        />
       ) : (
-        <View style={[styles.coverPlaceholder, { backgroundColor: theme.colors.border }]}>
-          <Ionicons name="book-outline" size={22} color={theme.colors.textSecondary} />
+        <View
+          style={[
+            styles.coverPlaceholder,
+            { backgroundColor: theme.colors.border },
+          ]}
+        >
+          <Ionicons
+            name="book-outline"
+            size={22}
+            color={theme.colors.textSecondary}
+          />
         </View>
       )}
       <View style={styles.updateInfo}>
-        <Text style={[styles.updateTitle, { color: theme.colors.text }]} numberOfLines={1}>
+        <Text
+          style={[styles.updateTitle, { color: theme.colors.text }]}
+          numberOfLines={1}
+        >
           {item.title}
         </Text>
         <View style={styles.updateMeta}>
-          <Ionicons name="sparkles-outline" size={12} color={theme.colors.primary} />
-          <Text style={[styles.updateMetaText, { color: theme.colors.textSecondary }]}>
-            {" "}New chapters available
+          <Ionicons
+            name="sparkles-outline"
+            size={12}
+            color={theme.colors.primary}
+          />
+          <Text
+            style={[
+              styles.updateMetaText,
+              { color: theme.colors.textSecondary },
+            ]}
+          >
+            {" "}
+            New chapters available
           </Text>
         </View>
       </View>
-      <View style={[styles.newBadge, { backgroundColor: theme.colors.primary }]}>
+      <View
+        style={[styles.newBadge, { backgroundColor: theme.colors.primary }]}
+      >
         <Text style={styles.newBadgeText}>NEW</Text>
       </View>
     </TouchableOpacity>
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
       <Header
         title="Updates"
         onMenuPress={() => navigation.openDrawer()}
@@ -73,7 +103,9 @@ export const UpdatesScreen: React.FC = () => {
             <Ionicons
               name="refresh-outline"
               size={22}
-              color={isRefreshing ? theme.colors.textSecondary : theme.colors.text}
+              color={
+                isRefreshing ? theme.colors.textSecondary : theme.colors.text
+              }
             />
           </TouchableOpacity>
         }
@@ -81,13 +113,27 @@ export const UpdatesScreen: React.FC = () => {
 
       {recentUpdates.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <View style={[styles.emptyIconWrap, { backgroundColor: theme.colors.surface }]}>
-            <Ionicons name="newspaper-outline" size={48} color={theme.colors.textSecondary} />
+          <View
+            style={[
+              styles.emptyIconWrap,
+              { backgroundColor: theme.colors.surface },
+            ]}
+          >
+            <Ionicons
+              name="newspaper-outline"
+              size={48}
+              color={theme.colors.textSecondary}
+            />
           </View>
           <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
             All caught up!
           </Text>
-          <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
+          <Text
+            style={[
+              styles.emptySubtitle,
+              { color: theme.colors.textSecondary },
+            ]}
+          >
             No new chapter updates found.{"\n"}Pull down to check again.
           </Text>
           <TouchableOpacity
@@ -149,7 +195,12 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 6,
   },
-  newBadgeText: { color: "#FFF", fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
+  newBadgeText: {
+    color: "#FFF",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
 
   // Empty
   emptyContainer: {
@@ -168,7 +219,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   emptyTitle: { fontSize: 20, fontWeight: "800" },
-  emptySubtitle: { fontSize: 14, textAlign: "center", lineHeight: 22, opacity: 0.7 },
+  emptySubtitle: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 22,
+    opacity: 0.7,
+  },
   checkBtn: {
     flexDirection: "row",
     alignItems: "center",

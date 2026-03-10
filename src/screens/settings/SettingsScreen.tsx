@@ -23,12 +23,27 @@ import { StartScreen } from "../../types";
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
 
-const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => {
+const Section: React.FC<{ title: string; children: React.ReactNode }> = ({
+  title,
+  children,
+}) => {
   const { theme } = useTheme();
   return (
     <View style={styles.section}>
-      <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>{title}</Text>
-      <View style={[styles.sectionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+      <Text
+        style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}
+      >
+        {title}
+      </Text>
+      <View
+        style={[
+          styles.sectionCard,
+          {
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.border,
+          },
+        ]}
+      >
         {children}
       </View>
     </View>
@@ -59,12 +74,17 @@ const Row: React.FC<RowProps> = ({
   isDestructive,
 }) => {
   const { theme } = useTheme();
-  const color = isDestructive ? theme.colors.error : (iconColor ?? theme.colors.primary);
+  const color = isDestructive
+    ? theme.colors.error
+    : (iconColor ?? theme.colors.primary);
   return (
     <TouchableOpacity
       style={[
         styles.row,
-        !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.divider },
+        !isLast && {
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: theme.colors.divider,
+        },
       ]}
       onPress={onPress}
       disabled={!onPress && !rightElement}
@@ -74,18 +94,31 @@ const Row: React.FC<RowProps> = ({
         <Ionicons name={icon} size={18} color={color} />
       </View>
       <View style={styles.rowContent}>
-        <Text style={[styles.rowLabel, { color: isDestructive ? theme.colors.error : theme.colors.text }]}>
+        <Text
+          style={[
+            styles.rowLabel,
+            { color: isDestructive ? theme.colors.error : theme.colors.text },
+          ]}
+        >
           {label}
         </Text>
         {subtitle ? (
-          <Text style={[styles.rowSubtitle, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+          <Text
+            style={[styles.rowSubtitle, { color: theme.colors.textSecondary }]}
+            numberOfLines={1}
+          >
             {subtitle}
           </Text>
         ) : null}
       </View>
-      {rightElement ?? (onPress ? (
-        <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
-      ) : null)}
+      {rightElement ??
+        (onPress ? (
+          <Ionicons
+            name="chevron-forward"
+            size={18}
+            color={theme.colors.textSecondary}
+          />
+        ) : null)}
     </TouchableOpacity>
   );
 };
@@ -105,12 +138,14 @@ export const SettingsScreen: React.FC = () => {
   } = useSettings();
 
   const [showStartScreenModal, setShowStartScreenModal] = useState(false);
-  const [showUpdateFrequencyModal, setShowUpdateFrequencyModal] = useState(false);
+  const [showUpdateFrequencyModal, setShowUpdateFrequencyModal] =
+    useState(false);
 
   const handleSelectDownloadLocation = async () => {
     try {
       if (Platform.OS === "android" && FileSystem.StorageAccessFramework) {
-        const perm = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+        const perm =
+          await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
         if (perm.granted) await setDownloadLocation(perm.directoryUri);
         return;
       }
@@ -132,23 +167,35 @@ export const SettingsScreen: React.FC = () => {
   const downloadLocationLabel = !settings.general.downloadLocation
     ? "Internal (default)"
     : settings.general.downloadLocation.startsWith("content://")
-    ? "Custom folder (Android)"
-    : settings.general.downloadLocation;
+      ? "Custom folder (Android)"
+      : settings.general.downloadLocation;
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
       <Header
         title="Settings"
         onBackPress={() => navigation.goBack()}
         rightButtons={
-          <TouchableOpacity onPress={() => Linking.openURL("https://github.com/your-repo/wiki")} style={styles.iconBtn}>
-            <Ionicons name="help-circle-outline" size={22} color={theme.colors.text} />
+          <TouchableOpacity
+            onPress={() => Linking.openURL("https://github.com/your-repo/wiki")}
+            style={styles.iconBtn}
+          >
+            <Ionicons
+              name="help-circle-outline"
+              size={22}
+              color={theme.colors.text}
+            />
           </TouchableOpacity>
         }
       />
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* General */}
         <Section title="General">
           <Row
@@ -160,8 +207,14 @@ export const SettingsScreen: React.FC = () => {
           <Row
             icon="language-outline"
             label="Language"
-            subtitle={settings.general.language === "en" ? "English" : settings.general.language}
-            onPress={() => {/* show language picker */}}
+            subtitle={
+              settings.general.language === "en"
+                ? "English"
+                : settings.general.language
+            }
+            onPress={() => {
+              /* show language picker */
+            }}
           />
           <Row
             icon="folder-open-outline"
@@ -175,13 +228,19 @@ export const SettingsScreen: React.FC = () => {
         {/* Display */}
         <Section title="Display">
           <Row
-            icon={settings.display.theme === "dark" ? "moon-outline" : "sunny-outline"}
+            icon={
+              settings.display.theme === "dark"
+                ? "moon-outline"
+                : "sunny-outline"
+            }
             label="Dark mode"
             isLast
             rightElement={
               <ImprovedSwitch
                 value={settings.display.theme === "dark"}
-                onValueChange={(v) => updateDisplaySettings("theme", v ? "dark" : "light")}
+                onValueChange={(v) =>
+                  updateDisplaySettings("theme", v ? "dark" : "light")
+                }
               />
             }
           />
@@ -196,7 +255,9 @@ export const SettingsScreen: React.FC = () => {
             rightElement={
               <ImprovedSwitch
                 value={settings.autoDownload.downloadNewChapters}
-                onValueChange={(v) => updateAutoDownloadSettings("downloadNewChapters", v)}
+                onValueChange={(v) =>
+                  updateAutoDownloadSettings("downloadNewChapters", v)
+                }
               />
             }
           />
@@ -227,7 +288,9 @@ export const SettingsScreen: React.FC = () => {
             rightElement={
               <ImprovedSwitch
                 value={settings.updates.onlyUpdateOngoing}
-                onValueChange={(v) => updateUpdatesSettings("onlyUpdateOngoing", v)}
+                onValueChange={(v) =>
+                  updateUpdatesSettings("onlyUpdateOngoing", v)
+                }
               />
             }
           />
@@ -307,7 +370,9 @@ export const SettingsScreen: React.FC = () => {
         title="Select Start Screen"
         options={START_SCREENS}
         selectedValue={settings.general.startScreen}
-        onSelect={(value) => updateGeneralSettings("startScreen", value as StartScreen)}
+        onSelect={(value) =>
+          updateGeneralSettings("startScreen", value as StartScreen)
+        }
         onClose={() => setShowStartScreenModal(false)}
       />
       <SelectionModal

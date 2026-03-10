@@ -46,7 +46,10 @@ const NovelCardItem = React.memo(
     onNovelPress,
     onNovelLongPress,
   }: NovelCardItemProps) => {
-    const handlePress = useCallback(() => onNovelPress(novel), [onNovelPress, novel]);
+    const handlePress = useCallback(
+      () => onNovelPress(novel),
+      [onNovelPress, novel],
+    );
     const handleLongPress = useCallback(
       () => onNovelLongPress?.(novel),
       [onNovelLongPress, novel],

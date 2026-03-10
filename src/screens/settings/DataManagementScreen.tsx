@@ -3,16 +3,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { Header } from "../../components/common/Header";
 import { useHistory } from "../../context/HistoryContext";
@@ -87,7 +87,10 @@ const DataAction: React.FC<DataActionProps> = ({
           {title}
         </Text>
         <Text
-          style={[styles.actionDescription, { color: theme.colors.textSecondary }]}
+          style={[
+            styles.actionDescription,
+            { color: theme.colors.textSecondary },
+          ]}
         >
           {description}
         </Text>
@@ -124,7 +127,11 @@ export const DataManagementScreen: React.FC = () => {
       categories: library.categories.length,
       history: history.historyEntries.length,
     };
-  }, [library.novels.length, library.categories.length, history.historyEntries.length]);
+  }, [
+    library.novels.length,
+    library.categories.length,
+    history.historyEntries.length,
+  ]);
 
   const handleClearDatabase = () => {
     Alert.alert(
@@ -160,28 +167,24 @@ export const DataManagementScreen: React.FC = () => {
   };
 
   const handleResetSettings = () => {
-    Alert.alert(
-      "Reset Settings",
-      "Reset all settings back to defaults?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reset",
-          style: "destructive",
-          onPress: async () => {
-            setIsLoading(true);
-            try {
-              await resetSettings();
-              Alert.alert("Done", "Settings reset.");
-            } catch (e: any) {
-              Alert.alert("Failed", e?.message || "Could not reset settings.");
-            } finally {
-              setIsLoading(false);
-            }
-          },
+    Alert.alert("Reset Settings", "Reset all settings back to defaults?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Reset",
+        style: "destructive",
+        onPress: async () => {
+          setIsLoading(true);
+          try {
+            await resetSettings();
+            Alert.alert("Done", "Settings reset.");
+          } catch (e: any) {
+            Alert.alert("Failed", e?.message || "Could not reset settings.");
+          } finally {
+            setIsLoading(false);
+          }
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const handleSaveUserAgent = async () => {
@@ -227,9 +230,15 @@ export const DataManagementScreen: React.FC = () => {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.statsCard, { backgroundColor: theme.colors.surface }]}>
+        <View
+          style={[styles.statsCard, { backgroundColor: theme.colors.surface }]}
+        >
           <View style={styles.statsHeader}>
-            <Ionicons name="server-outline" size={22} color={theme.colors.primary} />
+            <Ionicons
+              name="server-outline"
+              size={22}
+              color={theme.colors.primary}
+            />
             <Text style={[styles.statsTitle, { color: theme.colors.text }]}>
               Database
             </Text>
@@ -240,7 +249,12 @@ export const DataManagementScreen: React.FC = () => {
               <Text style={[styles.statsValue, { color: theme.colors.text }]}>
                 {stats.novels}
               </Text>
-              <Text style={[styles.statsLabel, { color: theme.colors.textSecondary }]}>
+              <Text
+                style={[
+                  styles.statsLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
                 Novels
               </Text>
             </View>
@@ -248,7 +262,12 @@ export const DataManagementScreen: React.FC = () => {
               <Text style={[styles.statsValue, { color: theme.colors.text }]}>
                 {stats.categories}
               </Text>
-              <Text style={[styles.statsLabel, { color: theme.colors.textSecondary }]}>
+              <Text
+                style={[
+                  styles.statsLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
                 Categories
               </Text>
             </View>
@@ -256,7 +275,12 @@ export const DataManagementScreen: React.FC = () => {
               <Text style={[styles.statsValue, { color: theme.colors.text }]}>
                 {stats.history}
               </Text>
-              <Text style={[styles.statsLabel, { color: theme.colors.textSecondary }]}>
+              <Text
+                style={[
+                  styles.statsLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
                 History
               </Text>
             </View>
@@ -264,11 +288,18 @@ export const DataManagementScreen: React.FC = () => {
         </View>
 
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
+          <Text
+            style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}
+          >
             User Agent
           </Text>
 
-          <View style={[styles.userAgentCard, { backgroundColor: theme.colors.surface }]}>
+          <View
+            style={[
+              styles.userAgentCard,
+              { backgroundColor: theme.colors.surface },
+            ]}
+          >
             <View style={styles.userAgentHeader}>
               <View
                 style={[
@@ -276,14 +307,25 @@ export const DataManagementScreen: React.FC = () => {
                   { backgroundColor: theme.colors.primary + "20" },
                 ]}
               >
-                <Ionicons name="globe-outline" size={18} color={theme.colors.primary} />
+                <Ionicons
+                  name="globe-outline"
+                  size={18}
+                  color={theme.colors.primary}
+                />
               </View>
-              <Text style={[styles.userAgentTitle, { color: theme.colors.text }]}>
+              <Text
+                style={[styles.userAgentTitle, { color: theme.colors.text }]}
+              >
                 Web requests
               </Text>
             </View>
 
-            <Text style={[styles.userAgentDescription, { color: theme.colors.textSecondary }]}>
+            <Text
+              style={[
+                styles.userAgentDescription,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
               Some sources require a specific user agent string.
             </Text>
 
@@ -296,7 +338,10 @@ export const DataManagementScreen: React.FC = () => {
                   ]}
                 >
                   <Text
-                    style={[styles.userAgentText, { color: theme.colors.textSecondary }]}
+                    style={[
+                      styles.userAgentText,
+                      { color: theme.colors.textSecondary },
+                    ]}
                   >
                     {userAgent}
                   </Text>
@@ -310,9 +355,16 @@ export const DataManagementScreen: React.FC = () => {
                     onPress={() => setIsEditingUserAgent(true)}
                     disabled={isLoading}
                   >
-                    <Ionicons name="create-outline" size={16} color={theme.colors.primary} />
+                    <Ionicons
+                      name="create-outline"
+                      size={16}
+                      color={theme.colors.primary}
+                    />
                     <Text
-                      style={[styles.userAgentButtonText, { color: theme.colors.primary }]}
+                      style={[
+                        styles.userAgentButtonText,
+                        { color: theme.colors.primary },
+                      ]}
                     >
                       Edit
                     </Text>
@@ -326,9 +378,16 @@ export const DataManagementScreen: React.FC = () => {
                     onPress={() => void handleResetUserAgent()}
                     disabled={isLoading}
                   >
-                    <Ionicons name="refresh-outline" size={16} color={theme.colors.primary} />
+                    <Ionicons
+                      name="refresh-outline"
+                      size={16}
+                      color={theme.colors.primary}
+                    />
                     <Text
-                      style={[styles.userAgentButtonText, { color: theme.colors.primary }]}
+                      style={[
+                        styles.userAgentButtonText,
+                        { color: theme.colors.primary },
+                      ]}
                     >
                       Reset
                     </Text>
@@ -354,19 +413,30 @@ export const DataManagementScreen: React.FC = () => {
 
                 <View style={styles.editButtons}>
                   <TouchableOpacity
-                    style={[styles.editButton, { backgroundColor: theme.colors.border }]}
+                    style={[
+                      styles.editButton,
+                      { backgroundColor: theme.colors.border },
+                    ]}
                     onPress={() => {
                       setIsEditingUserAgent(false);
                       setUserAgent(settings.advanced.userAgent);
                     }}
                     disabled={isLoading}
                   >
-                    <Text style={[styles.editButtonText, { color: theme.colors.text }]}>
+                    <Text
+                      style={[
+                        styles.editButtonText,
+                        { color: theme.colors.text },
+                      ]}
+                    >
                       Cancel
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.editButton, { backgroundColor: theme.colors.primary }]}
+                    style={[
+                      styles.editButton,
+                      { backgroundColor: theme.colors.primary },
+                    ]}
                     onPress={() => void handleSaveUserAgent()}
                     disabled={isLoading}
                   >
@@ -379,7 +449,9 @@ export const DataManagementScreen: React.FC = () => {
         </View>
 
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
+          <Text
+            style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}
+          >
             Danger Zone
           </Text>
 
@@ -401,7 +473,6 @@ export const DataManagementScreen: React.FC = () => {
             isLoading={isLoading}
           />
         </View>
-
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -472,7 +543,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 2,
   },
-  userAgentHeader: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
+  userAgentHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
   userAgentIconContainer: {
     width: 36,
     height: 36,
@@ -514,8 +589,19 @@ const styles = StyleSheet.create({
     minHeight: 100,
     textAlignVertical: "top",
   },
-  editButtons: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 14 },
-  editButton: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, minWidth: 90, alignItems: "center" },
+  editButtons: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 10,
+    marginTop: 14,
+  },
+  editButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    minWidth: 90,
+    alignItems: "center",
+  },
   editButtonText: { color: "#FFF", fontSize: 14, fontWeight: "600" },
 
   footer: { alignItems: "center", marginTop: 12, paddingTop: 12 },

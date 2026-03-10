@@ -36,27 +36,59 @@ export const EditCategoriesScreen: React.FC = () => {
       `Remove "${name}" from your library? Novels in this category will become uncategorised.`,
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => removeCategory(id) },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => removeCategory(id),
+        },
       ],
     );
   };
 
-  const renderItem = ({ item, index }: { item: (typeof categories)[0]; index: number }) => (
-    <View style={[styles.categoryCard, { backgroundColor: theme.colors.surface }]}>
+  const renderItem = ({
+    item,
+    index,
+  }: {
+    item: (typeof categories)[0];
+    index: number;
+  }) => (
+    <View
+      style={[styles.categoryCard, { backgroundColor: theme.colors.surface }]}
+    >
       {/* Drag handle (visual affordance — real DnD requires a library) */}
-      <Ionicons name="reorder-three-outline" size={22} color={theme.colors.textSecondary} style={styles.dragHandle} />
+      <Ionicons
+        name="reorder-three-outline"
+        size={22}
+        color={theme.colors.textSecondary}
+        style={styles.dragHandle}
+      />
 
       {/* Icon + name */}
-      <View style={[styles.categoryIconWrap, { backgroundColor: theme.colors.primary + "18" }]}>
-        <Ionicons name="albums-outline" size={16} color={theme.colors.primary} />
+      <View
+        style={[
+          styles.categoryIconWrap,
+          { backgroundColor: theme.colors.primary + "18" },
+        ]}
+      >
+        <Ionicons
+          name="albums-outline"
+          size={16}
+          color={theme.colors.primary}
+        />
       </View>
-      <Text style={[styles.categoryName, { color: theme.colors.text }]} numberOfLines={1}>
+      <Text
+        style={[styles.categoryName, { color: theme.colors.text }]}
+        numberOfLines={1}
+      >
         {item.name}
       </Text>
 
       {/* Delete */}
       <TouchableOpacity
-        style={[styles.deleteBtn, { backgroundColor: theme.colors.error + "12" }]}
+        style={[
+          styles.deleteBtn,
+          { backgroundColor: theme.colors.error + "12" },
+        ]}
         onPress={() => handleDeleteCategory(item.id, item.name)}
         hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
       >
@@ -66,7 +98,9 @@ export const EditCategoriesScreen: React.FC = () => {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
       <Header title="Categories" onBackPress={() => navigation.goBack()} />
 
       {/* Add new */}
@@ -76,11 +110,19 @@ export const EditCategoriesScreen: React.FC = () => {
             styles.inputWrap,
             {
               backgroundColor: theme.colors.surface,
-              borderColor: isFocused ? theme.colors.primary : theme.colors.border,
+              borderColor: isFocused
+                ? theme.colors.primary
+                : theme.colors.border,
             },
           ]}
         >
-          <Ionicons name="pricetag-outline" size={16} color={isFocused ? theme.colors.primary : theme.colors.textSecondary} />
+          <Ionicons
+            name="pricetag-outline"
+            size={16}
+            color={
+              isFocused ? theme.colors.primary : theme.colors.textSecondary
+            }
+          />
           <TextInput
             style={[styles.input, { color: theme.colors.text }]}
             placeholder="New category name…"
@@ -96,18 +138,27 @@ export const EditCategoriesScreen: React.FC = () => {
         <TouchableOpacity
           style={[
             styles.addBtn,
-            { backgroundColor: newCategoryName.trim() ? theme.colors.primary : theme.colors.border },
+            {
+              backgroundColor: newCategoryName.trim()
+                ? theme.colors.primary
+                : theme.colors.border,
+            },
           ]}
           onPress={handleAddCategory}
           disabled={!newCategoryName.trim()}
         >
-          <Ionicons name="add" size={22} color={newCategoryName.trim() ? "#FFF" : theme.colors.textSecondary} />
+          <Ionicons
+            name="add"
+            size={22}
+            color={newCategoryName.trim() ? "#FFF" : theme.colors.textSecondary}
+          />
         </TouchableOpacity>
       </View>
 
       {/* Hint */}
       <Text style={[styles.hint, { color: theme.colors.textSecondary }]}>
-        {categories.length} {categories.length === 1 ? "category" : "categories"}
+        {categories.length}{" "}
+        {categories.length === 1 ? "category" : "categories"}
       </Text>
 
       <FlashList
@@ -119,11 +170,27 @@ export const EditCategoriesScreen: React.FC = () => {
         removeClippedSubviews={Platform.OS === "android"}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <View style={[styles.emptyIconWrap, { backgroundColor: theme.colors.surface }]}>
-              <Ionicons name="albums-outline" size={42} color={theme.colors.textSecondary} />
+            <View
+              style={[
+                styles.emptyIconWrap,
+                { backgroundColor: theme.colors.surface },
+              ]}
+            >
+              <Ionicons
+                name="albums-outline"
+                size={42}
+                color={theme.colors.textSecondary}
+              />
             </View>
-            <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>No categories yet</Text>
-            <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
+              No categories yet
+            </Text>
+            <Text
+              style={[
+                styles.emptySubtitle,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
               Add a category above to organise your library
             </Text>
           </View>
@@ -204,7 +271,19 @@ const styles = StyleSheet.create({
   },
 
   emptyContainer: { paddingTop: 48, alignItems: "center", gap: 10 },
-  emptyIconWrap: { width: 88, height: 88, borderRadius: 22, justifyContent: "center", alignItems: "center", marginBottom: 8 },
+  emptyIconWrap: {
+    width: 88,
+    height: 88,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+  },
   emptyTitle: { fontSize: 17, fontWeight: "800" },
-  emptySubtitle: { fontSize: 13, textAlign: "center", lineHeight: 18, maxWidth: 260 },
+  emptySubtitle: {
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 18,
+    maxWidth: 260,
+  },
 });

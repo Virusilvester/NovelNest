@@ -64,30 +64,51 @@ export const SourcesScreen: React.FC = () => {
   const renderSource = ({ item }: { item: (typeof sources)[0] }) => (
     <TouchableOpacity
       style={[styles.sourceCard, { backgroundColor: theme.colors.surface }]}
-      onPress={() => navigation.navigate("SourceDetail", { sourceId: item.id, sourceName: item.name })}
+      onPress={() =>
+        navigation.navigate("SourceDetail", {
+          sourceId: item.id,
+          sourceName: item.name,
+        })
+      }
       activeOpacity={0.8}
     >
       {/* Icon */}
-      <View style={[styles.iconWrap, { backgroundColor: theme.colors.background }]}>
+      <View
+        style={[styles.iconWrap, { backgroundColor: theme.colors.background }]}
+      >
         {item.iconUrl ? (
           <Image source={{ uri: item.iconUrl }} style={styles.icon} />
         ) : (
-          <Ionicons name="globe-outline" size={26} color={theme.colors.textSecondary} />
+          <Ionicons
+            name="globe-outline"
+            size={26}
+            color={theme.colors.textSecondary}
+          />
         )}
       </View>
 
       {/* Info */}
       <View style={styles.sourceInfo}>
-        <Text style={[styles.sourceName, { color: theme.colors.text }]} numberOfLines={1}>
+        <Text
+          style={[styles.sourceName, { color: theme.colors.text }]}
+          numberOfLines={1}
+        >
           {item.name}
         </Text>
         <View style={styles.sourceMeta}>
-          <View style={[styles.langBadge, { backgroundColor: theme.colors.primary + "1A" }]}>
+          <View
+            style={[
+              styles.langBadge,
+              { backgroundColor: theme.colors.primary + "1A" },
+            ]}
+          >
             <Text style={[styles.langText, { color: theme.colors.primary }]}>
               {item.lang.toUpperCase()}
             </Text>
           </View>
-          <Text style={[styles.versionText, { color: theme.colors.textSecondary }]}>
+          <Text
+            style={[styles.versionText, { color: theme.colors.textSecondary }]}
+          >
             v{item.version}
           </Text>
         </View>
@@ -100,8 +121,8 @@ export const SourcesScreen: React.FC = () => {
           styles.toggleBtn,
           {
             backgroundColor: item.enabled
-              ? (theme.colors.success + "1A")
-              : (theme.colors.error + "1A"),
+              ? theme.colors.success + "1A"
+              : theme.colors.error + "1A",
           },
         ]}
         hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
@@ -121,19 +142,39 @@ export const SourcesScreen: React.FC = () => {
         </Text>
       </TouchableOpacity>
 
-      <Ionicons name="chevron-forward" size={16} color={theme.colors.textSecondary} />
+      <Ionicons
+        name="chevron-forward"
+        size={16}
+        color={theme.colors.textSecondary}
+      />
     </TouchableOpacity>
   );
 
   const filterMenuItems = [
-    { id: "alphabetically", label: "A → Z", onPress: () => { setSortOption("alphabetically"); setIsFilterMenuVisible(false); } },
-    { id: "enabled", label: "Enabled first", onPress: () => { setSortOption("enabled"); setIsFilterMenuVisible(false); } },
+    {
+      id: "alphabetically",
+      label: "A → Z",
+      onPress: () => {
+        setSortOption("alphabetically");
+        setIsFilterMenuVisible(false);
+      },
+    },
+    {
+      id: "enabled",
+      label: "Enabled first",
+      onPress: () => {
+        setSortOption("enabled");
+        setIsFilterMenuVisible(false);
+      },
+    },
   ];
 
   const sortLabel = sortOption === "enabled" ? "Enabled first" : "A → Z";
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
       <Header
         title="Sources"
         onMenuPress={() => navigation.openDrawer()}
@@ -141,15 +182,32 @@ export const SourcesScreen: React.FC = () => {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onSearchSubmit={() => setIsSearchActive(true)}
-        onSearchClose={() => { setIsSearchActive(false); setSearchQuery(""); }}
+        onSearchClose={() => {
+          setIsSearchActive(false);
+          setSearchQuery("");
+        }}
         rightButtons={
           !isSearchActive ? (
             <>
-              <TouchableOpacity onPress={() => setIsSearchActive(true)} style={styles.iconBtn}>
-                <Ionicons name="search-outline" size={22} color={theme.colors.text} />
+              <TouchableOpacity
+                onPress={() => setIsSearchActive(true)}
+                style={styles.iconBtn}
+              >
+                <Ionicons
+                  name="search-outline"
+                  size={22}
+                  color={theme.colors.text}
+                />
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setIsFilterMenuVisible(true)} style={styles.iconBtn}>
-                <Ionicons name="funnel-outline" size={20} color={theme.colors.text} />
+              <TouchableOpacity
+                onPress={() => setIsFilterMenuVisible(true)}
+                style={styles.iconBtn}
+              >
+                <Ionicons
+                  name="funnel-outline"
+                  size={20}
+                  color={theme.colors.text}
+                />
               </TouchableOpacity>
             </>
           ) : null
@@ -158,19 +216,45 @@ export const SourcesScreen: React.FC = () => {
 
       {/* Summary bar */}
       {sources.length > 0 && (
-        <View style={[styles.summaryBar, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
+        <View
+          style={[
+            styles.summaryBar,
+            {
+              backgroundColor: theme.colors.surface,
+              borderBottomColor: theme.colors.border,
+            },
+          ]}
+        >
           <View style={styles.summaryLeft}>
-            <Ionicons name="layers-outline" size={14} color={theme.colors.textSecondary} />
-            <Text style={[styles.summaryText, { color: theme.colors.textSecondary }]}>
-              {" "}{sources.length} source{sources.length !== 1 ? "s" : ""}
+            <Ionicons
+              name="layers-outline"
+              size={14}
+              color={theme.colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.summaryText,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              {" "}
+              {sources.length} source{sources.length !== 1 ? "s" : ""}
               {"  ·  "}
               {sources.filter((s) => s.enabled).length} enabled
             </Text>
           </View>
-          <TouchableOpacity style={styles.sortBtn} onPress={() => setIsFilterMenuVisible(true)}>
-            <Ionicons name="swap-vertical-outline" size={13} color={theme.colors.primary} />
+          <TouchableOpacity
+            style={styles.sortBtn}
+            onPress={() => setIsFilterMenuVisible(true)}
+          >
+            <Ionicons
+              name="swap-vertical-outline"
+              size={13}
+              color={theme.colors.primary}
+            />
             <Text style={[styles.sortBtnText, { color: theme.colors.primary }]}>
-              {" "}{sortLabel}
+              {" "}
+              {sortLabel}
             </Text>
           </TouchableOpacity>
         </View>
@@ -185,13 +269,27 @@ export const SourcesScreen: React.FC = () => {
         removeClippedSubviews={Platform.OS === "android"}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <View style={[styles.emptyIconWrap, { backgroundColor: theme.colors.surface }]}>
-              <Ionicons name="extension-puzzle-outline" size={48} color={theme.colors.textSecondary} />
+            <View
+              style={[
+                styles.emptyIconWrap,
+                { backgroundColor: theme.colors.surface },
+              ]}
+            >
+              <Ionicons
+                name="extension-puzzle-outline"
+                size={48}
+                color={theme.colors.textSecondary}
+              />
             </View>
             <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
               No sources installed
             </Text>
-            <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
+            <Text
+              style={[
+                styles.emptySubtitle,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
               Install sources from Extensions, then enable them here
             </Text>
           </View>
@@ -281,5 +379,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   emptyTitle: { fontSize: 18, fontWeight: "800" },
-  emptySubtitle: { fontSize: 14, textAlign: "center", maxWidth: 280, lineHeight: 20 },
+  emptySubtitle: {
+    fontSize: 14,
+    textAlign: "center",
+    maxWidth: 280,
+    lineHeight: 20,
+  },
 });

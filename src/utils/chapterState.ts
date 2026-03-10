@@ -153,7 +153,9 @@ export const pickResumeChapter = <T extends { path: string }>(opts: {
 
   const lastReadPath = opts.lastReadPath ? String(opts.lastReadPath) : "";
   if (lastReadPath) {
-    const idx = opts.chapters.findIndex((c) => String(c?.path) === lastReadPath);
+    const idx = opts.chapters.findIndex(
+      (c) => String(c?.path) === lastReadPath,
+    );
     if (idx >= 0) return { chapter: opts.chapters[idx], index: idx };
   }
 
