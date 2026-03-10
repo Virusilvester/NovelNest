@@ -261,7 +261,7 @@ export const ReaderSettingsScreen: React.FC = () => {
           <ToggleRow
             icon="hand-left-outline"
             label="Tap to scroll"
-            description="Tap the right side to scroll down, left to scroll up"
+            description="Tap bottom of screen to scroll down, top to scroll up. Middle tap toggles the navigation bars."
             value={g.tapToScroll}
             onValueChange={(v) => updateReaderSettings("general", "tapToScroll", v)}
           />
@@ -295,11 +295,27 @@ export const ReaderSettingsScreen: React.FC = () => {
           <ToggleRow
             icon="analytics-outline"
             label="Show progress %"
-            description="Display reading progress at the bottom"
+            description="Display reading progress percentage and bar in the bottom nav"
             value={d.showProgressPercentage}
             onValueChange={(v) => updateReaderSettings("display", "showProgressPercentage", v)}
             isLast
           />
+        </Card>
+
+        {/* ── Nav bars note ── */}
+        <SectionHeader title="Navigation bars" />
+        <Card>
+          <View style={[styles.row, { paddingVertical: 14 }]}>
+            <View style={[styles.rowIconWrap, { backgroundColor: theme.colors.primary + "1A" }]}>
+              <Ionicons name="eye-outline" size={18} color={theme.colors.primary} />
+            </View>
+            <View style={styles.rowText}>
+              <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Auto-hide on scroll</Text>
+              <Text style={[styles.rowDesc, { color: theme.colors.textSecondary }]}>
+                {"The top and bottom bars hide when you scroll down and reappear when you scroll up or tap the middle of the screen."}
+              </Text>
+            </View>
+          </View>
         </Card>
 
         {/* ── Typography ── */}

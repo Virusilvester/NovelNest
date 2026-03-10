@@ -1,530 +1,251 @@
 // src/screens/settings/ReaderThemeScreen.tsx
+import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Keyboard,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { Header } from "../../components/common/Header";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
 
+// ─── Colour swatch ────────────────────────────────────────────────────────────
+const SWATCHES_BG = [
+  "#FFFFFF", "#F5EDD6", "#E6EFE6", "#E8E8E8",
+  "#181820", "#000000", "#1A1A2E", "#0D0D0D",
+  "#FFF8F0", "#F0F4FF", "#FFF0F5", "#F0FFF4",
+];
+const SWATCHES_TEXT = [
+  "#000000", "#1A1A1A", "#2D2D2D", "#3D3D3D",
+  "#FFFFFF", "#DEDEDE", "#C8C8C8", "#A0A0A0",
+  "#3D2B1F", "#1A3021", "#1A1A4A", "#1A3A1A",
+];
+
+// ─── Inline colour picker row ─────────────────────────────────────────────────
+interface ColourRowProps {
+  label: string;
+  value: string;
+  swatches: string[];
+  onChange: (hex: string) => void;
+}
+
+const ColourRow: React.FC<ColourRowProps> = ({ label, value, swatches, onChange }) => {
+  const { theme } = useTheme();
+  const [hex, setHex] = useState(value);
+  const [focused, setFocused] = useState(false);
+
+  // Sync external value → local state when prop changes
+  React.useEffect(() => { setHex(value); }, [value]);
+
+  const commit = useCallback((raw: string) => {
+    const v = raw.trim();
+    // Accept #RGB, #RRGGBB, #RRGGBBAA
+    if (/^#[0-9a-fA-F]{3,8}$/.test(v)) onChange(v);
+  }, [onChange]);
+
+  return (
+    <View style={cr.wrap}>
+      <View style={cr.labelRow}>
+        {/* Live colour preview dot */}
+        <View style={[cr.dot, { backgroundColor: value, borderColor: theme.colors.border }]} />
+        <Text style={[cr.label, { color: theme.colors.text }]}>{label}</Text>
+        {/* Hex input */}
+        <View style={[cr.hexWrap, { backgroundColor: theme.colors.background, borderColor: focused ? theme.colors.primary : theme.colors.border }]}>
+          <TextInput
+            value={hex}
+            onChangeText={setHex}
+            onFocus={() => setFocused(true)}
+            onBlur={() => { setFocused(false); commit(hex); }}
+            onSubmitEditing={() => { commit(hex); Keyboard.dismiss(); }}
+            placeholder="#000000"
+            placeholderTextColor={theme.colors.textSecondary}
+            style={[cr.hexInput, { color: theme.colors.text }]}
+            autoCapitalize="none"
+            autoCorrect={false}
+            maxLength={9}
+            returnKeyType="done"
+          />
+        </View>
+      </View>
+      {/* Swatch grid */}
+      <View style={cr.swatchGrid}>
+        {swatches.map((sw) => (
+          <TouchableOpacity
+            key={sw}
+            style={[
+              cr.swatch,
+              { backgroundColor: sw, borderColor: sw === value ? theme.colors.primary : (sw === "#FFFFFF" || sw === "#F5EDD6" || sw === "#E6EFE6" || sw === "#E8E8E8" || sw === "#F0F4FF" || sw === "#FFF8F0" || sw === "#FFF0F5" || sw === "#F0FFF4" ? "#CCCCCC" : "transparent") },
+              sw === value && { borderWidth: 2.5 },
+            ]}
+            onPress={() => { onChange(sw); setHex(sw); }}
+          >
+            {sw === value && (
+              <Ionicons name="checkmark" size={12} color={sw === "#FFFFFF" || sw === "#F5EDD6" ? "#333" : "#FFF"} />
+            )}
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+};
+
+const cr = StyleSheet.create({
+  wrap: { paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
+  labelRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  dot: { width: 24, height: 24, borderRadius: 12, borderWidth: 1 },
+  label: { flex: 1, fontSize: 15, fontWeight: "600" },
+  hexWrap: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, height: 36, justifyContent: "center" },
+  hexInput: { fontSize: 13, fontWeight: "600", minWidth: 80 },
+  swatchGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingLeft: 34 },
+  swatch: { width: 32, height: 32, borderRadius: 8, borderWidth: 1, justifyContent: "center", alignItems: "center" },
+});
+
+// ─── Main screen ──────────────────────────────────────────────────────────────
 export const ReaderThemeScreen: React.FC = () => {
   const navigation = useNavigation();
   const { theme } = useTheme();
   const { settings, updateReaderSettings, updateReaderSettingsBatch } = useSettings();
+  const t = settings.reader.theme;
 
-  const presets = ["Default", "Dark", "Sepia", "Green"];
+  // Preset definitions — bg, text, label
+  const PRESETS = [
+    { key: "Default", bg: "#FFFFFF", fg: "#1A1A1A", label: "Day",    dark: false },
+    { key: "Dark",    bg: "#181820", fg: "#DEDEDE", label: "Night",  dark: true  },
+    { key: "Sepia",   bg: "#F5EDD6", fg: "#3D2B1F", label: "Sepia",  dark: false },
+    { key: "Amoled",  bg: "#000000", fg: "#C8C8C8", label: "AMOLED", dark: true  },
+    { key: "Forest",  bg: "#E6EFE6", fg: "#1A3021", label: "Forest", dark: false },
+    { key: "Slate",   bg: "#1E2030", fg: "#C0C8D8", label: "Slate",  dark: true  },
+  ] as const;
 
-  const applyPreset = useCallback(
-    async (preset: string) => {
-      let backgroundColor = "#FFFFFF";
-      let textColor = "#000000";
-
-      switch (preset.toLowerCase()) {
-        case "dark":
-          backgroundColor = "#000000";
-          textColor = "#FFFFFF";
-          break;
-        case "sepia":
-          backgroundColor = "#F4E6C4";
-          textColor = "#4A3B2A";
-          break;
-        case "green":
-          backgroundColor = "#E6F4EA";
-          textColor = "#143D1F";
-          break;
-        default:
-          backgroundColor = "#FFFFFF";
-          textColor = "#000000";
-          break;
-      }
-
-      // Apply all preset settings atomically using batch update
-      await updateReaderSettingsBatch([
-        { section: "theme", key: "preset", value: preset },
-        { section: "theme", key: "backgroundColor", value: backgroundColor },
-        { section: "theme", key: "textColor", value: textColor },
-      ]);
-    },
-    [updateReaderSettingsBatch],
-  );
+  const applyPreset = useCallback(async (key: string, bg: string, fg: string) => {
+    await updateReaderSettingsBatch([
+      { section: "theme", key: "preset",          value: key },
+      { section: "theme", key: "backgroundColor", value: bg  },
+      { section: "theme", key: "textColor",       value: fg  },
+    ]);
+  }, [updateReaderSettingsBatch]);
 
   return (
-    <View
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
-    >
+    <View style={[S.container, { backgroundColor: theme.colors.background }]}>
       <Header title="Reader Theme" onBackPress={() => navigation.goBack()} />
 
-      <ScrollView style={styles.content}>
-        <View
-          style={[styles.section, { backgroundColor: theme.colors.surface }]}
-        >
-          <Text
-            style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}
-          >
-            Preset
-          </Text>
+      <ScrollView style={S.scroll} contentContainerStyle={S.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-          {/* Live preview of current reader colors */}
-          <View
-            style={[
-              styles.previewCard,
-              {
-                backgroundColor: settings.reader.theme.backgroundColor,
-                borderColor: theme.colors.border,
-              },
-            ]}
-          >
-            <Text
-              style={[
-                styles.previewTitle,
-                { color: settings.reader.theme.textColor },
-              ]}
-            >
-              Aa
+        {/* Live preview */}
+        <View style={S.previewSection}>
+          <View style={[S.preview, { backgroundColor: t.backgroundColor, borderColor: theme.colors.border }]}>
+            <Text style={[S.previewBig, { color: t.textColor, fontFamily: t.fontStyle === "Serif" ? "serif" : t.fontStyle === "Mono" ? "monospace" : undefined }]}>
+              Aa — {t.textSize}px
             </Text>
             <Text
               style={[
-                styles.previewBody,
-                { color: settings.reader.theme.textColor },
+                S.previewBody,
+                {
+                  color: t.textColor,
+                  fontSize: t.textSize,
+                  lineHeight: t.textSize * t.lineHeight,
+                  textAlign: t.textAlign,
+                  fontFamily: t.fontStyle === "Serif" ? "serif" : t.fontStyle === "Mono" ? "monospace" : undefined,
+                },
               ]}
-              numberOfLines={2}
+              numberOfLines={3}
             >
-              Sample reader text preview using your current theme.
+              The sun had long since set behind the mountains, casting long violet shadows across the silent valley below.
             </Text>
-          </View>
-
-          <View style={styles.presetsContainer}>
-            {presets.map((preset) => (
-              <TouchableOpacity
-                key={preset}
-                style={[
-                  styles.presetButton,
-                  {
-                    backgroundColor:
-                      settings.reader.theme.preset === preset
-                        ? theme.colors.primary
-                        : theme.colors.border,
-                  },
-                ]}
-                onPress={() => applyPreset(preset)}
-              >
-                <Text
-                  style={[
-                    styles.presetText,
-                    {
-                      color:
-                        settings.reader.theme.preset === preset
-                          ? theme.colors.onPrimary
-                          : theme.colors.text,
-                    },
-                  ]}
-                >
-                  {preset}
-                </Text>
-              </TouchableOpacity>
-            ))}
           </View>
         </View>
 
-        <View
-          style={[styles.section, { backgroundColor: theme.colors.surface }]}
-        >
-          <Text
-            style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}
-          >
-            Colors
-          </Text>
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.colors.text }]}>
-              Background
-            </Text>
-            <TextInput
-              style={[
-                styles.input,
-                { color: theme.colors.text, borderColor: theme.colors.border },
-              ]}
-              value={settings.reader.theme.backgroundColor}
-              onChangeText={(v) =>
-                updateReaderSettings("theme", "backgroundColor", v)
-              }
-            />
-          </View>
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.colors.text }]}>
-              Text
-            </Text>
-            <TextInput
-              style={[
-                styles.input,
-                { color: theme.colors.text, borderColor: theme.colors.border },
-              ]}
-              value={settings.reader.theme.textColor}
-              onChangeText={(v) =>
-                updateReaderSettings("theme", "textColor", v)
-              }
-            />
-          </View>
-        </View>
-
-        <View
-          style={[styles.section, { backgroundColor: theme.colors.surface }]}
-        >
-          <Text
-            style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}
-          >
-            Text Settings
-          </Text>
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.colors.text }]}>
-              Text Size: {settings.reader.theme.textSize}px
-            </Text>
-            <View style={styles.rowControls}>
-              <TouchableOpacity
-                style={styles.iconBtn}
-                onPress={() => {
-                  const current = settings.reader.theme.textSize;
-                  const next = Math.max(10, current - 1);
-                  void updateReaderSettings("theme", "textSize", next);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.iconLabel,
-                    { color: theme.colors.primary },
-                  ]}
-                >
-                  -
-                </Text>
-              </TouchableOpacity>
-              <Text
-                style={[
-                  styles.valueLabel,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                {settings.reader.theme.textSize}
-              </Text>
-              <TouchableOpacity
-                style={styles.iconBtn}
-                onPress={() => {
-                  const current = settings.reader.theme.textSize;
-                  const next = Math.min(40, current + 1);
-                  void updateReaderSettings("theme", "textSize", next);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.iconLabel,
-                    { color: theme.colors.primary },
-                  ]}
-                >
-                  +
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.colors.text }]}>
-              Line Height: {settings.reader.theme.lineHeight}
-            </Text>
-            <View style={styles.rowControls}>
-              <TouchableOpacity
-                style={styles.iconBtn}
-                onPress={() => {
-                  const current = settings.reader.theme.lineHeight;
-                  const next =
-                    Math.round(Math.max(1, current - 0.1) * 10) / 10;
-                  void updateReaderSettings("theme", "lineHeight", next);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.iconLabel,
-                    { color: theme.colors.primary },
-                  ]}
-                >
-                  -
-                </Text>
-              </TouchableOpacity>
-              <Text
-                style={[
-                  styles.valueLabel,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                {settings.reader.theme.lineHeight.toFixed(1)}
-              </Text>
-              <TouchableOpacity
-                style={styles.iconBtn}
-                onPress={() => {
-                  const current = settings.reader.theme.lineHeight;
-                  const next =
-                    Math.round(Math.min(3, current + 0.1) * 10) / 10;
-                  void updateReaderSettings("theme", "lineHeight", next);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.iconLabel,
-                    { color: theme.colors.primary },
-                  ]}
-                >
-                  +
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.colors.text }]}>
-              Padding: {settings.reader.theme.padding}px
-            </Text>
-            <View style={styles.rowControls}>
-              <TouchableOpacity
-                style={styles.iconBtn}
-                onPress={() => {
-                  const current = settings.reader.theme.padding;
-                  const next = Math.max(0, current - 2);
-                  void updateReaderSettings("theme", "padding", next);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.iconLabel,
-                    { color: theme.colors.primary },
-                  ]}
-                >
-                  -
-                </Text>
-              </TouchableOpacity>
-              <Text
-                style={[
-                  styles.valueLabel,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                {settings.reader.theme.padding}
-              </Text>
-              <TouchableOpacity
-                style={styles.iconBtn}
-                onPress={() => {
-                  const current = settings.reader.theme.padding;
-                  const next = Math.min(64, current + 2);
-                  void updateReaderSettings("theme", "padding", next);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.iconLabel,
-                    { color: theme.colors.primary },
-                  ]}
-                >
-                  +
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
-        <View
-          style={[styles.section, { backgroundColor: theme.colors.surface }]}
-        >
-          <Text
-            style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}
-          >
-            Alignment & Font
-          </Text>
-
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.colors.text }]}>
-              Text alignment
-            </Text>
-            <View style={styles.alignRow}>
-              {(["left", "center", "justify"] as const).map((align) => (
+        {/* ── Presets ── */}
+        <Text style={[S.sectionLabel, { color: theme.colors.textSecondary }]}>Presets</Text>
+        <View style={[S.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+          <View style={S.presetGrid}>
+            {PRESETS.map((p) => {
+              const active = t.preset === p.key || (t.backgroundColor === p.bg && t.textColor === p.fg);
+              const lightBg = !p.dark;
+              return (
                 <TouchableOpacity
-                  key={align}
+                  key={p.key}
                   style={[
-                    styles.alignBtn,
-                    {
-                      borderColor: theme.colors.border,
-                      backgroundColor:
-                        settings.reader.theme.textAlign === align
-                          ? theme.colors.primary
-                          : "transparent",
-                    },
+                    S.presetCard,
+                    { backgroundColor: p.bg, borderColor: active ? theme.colors.primary : lightBg ? "#CCCCCC" : p.bg },
+                    active && { borderWidth: 2.5 },
                   ]}
-                  onPress={() =>
-                    updateReaderSettings("theme", "textAlign", align)
-                  }
+                  onPress={() => void applyPreset(p.key, p.bg, p.fg)}
                 >
-                  <Text
-                    style={[
-                      styles.alignText,
-                      {
-                        color:
-                          settings.reader.theme.textAlign === align
-                            ? theme.colors.onPrimary
-                            : theme.colors.text,
-                      },
-                    ]}
-                  >
-                    {align.charAt(0).toUpperCase() + align.slice(1)}
-                  </Text>
+                  <Text style={[S.presetCardLabel, { color: p.fg }]}>{p.label}</Text>
+                  <Text style={[S.presetCardSample, { color: p.fg }]}>Aa</Text>
+                  {active && (
+                    <View style={S.presetCheck}>
+                      <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary} />
+                    </View>
+                  )}
                 </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.colors.text }]}>
-              Font style
-            </Text>
-            <View style={styles.alignRow}>
-              {["System", "Serif", "Sans", "Mono"].map((font) => (
-                <TouchableOpacity
-                  key={font}
-                  style={[
-                    styles.alignBtn,
-                    {
-                      borderColor: theme.colors.border,
-                      backgroundColor:
-                        settings.reader.theme.fontStyle === font
-                          ? theme.colors.primary
-                          : "transparent",
-                    },
-                  ]}
-                  onPress={() =>
-                    updateReaderSettings("theme", "fontStyle", font)
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.alignText,
-                      {
-                        color:
-                          settings.reader.theme.fontStyle === font
-                            ? theme.colors.onPrimary
-                            : theme.colors.text,
-                      },
-                    ]}
-                  >
-                    {font}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+              );
+            })}
           </View>
         </View>
+
+        {/* ── Colours ── */}
+        <Text style={[S.sectionLabel, { color: theme.colors.textSecondary }]}>Custom Colours</Text>
+        <View style={[S.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+          <ColourRow
+            label="Background"
+            value={t.backgroundColor}
+            swatches={SWATCHES_BG}
+            onChange={(v) => void updateReaderSettings("theme", "backgroundColor", v)}
+          />
+          <View style={[S.divider, { backgroundColor: theme.colors.divider }]} />
+          <ColourRow
+            label="Text"
+            value={t.textColor}
+            swatches={SWATCHES_TEXT}
+            onChange={(v) => void updateReaderSettings("theme", "textColor", v)}
+          />
+        </View>
+
       </ScrollView>
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
+const S = StyleSheet.create({
+  container: { flex: 1 },
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 40 },
+
+  previewSection: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 },
+  preview: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 10 },
+  previewBig: { fontSize: 22, fontWeight: "800" },
+  previewBody: { opacity: 0.9 },
+
+  sectionLabel: {
+    fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.8,
+    marginTop: 22, marginBottom: 8, marginHorizontal: 20,
+  },
+  card: {
+    marginHorizontal: 16, borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth, overflow: "hidden",
+  },
+  divider: { height: StyleSheet.hairlineWidth, marginHorizontal: 16 },
+
+  presetGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, padding: 14 },
+  presetCard: {
+    width: "29%",
+    minWidth: 90,
     flex: 1,
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-  },
-  section: {
-    borderRadius: 8,
-    marginBottom: 16,
-    padding: 16,
-  },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    marginBottom: 12,
-  },
-  presetsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  presetButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
-  },
-  presetText: {
-    fontSize: 14,
-    fontWeight: "bold",
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  input: {
-    height: 40,
-    borderWidth: 1,
-    borderRadius: 4,
-    paddingHorizontal: 12,
-    fontSize: 16,
-  },
-  previewCard: {
-    borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 12,
+    borderWidth: 1.5,
     padding: 12,
-    marginBottom: 12,
+    alignItems: "flex-start",
+    gap: 4,
   },
-  previewTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    marginBottom: 4,
-  },
-  previewBody: {
-    fontSize: 13,
-  },
-  rowControls: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
-    gap: 8,
-  },
-  iconBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#CCC",
-  },
-  iconLabel: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  valueLabel: {
-    minWidth: 48,
-    textAlign: "center",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  alignRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 8,
-  },
-  alignBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  alignText: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
+  presetCardLabel: { fontSize: 12, fontWeight: "700" },
+  presetCardSample: { fontSize: 20, fontWeight: "800" },
+  presetCheck: { position: "absolute", top: 6, right: 6 },
 });
