@@ -38,6 +38,9 @@ const KeepAwakeGuard: React.FC = () => {
 type Props = {
   initialChapterPath: string;
   initialChapterTitle?: string;
+  // 0-100: restore scroll position within the initial chapter.
+  // Used by Resume/progress actions to continue exactly where the user left off.
+  initialScrollProgress?: number;
   chapters: ReaderChapterItem[];
   loadChapterHtml: (chapterPath: string) => Promise<string>;
   baseUrl?: string;
@@ -45,6 +48,11 @@ type Props = {
   onOpenWeb?: (chapterPath: string) => void;
   onChapterChange?: (chapter: ReaderChapterItem, index: number) => void;
   onChapterRead?: (chapter: ReaderChapterItem, index: number) => void;
+  onScrollProgress?: (
+    chapter: ReaderChapterItem,
+    index: number,
+    progress: number,
+  ) => void;
   extraMenuItems?: {
     id: string;
     label: string;
@@ -174,6 +182,7 @@ const ALIGN_OPTIONS = [
 export const ChapterReader: React.FC<Props> = ({
   initialChapterPath,
   initialChapterTitle,
+  initialScrollProgress,
   chapters,
   loadChapterHtml,
   baseUrl,
@@ -181,6 +190,7 @@ export const ChapterReader: React.FC<Props> = ({
   onOpenWeb,
   onChapterChange,
   onChapterRead,
+  onScrollProgress,
   extraMenuItems,
   swipeToNavigate: _swipeToNavigate,
   tapToScroll: _tapToScroll,
@@ -258,12 +268,16 @@ export const ChapterReader: React.FC<Props> = ({
   const hasMarkedReadRef = useRef(false);
   const onChapterChangeRef = useRef(onChapterChange);
   const onChapterReadRef = useRef(onChapterRead);
+  const onScrollProgressRef = useRef(onScrollProgress);
   useEffect(() => {
     onChapterChangeRef.current = onChapterChange;
   }, [onChapterChange]);
   useEffect(() => {
     onChapterReadRef.current = onChapterRead;
   }, [onChapterRead]);
+  useEffect(() => {
+    onScrollProgressRef.current = onScrollProgress;
+  }, [onScrollProgress]);
 
   const swipeToNavigateRef = useRef(settings.reader.general.swipeToNavigate);
   const tapToScrollRef = useRef(settings.reader.general.tapToScroll);
@@ -324,6 +338,7 @@ export const ChapterReader: React.FC<Props> = ({
     let cancelled = false;
 
     const run = async () => {
+      webViewLoadedRef.current = false;
       hasMarkedReadRef.current = false;
       setScrollProgress(0);
       setError(null);
@@ -548,11 +563,15 @@ export const ChapterReader: React.FC<Props> = ({
           onChapterReadRef.current?.(ch[idx], idx);
           showBars(); // Show nav when chapter is done
         }
+
+        if (idx >= 0 && ch[idx]) {
+          onScrollProgressRef.current?.(ch[idx], idx, value);
+        }
         return;
       }
 
       if (msg.type === "tap") {
-        const { zone, yRatio, xRatio } = msg as any;
+        const { zone, xRatio } = msg as any;
         const tapScroll = tapToScrollRef.current;
 
         if (tapScroll) {
@@ -673,6 +692,70 @@ export const ChapterReader: React.FC<Props> = ({
     return baseUrl;
   }, [baseUrl, currentPath]);
 
+  const buildScrollRestoreJs = useCallback((progress: number) => {
+    const p = Math.max(0, Math.min(100, Number(progress) || 0));
+    // Try multiple times to account for late layout shifts (images/fonts).
+    return `(() => {
+      try {
+        const targetProgress = ${p};
+        let tries = 0;
+        const maxTries = 14;
+        const tick = () => {
+          tries += 1;
+          const doc = document.documentElement;
+          const body = document.body;
+          const scrollHeight = Math.max(body.scrollHeight || 0, doc.scrollHeight || 0);
+          const clientHeight = doc.clientHeight || window.innerHeight || 0;
+          const denom = scrollHeight - clientHeight;
+          const y = denom <= 0 ? 0 : Math.round(denom * (targetProgress / 100));
+          try { window.scrollTo(0, y); } catch {}
+          if (tries < maxTries) setTimeout(tick, 60);
+        };
+        setTimeout(tick, 0);
+      } catch {}
+    })(); true;`;
+  }, []);
+
+  const initialScrollAppliedRef = useRef(false);
+  const webViewLoadedRef = useRef(false);
+
+  const maybeRestoreInitialScroll = useCallback(() => {
+    if (initialScrollAppliedRef.current) return;
+    if (currentPath !== initialChapterPath) return;
+    if (error) return;
+
+    const p =
+      typeof initialScrollProgress === "number" &&
+      Number.isFinite(initialScrollProgress)
+        ? Math.max(0, Math.min(100, initialScrollProgress))
+        : null;
+    if (p == null) return;
+
+    initialScrollAppliedRef.current = true;
+
+    // Small/no progress: treat as "applied" but don't scroll.
+    if (p <= 0) return;
+
+    webViewRef.current?.injectJavaScript(buildScrollRestoreJs(p));
+  }, [
+    buildScrollRestoreJs,
+    currentPath,
+    error,
+    initialChapterPath,
+    initialScrollProgress,
+  ]);
+
+  const handleLoadEnd = useCallback(() => {
+    webViewLoadedRef.current = true;
+    maybeRestoreInitialScroll();
+  }, [maybeRestoreInitialScroll]);
+
+  // If initialScrollProgress arrives after the WebView has already loaded, restore then.
+  useEffect(() => {
+    if (!webViewLoadedRef.current) return;
+    maybeRestoreInitialScroll();
+  }, [maybeRestoreInitialScroll]);
+
   // ── Derived animation values ─────────────────────────────────────────────
   const topBarTranslate = barsAnim.interpolate({
     inputRange: [0, 1],
@@ -688,8 +771,6 @@ export const ChapterReader: React.FC<Props> = ({
   const t = settings.reader.theme;
   const g = settings.reader.general;
   const d = settings.reader.display;
-  const topBarHeight = insets.top + 52;
-  const bottomBarHeight = insets.bottom + 64;
 
   return (
     <View
@@ -711,6 +792,7 @@ export const ChapterReader: React.FC<Props> = ({
         originWhitelist={["*"]}
         onMessage={handleMessage}
         injectedJavaScriptBeforeContentLoaded={injectedBeforeContent}
+        onLoadEnd={handleLoadEnd}
         onShouldStartLoadWithRequest={shouldStartLoad}
         javaScriptEnabled
         domStorageEnabled

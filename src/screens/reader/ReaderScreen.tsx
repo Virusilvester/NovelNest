@@ -101,6 +101,20 @@ export const ReaderScreen: React.FC = () => {
     return { path: chapterId, title: undefined };
   }, [chapterId, chapters, novel?.lastReadChapter]);
 
+  const historyEntry = useMemo(
+    () => historyEntries.find((e) => e.id === novel?.id),
+    [historyEntries, novel?.id],
+  );
+
+  const initialScrollProgress = useMemo(() => {
+    const last = historyEntry?.lastReadChapter;
+    if (!last) return undefined;
+    if (last.id !== initialChapter.path) return undefined;
+    const p = last.scrollProgress;
+    if (typeof p !== "number" || !Number.isFinite(p)) return undefined;
+    return Math.max(0, Math.min(100, p));
+  }, [historyEntry?.lastReadChapter, initialChapter.path]);
+
   const initialChapters: ReaderChapterItem[] = useMemo(() => {
     if (chapters.length > 0) return chapters;
     return [
@@ -191,7 +205,9 @@ export const ReaderScreen: React.FC = () => {
         isRead: true,
         isDownloaded: false,
         releaseDate: new Date(),
+        scrollProgress: 100,
       };
+      lastScrollRef.current = { path: _chapter.path, progress: 100 };
       const totalChaptersRead = Math.max(0, total - nextUnread);
       const progress = total > 0 ? (totalChaptersRead / total) * 100 : 0;
       const existing = historyEntriesRef.current.find((e) => e.id === n.id);
@@ -220,12 +236,34 @@ export const ReaderScreen: React.FC = () => {
     chapter: ReaderChapterItem;
     index: number;
   } | null>(null);
+  const lastScrollRef = useRef<{ path: string; progress: number } | null>(null);
   const sessionStartRef = useRef<number>(Date.now());
+
+  // Ensure unmount persistence works even if the user never changes chapters.
+  useEffect(() => {
+    if (lastChapterRef.current) return;
+    const idx = chapters.findIndex((c) => c.path === initialChapter.path);
+    const chapter =
+      idx >= 0
+        ? chapters[idx]
+        : { name: initialChapter.title || "Chapter", path: initialChapter.path };
+    lastChapterRef.current = { chapter, index: idx >= 0 ? idx : 0 };
+    lastScrollRef.current = {
+      path: chapter.path,
+      progress: initialScrollProgress ?? 0,
+    };
+  }, [
+    chapters,
+    initialChapter.path,
+    initialChapter.title,
+    initialScrollProgress,
+  ]);
 
   // FIX: handleChapterChange also uses novelRef to avoid stale state
   const handleChapterChange = useCallback(
     (chapter: ReaderChapterItem, index: number) => {
       lastChapterRef.current = { chapter, index };
+      lastScrollRef.current = { path: chapter.path, progress: 0 };
       updateNovel(novelId, { lastReadDate: new Date() });
 
       const n = novelRef.current;
@@ -243,6 +281,7 @@ export const ReaderScreen: React.FC = () => {
         isRead: false,
         isDownloaded: false,
         releaseDate: new Date(),
+        scrollProgress: 0,
       };
 
       upsertHistoryEntry({
@@ -259,6 +298,14 @@ export const ReaderScreen: React.FC = () => {
     [chapters.length, novelId, updateNovel, upsertHistoryEntry],
   );
 
+  const handleScrollProgress = useCallback(
+    (chapter: ReaderChapterItem, index: number, progress: number) => {
+      lastChapterRef.current = { chapter, index };
+      lastScrollRef.current = { path: chapter.path, progress };
+    },
+    [],
+  );
+
   // Session time-tracking — runs on unmount
   useEffect(() => {
     sessionStartRef.current = Date.now();
@@ -269,12 +316,22 @@ export const ReaderScreen: React.FC = () => {
       if (!last) return;
       const elapsedMs = Date.now() - sessionStartRef.current;
       const minutes = Math.max(0, Math.round(elapsedMs / 60000));
-      if (minutes <= 0) return;
 
       const existing = historyEntriesRef.current.find((e) => e.id === n.id);
+      const prevTime = existing?.timeSpentReading || 0;
+      const nextTime = minutes > 0 ? prevTime + minutes : prevTime;
       const total = n.totalChapters > 0 ? n.totalChapters : chapters.length;
       const totalChaptersRead = Math.max(0, total - (n.unreadChapters || 0));
       const progress = total > 0 ? (totalChaptersRead / total) * 100 : 0;
+
+      const scrollRaw =
+        lastScrollRef.current?.path === last.chapter.path
+          ? lastScrollRef.current.progress
+          : undefined;
+      const scrollProgress =
+        typeof scrollRaw === "number" && Number.isFinite(scrollRaw)
+          ? Math.max(0, Math.min(100, scrollRaw))
+          : undefined;
 
       const historyChapter: Chapter = {
         id: last.chapter.path,
@@ -284,6 +341,7 @@ export const ReaderScreen: React.FC = () => {
         isRead: false,
         isDownloaded: false,
         releaseDate: new Date(),
+        scrollProgress,
       };
 
       upsertHistoryEntry({
@@ -293,7 +351,7 @@ export const ReaderScreen: React.FC = () => {
         progress,
         totalChaptersRead,
         lastReadDate: new Date(),
-        timeSpentReading: (existing?.timeSpentReading || 0) + minutes,
+        timeSpentReading: nextTime,
       });
     };
   }, [chapters.length, novelId, upsertHistoryEntry]);
@@ -382,6 +440,7 @@ export const ReaderScreen: React.FC = () => {
     <ChapterReader
       initialChapterPath={initialChapter.path}
       initialChapterTitle={initialChapter.title}
+      initialScrollProgress={initialScrollProgress}
       chapters={initialChapters}
       loadChapterHtml={loadChapterHtml}
       baseUrl={baseUrl}
@@ -389,6 +448,7 @@ export const ReaderScreen: React.FC = () => {
       onOpenWeb={handleOpenWeb}
       onChapterChange={handleChapterChange}
       onChapterRead={handleChapterRead}
+      onScrollProgress={handleScrollProgress}
       extraMenuItems={extraMenuItems}
       // FIX: pass reader behavior settings into ChapterReader
       swipeToNavigate={settings.reader.general.swipeToNavigate}

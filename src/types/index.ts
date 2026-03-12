@@ -65,6 +65,9 @@ export interface Chapter {
   isRead: boolean;
   isDownloaded: boolean;
   releaseDate: Date;
+  // Reader-only UI state: last known in-chapter scroll progress (0-100).
+  // Used to resume at the exact place the user left off.
+  scrollProgress?: number;
   content?: string;
 }
 

@@ -590,7 +590,7 @@ export const PluginNovelDetailScreen: React.FC = () => {
         }),
     );
     enqueueManyChapterDownloads(typeof limit === "number" ? unread.slice(0, limit) : unread);
-  }, [baseReadCount, chapterListOrder, chapters, enqueueManyChapterDownloads, existingNovel, progressTotal]);
+  }, [baseReadCount, chapterListOrder, chapters, enqueueManyChapterDownloads, existingNovel]);
 
   const handleDeleteAllDownloads = useCallback(() => {
     if (!existingNovel) { Alert.alert("Not in library", "Add this novel to your library to manage downloads."); return; }
