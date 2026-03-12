@@ -1,7 +1,72 @@
 // src/utils/chapterState.ts
 export type ChapterListOrder = "asc" | "desc";
 
-type ChapterLike = { path: string; chapterNumber?: number | null };
+type ChapterLike = {
+  path: string;
+  name?: string | null;
+  chapterNumber?: number | null;
+};
+
+const toFiniteNumber = (value: unknown): number | null => {
+  if (typeof value !== "number") return null;
+  return Number.isFinite(value) ? value : null;
+};
+
+const extractChapterNumberFromText = (text: string): number | null => {
+  const t = String(text || "").trim();
+  if (!t) return null;
+
+  // Prefer "chapter"-like patterns over incidental numbers (e.g. years).
+  const chapterMatch = t.match(
+    /\b(?:chapter|chap|ch)\s*\.?\s*#?\s*([0-9]+(?:\.[0-9]+)?)/i,
+  );
+  if (chapterMatch?.[1]) {
+    const n = Number(chapterMatch[1]);
+    if (Number.isFinite(n)) return n;
+  }
+
+  // Fallback: first numeric token.
+  const anyNumber = t.match(/([0-9]+(?:\.[0-9]+)?)/);
+  if (anyNumber?.[1]) {
+    const n = Number(anyNumber[1]);
+    if (Number.isFinite(n)) return n;
+  }
+
+  return null;
+};
+
+const getChapterOrderNumber = (chapter: ChapterLike | undefined): number | null => {
+  if (!chapter) return null;
+  const fromField = toFiniteNumber(chapter.chapterNumber);
+  if (fromField != null) return fromField;
+  const fromName = extractChapterNumberFromText(String(chapter.name || ""));
+  if (fromName != null) return fromName;
+  return extractChapterNumberFromText(String(chapter.path || ""));
+};
+
+const findEdgeNumber = (
+  chapters: ChapterLike[],
+  side: "start" | "end",
+): number | null => {
+  const total = chapters.length;
+  if (total === 0) return null;
+
+  const window = Math.min(total, 8);
+
+  if (side === "start") {
+    for (let i = 0; i < window; i++) {
+      const n = getChapterOrderNumber(chapters[i]);
+      if (n != null) return n;
+    }
+    return null;
+  }
+
+  for (let i = total - 1; i >= Math.max(0, total - window); i--) {
+    const n = getChapterOrderNumber(chapters[i]);
+    if (n != null) return n;
+  }
+  return null;
+};
 
 const clampInt = (value: number, min: number, max: number) => {
   const v = Number.isFinite(value) ? Math.floor(value) : 0;
@@ -16,11 +81,15 @@ const hasOwn = (obj: Record<string, any> | undefined, key: string) => {
 export const detectChapterListOrder = (
   chapters: ChapterLike[],
 ): ChapterListOrder => {
-  const first = chapters[0]?.chapterNumber;
-  const last = chapters[chapters.length - 1]?.chapterNumber;
-  if (typeof first === "number" && typeof last === "number" && first !== last) {
-    return first > last ? "desc" : "asc";
-  }
+  const total = chapters.length;
+  const first = getChapterOrderNumber(chapters[0]);
+  const last = getChapterOrderNumber(chapters[total - 1]);
+  if (first != null && last != null && first !== last) return first > last ? "desc" : "asc";
+
+  const start = findEdgeNumber(chapters, "start");
+  const end = findEdgeNumber(chapters, "end");
+  if (start != null && end != null && start !== end) return start > end ? "desc" : "asc";
+
   return "desc";
 };
 

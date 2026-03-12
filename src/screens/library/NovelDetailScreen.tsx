@@ -502,6 +502,12 @@ export const NovelDetailScreen: React.FC = () => {
             name: String(c?.name || ""),
             path: String(c?.path || ""),
             releaseTime: c?.releaseTime ?? null,
+            chapterNumber:
+              typeof c?.chapterNumber === "number"
+                ? c.chapterNumber
+                : typeof c?.number === "number"
+                  ? c.number
+                  : undefined,
           }))
           .filter(isPluginChapterItem);
         setRemoteChapters(chaptersMapped);
@@ -1007,6 +1013,12 @@ export const NovelDetailScreen: React.FC = () => {
           name: String(c?.name || ""),
           path: String(c?.path || ""),
           releaseTime: c?.releaseTime ?? null,
+          chapterNumber:
+            typeof c?.chapterNumber === "number"
+              ? c.chapterNumber
+              : typeof c?.number === "number"
+                ? c.number
+                : undefined,
         }))
         .filter(isPluginChapterItem);
       setRemoteChapters(chaptersMapped);
@@ -1098,7 +1110,19 @@ export const NovelDetailScreen: React.FC = () => {
         nextPage,
       );
       const raw = Array.isArray(res?.chapters) ? res.chapters : [];
-      const mapped = raw.filter(isPluginChapterItem);
+      const mapped = raw
+        .map((c: any) => ({
+          name: String(c?.name || ""),
+          path: String(c?.path || ""),
+          releaseTime: c?.releaseTime ?? null,
+          chapterNumber:
+            typeof c?.chapterNumber === "number"
+              ? c.chapterNumber
+              : typeof c?.number === "number"
+                ? c.number
+                : undefined,
+        }))
+        .filter(isPluginChapterItem);
       const appliedPage = typeof res?.page === "number" ? res.page : nextPage;
       const explicitHasMore =
         typeof res?.hasMore === "boolean" ? res.hasMore : undefined;

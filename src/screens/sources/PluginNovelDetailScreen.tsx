@@ -431,7 +431,19 @@ export const PluginNovelDetailScreen: React.FC = () => {
       const normalizedDetail = normalizePluginDetailForCache(data);
       setRemoteDetail(normalizedDetail);
       const chaptersRaw = Array.isArray(data?.chapters) ? data.chapters : [];
-      const chaptersMapped = chaptersRaw.map((c: any) => ({ name: String(c?.name || ""), path: String(c?.path || ""), releaseTime: c?.releaseTime ?? null })).filter(isChapterItem);
+      const chaptersMapped = chaptersRaw
+        .map((c: any) => ({
+          name: String(c?.name || ""),
+          path: String(c?.path || ""),
+          releaseTime: c?.releaseTime ?? null,
+          chapterNumber:
+            typeof c?.chapterNumber === "number"
+              ? c.chapterNumber
+              : typeof c?.number === "number"
+                ? c.number
+                : undefined,
+        }))
+        .filter(isChapterItem);
       setRemoteChapters(chaptersMapped); setChaptersPage(1);
       const totalFromDetail = normalizedDetail?.totalChapters;
       const canPage = typeof (instance as any).fetchChaptersPage === "function";
