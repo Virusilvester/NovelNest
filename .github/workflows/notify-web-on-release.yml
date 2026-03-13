@@ -4,27 +4,70 @@ on:
   release:
     types: [published]
 
+  # Manual trigger — use this to sync an already-published release
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to sync (e.g. v0.1.0-beta.1)"
+        required: true
+      prerelease:
+        description: "Is this a pre-release?"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
 jobs:
   sync-to-web:
     name: Download APK and push to novelnest-web
     runs-on: ubuntu-latest
 
     steps:
-      # ── Download the APK from this (private) repo's release ──────────────────
+      # ── Resolve tag + prerelease flag from either trigger ─────────────────────
+      - name: Set release variables
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+            echo "prerelease=${{ github.event.inputs.prerelease }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+            echo "prerelease=${{ github.event.release.prerelease }}" >> $GITHUB_OUTPUT
+          fi
+
+      # ── Fetch release metadata from GitHub API to get the APK asset URL ───────
+      - name: Get release asset URL
+        id: asset
+        run: |
+          RELEASE=$(curl -s \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ steps.vars.outputs.tag }}")
+
+          APK_URL=$(echo "$RELEASE" | jq -r '.assets[] | select(.name | endswith(".apk")) | .browser_download_url')
+          PUBLISHED=$(echo "$RELEASE" | jq -r '.published_at')
+          NOTES=$(echo "$RELEASE" | jq -r '.name')
+
+          echo "apk_url=$APK_URL" >> $GITHUB_OUTPUT
+          echo "published=$PUBLISHED" >> $GITHUB_OUTPUT
+          echo "notes=$NOTES" >> $GITHUB_OUTPUT
+
+      # ── Download the APK ──────────────────────────────────────────────────────
       - name: Download release APK
         run: |
-          APK_URL="${{ github.event.release.assets[0].browser_download_url }}"
           curl -L \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/octet-stream" \
-            "$APK_URL" \
-            -o "NovelNest-${{ github.event.release.tag_name }}.apk"
+            "${{ steps.asset.outputs.apk_url }}" \
+            -o "NovelNest-${{ steps.vars.outputs.tag }}.apk"
 
       # ── Checkout novelnest-web ────────────────────────────────────────────────
       - name: Checkout novelnest-web
         uses: actions/checkout@v4
         with:
-          repository: Virusilvester/novelnest-web
+          repository: YOUR_USERNAME/novelnest-web # ← update this
           token: ${{ secrets.WEB_REPO_PAT }}
           path: web
 
@@ -32,7 +75,7 @@ jobs:
       - name: Copy APK to web repo
         run: |
           mkdir -p web/releases
-          cp "NovelNest-${{ github.event.release.tag_name }}.apk" web/releases/
+          cp "NovelNest-${{ steps.vars.outputs.tag }}.apk" web/releases/
 
       # ── Update releases.json manifest ────────────────────────────────────────
       - name: Update releases.json
@@ -45,21 +88,21 @@ jobs:
             EXISTING="[]"
           fi
 
-          VERSION="${{ github.event.release.tag_name }}"
-          IS_PRERELEASE=${{ github.event.release.prerelease }}
-          PUBLISHED="${{ github.event.release.published_at }}"
+          VERSION="${{ steps.vars.outputs.tag }}"
+          IS_PRERELEASE=${{ steps.vars.outputs.prerelease }}
           APK_FILENAME="NovelNest-${VERSION}.apk"
-          NOTES="${{ github.event.release.name }}"
 
           NEW_ENTRY=$(jq -n \
             --arg version "$VERSION" \
             --arg apk "releases/$APK_FILENAME" \
             --argjson prerelease "$IS_PRERELEASE" \
-            --arg published "$PUBLISHED" \
-            --arg notes "$NOTES" \
+            --arg published "${{ steps.asset.outputs.published }}" \
+            --arg notes "${{ steps.asset.outputs.notes }}" \
             '{version: $version, apk: $apk, prerelease: $prerelease, published: $published, notes: $notes}')
 
-          echo "$EXISTING" | jq --argjson entry "$NEW_ENTRY" '[$entry] + .' > releases.json
+          # Avoid duplicate entries — remove existing entry for same version first
+          FILTERED=$(echo "$EXISTING" | jq --arg v "$VERSION" '[.[] | select(.version != $v)]')
+          echo "$FILTERED" | jq --argjson entry "$NEW_ENTRY" '[$entry] + .' > releases.json
 
       # ── Commit and push to novelnest-web ─────────────────────────────────────
       - name: Commit and push
@@ -68,5 +111,6 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add releases/ releases.json
-          git commit -m "release: add NovelNest ${{ github.event.release.tag_name }}"
+          git diff --staged --quiet && echo "Nothing to commit" && exit 0
+          git commit -m "release: add NovelNest ${{ steps.vars.outputs.tag }}"
           git push
