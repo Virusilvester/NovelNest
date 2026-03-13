@@ -15,6 +15,8 @@ import {
 } from "react-native";
 import { useTheme } from "../context/ThemeContext";
 
+const logo = require("../../assets/novelnest.svg");
+
 export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
   props,
 ) => {
@@ -39,7 +41,7 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
         ]}
       >
         <Image
-          source={{ uri: "https://via.placeholder.com/80" }}
+          source={logo}
           style={[
             styles.logo,
             {
@@ -50,7 +52,6 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
           ]}
         />
         <Text style={styles.appName}>NovelNest</Text>
-        <Text style={styles.version}>v1.0.0</Text>
       </View>
 
       <DrawerContentScrollView {...props}>
@@ -80,17 +81,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   logo: {
-    marginBottom: 12,
+    marginBottom: 5,
   },
   appName: {
     color: "#FFF",
     fontSize: 24,
     fontWeight: "bold",
-  },
-  version: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: 12,
-    marginTop: 4,
   },
   footer: {
     padding: 16,

@@ -220,7 +220,11 @@ export const SettingsScreen: React.FC = () => {
     if (updates.length === 0) return;
     Alert.alert("Clear updates", "Remove all update entries?", [
       { text: "Cancel", style: "cancel" },
-      { text: "Clear", style: "destructive", onPress: () => void clearUpdates() },
+      {
+        text: "Clear",
+        style: "destructive",
+        onPress: () => void clearUpdates(),
+      },
     ]);
   }, [clearUpdates, isUpdateChecking, updates.length]);
 
@@ -344,8 +348,12 @@ export const SettingsScreen: React.FC = () => {
           <Row
             icon="download-outline"
             label="Download available updates"
-            subtitle={updates.length > 0 ? `${updates.length} update(s)` : "No updates"}
-            onPress={updates.length > 0 ? handleDownloadAvailableUpdates : undefined}
+            subtitle={
+              updates.length > 0 ? `${updates.length} update(s)` : "No updates"
+            }
+            onPress={
+              updates.length > 0 ? handleDownloadAvailableUpdates : undefined
+            }
             isLast
           />
         </Section>
@@ -389,8 +397,14 @@ export const SettingsScreen: React.FC = () => {
           <Row
             icon="trash-outline"
             label="Clear updates list"
-            subtitle={updates.length > 0 ? `${updates.length} entry(ies)` : "No entries"}
-            onPress={updates.length > 0 && !isUpdateChecking ? handleClearUpdatesList : undefined}
+            subtitle={
+              updates.length > 0 ? `${updates.length} entry(ies)` : "No entries"
+            }
+            onPress={
+              updates.length > 0 && !isUpdateChecking
+                ? handleClearUpdatesList
+                : undefined
+            }
             isLast
             isDestructive
           />
@@ -457,7 +471,7 @@ export const SettingsScreen: React.FC = () => {
           <Row
             icon="information-circle-outline"
             label="Version"
-            subtitle="1.0.0"
+            subtitle="2.0.1"
             isLast
           />
         </Section>
