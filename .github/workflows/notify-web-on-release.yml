@@ -67,7 +67,7 @@ jobs:
       - name: Checkout novelnest-web
         uses: actions/checkout@v4
         with:
-          repository: YOUR_USERNAME/novelnest-web # ← update this
+          repository: Virusilvester/novelnest-web # ← update this
           token: ${{ secrets.WEB_REPO_PAT }}
           path: web
 
