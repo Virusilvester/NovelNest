@@ -17,6 +17,7 @@ import { CategoryTabs } from "../../components/library/CategoryTabs";
 import { NovelGrid } from "../../components/library/NovelGrid";
 import { useLibrary } from "../../context/LibraryContext";
 import { useTheme } from "../../context/ThemeContext";
+import { useUpdates } from "../../context/UpdatesContext";
 import type { MainDrawerNavigationProp } from "../../navigation/navigationTypes";
 import { Novel } from "../../types";
 
@@ -39,12 +40,12 @@ export const LibraryScreen: React.FC = () => {
     setShowUnreadBadges,
     showItemCount,
     setShowItemCount,
-    updateLibrary,
     getFilteredNovels,
     novels,
     updateNovel,
     removeNovel,
   } = useLibrary();
+  const { checkForUpdates, isChecking: isUpdateChecking } = useUpdates();
 
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -123,8 +124,26 @@ export const LibraryScreen: React.FC = () => {
   );
 
   const handleUpdateLibrary = useCallback(async () => {
-    await updateLibrary();
-  }, [updateLibrary]);
+    if (isUpdateChecking) return;
+    const result = await checkForUpdates({ force: true });
+    if (result.added > 0) {
+      Alert.alert(
+        "Library updated",
+        `Found ${result.added} new chapter(s).`,
+        [
+          { text: "OK" },
+          {
+            text: "View updates",
+            onPress: () => navigation.navigate("Updates"),
+          },
+        ],
+      );
+      return;
+    }
+    const base = result.checked > 0 ? "No new chapters found." : "Nothing to update.";
+    const extra = result.errors > 0 ? `\n\nErrors: ${result.errors}.` : "";
+    Alert.alert("Library updated", base + extra);
+  }, [checkForUpdates, isUpdateChecking, navigation]);
 
   const getItemCount = useCallback(
     (categoryId: string) => {

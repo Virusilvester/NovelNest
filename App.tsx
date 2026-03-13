@@ -9,6 +9,7 @@ import { HistoryProvider } from "./src/context/HistoryContext";
 import { LibraryProvider } from "./src/context/LibraryContext";
 import { SettingsProvider } from "./src/context/SettingsContext";
 import { ThemeProvider } from "./src/context/ThemeContext";
+import { UpdatesProvider } from "./src/context/UpdatesContext";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 
 export default function App() {
@@ -19,12 +20,14 @@ export default function App() {
           <ThemeProvider>
             <LibraryProvider>
               <DownloadQueueProvider>
-                <HistoryProvider>
-                  <StatusBar style="auto" />
-                  <ErrorBoundary>
-                    <AppNavigator />
-                  </ErrorBoundary>
-                </HistoryProvider>
+                <UpdatesProvider>
+                  <HistoryProvider>
+                    <StatusBar style="auto" />
+                    <ErrorBoundary>
+                      <AppNavigator />
+                    </ErrorBoundary>
+                  </HistoryProvider>
+                </UpdatesProvider>
               </DownloadQueueProvider>
             </LibraryProvider>
           </ThemeProvider>

@@ -2,7 +2,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import * as FileSystem from "expo-file-system/legacy";
-import React, { useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   Linking,
@@ -17,8 +17,11 @@ import { Header } from "../../components/common/Header";
 import { ImprovedSwitch } from "../../components/common/ImprovedSwitch";
 import { SelectionModal } from "../../components/common/SelectionModal";
 import { START_SCREENS, UPDATE_FREQUENCIES } from "../../constants";
+import { useDownloadQueue } from "../../context/DownloadQueueContext";
+import { useLibrary } from "../../context/LibraryContext";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
+import { useUpdates } from "../../context/UpdatesContext";
 import { StartScreen } from "../../types";
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
@@ -136,6 +139,16 @@ export const SettingsScreen: React.FC = () => {
     updateUpdatesSettings,
     setDownloadLocation,
   } = useSettings();
+  const { novels } = useLibrary();
+  const { enqueue } = useDownloadQueue();
+  const {
+    updates,
+    lastCheckedAt,
+    isChecking: isUpdateChecking,
+    progress: updatesProgress,
+    checkForUpdates,
+    clearUpdates,
+  } = useUpdates();
 
   const [showStartScreenModal, setShowStartScreenModal] = useState(false);
   const [showUpdateFrequencyModal, setShowUpdateFrequencyModal] =
@@ -169,6 +182,74 @@ export const SettingsScreen: React.FC = () => {
     : settings.general.downloadLocation.startsWith("content://")
       ? "Custom folder (Android)"
       : settings.general.downloadLocation;
+
+  const novelById = useMemo(() => {
+    const map = new Map<string, (typeof novels)[number]>();
+    for (const n of novels) map.set(n.id, n);
+    return map;
+  }, [novels]);
+
+  const updatesStatusSubtitle = useMemo(() => {
+    if (isUpdateChecking) {
+      if (updatesProgress) {
+        return `Checking ${updatesProgress.current}/${updatesProgress.total}`;
+      }
+      return "Checking…";
+    }
+    const label = lastCheckedAt
+      ? new Date(lastCheckedAt).toLocaleString()
+      : "Never";
+    return `Last checked: ${label}`;
+  }, [isUpdateChecking, lastCheckedAt, updatesProgress]);
+
+  const handleCheckUpdatesNow = useCallback(async () => {
+    if (isUpdateChecking) return;
+    const result = await checkForUpdates({ force: true });
+    const lines: string[] = [];
+    lines.push(
+      result.added > 0
+        ? `Found ${result.added} new chapter(s).`
+        : "No new chapters found.",
+    );
+    if (result.errors > 0) lines.push(`Errors: ${result.errors}.`);
+    Alert.alert("Updates", lines.join("\n"));
+  }, [checkForUpdates, isUpdateChecking]);
+
+  const handleClearUpdatesList = useCallback(() => {
+    if (isUpdateChecking) return;
+    if (updates.length === 0) return;
+    Alert.alert("Clear updates", "Remove all update entries?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Clear", style: "destructive", onPress: () => void clearUpdates() },
+    ]);
+  }, [clearUpdates, isUpdateChecking, updates.length]);
+
+  const handleDownloadAvailableUpdates = useCallback(() => {
+    if (updates.length === 0) return;
+    const tasks = updates.flatMap((u) => {
+      const novel = novelById.get(u.novelId);
+      if (!novel?.pluginId) return [];
+      if (novel.chapterDownloaded?.[u.chapterPath]) return [];
+      return [
+        {
+          pluginId: u.pluginId,
+          pluginName: u.pluginName,
+          novelId: u.novelId,
+          novelTitle: u.novelTitle,
+          chapterPath: u.chapterPath,
+          chapterTitle: u.chapterTitle,
+        },
+      ];
+    });
+
+    if (tasks.length === 0) {
+      Alert.alert("Downloads", "No chapters to download.");
+      return;
+    }
+
+    enqueue(tasks);
+    Alert.alert("Downloads", `Queued ${tasks.length} chapter(s) for download.`);
+  }, [enqueue, novelById, updates]);
 
   return (
     <View
@@ -251,7 +332,6 @@ export const SettingsScreen: React.FC = () => {
           <Row
             icon="cloud-download-outline"
             label="Download new chapters"
-            isLast
             rightElement={
               <ImprovedSwitch
                 value={settings.autoDownload.downloadNewChapters}
@@ -260,6 +340,13 @@ export const SettingsScreen: React.FC = () => {
                 }
               />
             }
+          />
+          <Row
+            icon="download-outline"
+            label="Download available updates"
+            subtitle={updates.length > 0 ? `${updates.length} update(s)` : "No updates"}
+            onPress={updates.length > 0 ? handleDownloadAvailableUpdates : undefined}
+            isLast
           />
         </Section>
 
@@ -284,7 +371,6 @@ export const SettingsScreen: React.FC = () => {
           <Row
             icon="git-branch-outline"
             label="Only update ongoing"
-            isLast
             rightElement={
               <ImprovedSwitch
                 value={settings.updates.onlyUpdateOngoing}
@@ -293,6 +379,20 @@ export const SettingsScreen: React.FC = () => {
                 }
               />
             }
+          />
+          <Row
+            icon="refresh-outline"
+            label="Check for updates now"
+            subtitle={updatesStatusSubtitle}
+            onPress={isUpdateChecking ? undefined : handleCheckUpdatesNow}
+          />
+          <Row
+            icon="trash-outline"
+            label="Clear updates list"
+            subtitle={updates.length > 0 ? `${updates.length} entry(ies)` : "No entries"}
+            onPress={updates.length > 0 && !isUpdateChecking ? handleClearUpdatesList : undefined}
+            isLast
+            isDestructive
           />
         </Section>
 
