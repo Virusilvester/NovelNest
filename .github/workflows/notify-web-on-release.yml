@@ -1,0 +1,72 @@
+name: Sync Release to Web
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  sync-to-web:
+    name: Download APK and push to novelnest-web
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── Download the APK from this (private) repo's release ──────────────────
+      - name: Download release APK
+        run: |
+          APK_URL="${{ github.event.release.assets[0].browser_download_url }}"
+          curl -L \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/octet-stream" \
+            "$APK_URL" \
+            -o "NovelNest-${{ github.event.release.tag_name }}.apk"
+
+      # ── Checkout novelnest-web ────────────────────────────────────────────────
+      - name: Checkout novelnest-web
+        uses: actions/checkout@v4
+        with:
+          repository: Virusilvester/novelnest-web
+          token: ${{ secrets.WEB_REPO_PAT }}
+          path: web
+
+      # ── Copy APK into novelnest-web/releases/ ─────────────────────────────────
+      - name: Copy APK to web repo
+        run: |
+          mkdir -p web/releases
+          cp "NovelNest-${{ github.event.release.tag_name }}.apk" web/releases/
+
+      # ── Update releases.json manifest ────────────────────────────────────────
+      - name: Update releases.json
+        run: |
+          cd web
+
+          if [ -f releases.json ]; then
+            EXISTING=$(cat releases.json)
+          else
+            EXISTING="[]"
+          fi
+
+          VERSION="${{ github.event.release.tag_name }}"
+          IS_PRERELEASE=${{ github.event.release.prerelease }}
+          PUBLISHED="${{ github.event.release.published_at }}"
+          APK_FILENAME="NovelNest-${VERSION}.apk"
+          NOTES="${{ github.event.release.name }}"
+
+          NEW_ENTRY=$(jq -n \
+            --arg version "$VERSION" \
+            --arg apk "releases/$APK_FILENAME" \
+            --argjson prerelease "$IS_PRERELEASE" \
+            --arg published "$PUBLISHED" \
+            --arg notes "$NOTES" \
+            '{version: $version, apk: $apk, prerelease: $prerelease, published: $published, notes: $notes}')
+
+          echo "$EXISTING" | jq --argjson entry "$NEW_ENTRY" '[$entry] + .' > releases.json
+
+      # ── Commit and push to novelnest-web ─────────────────────────────────────
+      - name: Commit and push
+        run: |
+          cd web
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add releases/ releases.json
+          git commit -m "release: add NovelNest ${{ github.event.release.tag_name }}"
+          git push
