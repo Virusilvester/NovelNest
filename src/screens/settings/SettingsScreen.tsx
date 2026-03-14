@@ -1,11 +1,14 @@
 // src/screens/settings/SettingsScreen.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import React, { useCallback, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Linking,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -22,6 +25,7 @@ import { useLibrary } from "../../context/LibraryContext";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
 import { useUpdates } from "../../context/UpdatesContext";
+import { EpubImportService } from "../../services/epubImport";
 import { StartScreen } from "../../types";
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
@@ -139,7 +143,7 @@ export const SettingsScreen: React.FC = () => {
     updateUpdatesSettings,
     setDownloadLocation,
   } = useSettings();
-  const { novels } = useLibrary();
+  const { novels, categories, addNovel } = useLibrary();
   const { enqueue } = useDownloadQueue();
   const {
     updates,
@@ -153,6 +157,12 @@ export const SettingsScreen: React.FC = () => {
   const [showStartScreenModal, setShowStartScreenModal] = useState(false);
   const [showUpdateFrequencyModal, setShowUpdateFrequencyModal] =
     useState(false);
+  const [isEpubImporting, setIsEpubImporting] = useState(false);
+  const [epubImportText, setEpubImportText] = useState<string>("");
+  const [epubImportProgress, setEpubImportProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
 
   const handleSelectDownloadLocation = async () => {
     try {
@@ -182,6 +192,16 @@ export const SettingsScreen: React.FC = () => {
     : settings.general.downloadLocation.startsWith("content://")
       ? "Custom folder (Android)"
       : settings.general.downloadLocation;
+
+  const defaultCategoryId = useMemo(() => {
+    const list = Array.isArray(categories) ? categories : [];
+    const choices = list
+      .filter((c) => c && c.id && c.id !== "all")
+      .slice()
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    if (choices.some((c) => c.id === "reading")) return "reading";
+    return choices[0]?.id || "all";
+  }, [categories]);
 
   const novelById = useMemo(() => {
     const map = new Map<string, (typeof novels)[number]>();
@@ -254,6 +274,64 @@ export const SettingsScreen: React.FC = () => {
     enqueue(tasks);
     Alert.alert("Downloads", `Queued ${tasks.length} chapter(s) for download.`);
   }, [enqueue, novelById, updates]);
+
+  const handleImportEpub = useCallback(async () => {
+    if (isEpubImporting) return;
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["application/epub+zip", "application/octet-stream", "*/*"],
+        multiple: false,
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+      const asset = result.assets[0];
+      const uri = asset.uri;
+      const filename = String(asset.name || "book.epub");
+
+      setIsEpubImporting(true);
+      setEpubImportText("Preparing import...");
+      setEpubImportProgress(null);
+
+      const novel = await EpubImportService.importFromUri({
+        uri,
+        filename,
+        defaultCategoryId,
+        languageFallback: settings.general.language || "en",
+        onProgress: (p) => {
+          if (p.stage === "chapters") {
+            setEpubImportProgress({ current: p.current, total: p.total });
+            setEpubImportText(p.text);
+            return;
+          }
+          setEpubImportProgress(null);
+          setEpubImportText(p.text);
+        },
+      });
+
+      addNovel(novel);
+
+      Alert.alert("Import Complete", `"${novel.title}" was added to your library.`, [
+        { text: "OK", style: "cancel" },
+        {
+          text: "Open",
+          onPress: () =>
+            (navigation as any).navigate("NovelDetail", { novelId: novel.id }),
+        },
+      ]);
+    } catch (e: any) {
+      Alert.alert("Import Failed", e?.message || "Could not import EPUB.");
+    } finally {
+      setIsEpubImporting(false);
+      setEpubImportText("");
+      setEpubImportProgress(null);
+    }
+  }, [
+    addNovel,
+    defaultCategoryId,
+    isEpubImporting,
+    navigation,
+    settings.general.language,
+  ]);
 
   return (
     <View
@@ -364,6 +442,17 @@ export const SettingsScreen: React.FC = () => {
             icon="albums-outline"
             label="Categories"
             onPress={() => navigation.navigate("EditCategories")}
+            isLast
+          />
+        </Section>
+
+        {/* EPUB */}
+        <Section title="EPUB">
+          <Row
+            icon="cloud-upload-outline"
+            label="Import EPUB"
+            subtitle="Add a local book from an EPUB file"
+            onPress={isEpubImporting ? undefined : () => void handleImportEpub()}
             isLast
           />
         </Section>
@@ -479,6 +568,50 @@ export const SettingsScreen: React.FC = () => {
         <View style={styles.bottomPad} />
       </ScrollView>
 
+      <Modal
+        visible={isEpubImporting}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <View style={styles.importOverlay}>
+          <View
+            style={[
+              styles.importCard,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+              },
+            ]}
+          >
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Text style={[styles.importTitle, { color: theme.colors.text }]}>
+              Importing EPUB
+            </Text>
+            {epubImportText ? (
+              <Text
+                style={[
+                  styles.importSubtitle,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                {epubImportText}
+              </Text>
+            ) : null}
+            {epubImportProgress ? (
+              <Text
+                style={[
+                  styles.importProgress,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                {epubImportProgress.current}/{epubImportProgress.total}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
+
       <SelectionModal
         visible={showStartScreenModal}
         title="Select Start Screen"
@@ -507,6 +640,27 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 32 },
   bottomPad: { height: 8 },
+
+  // Import modal
+  importOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  importCard: {
+    width: "100%",
+    maxWidth: 320,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 18,
+    alignItems: "center",
+    gap: 10,
+  },
+  importTitle: { fontSize: 16, fontWeight: "800", marginTop: 4 },
+  importSubtitle: { fontSize: 12, fontWeight: "700", textAlign: "center" },
+  importProgress: { fontSize: 12, fontWeight: "800" },
 
   section: { marginTop: 24, paddingHorizontal: 16 },
   sectionTitle: {
