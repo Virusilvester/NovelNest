@@ -1,6 +1,8 @@
 // src/screens/library/NovelDetailScreen.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import React, {
   useCallback,
   useEffect,
@@ -14,6 +16,7 @@ import {
   FlatList,
   Image,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -30,6 +33,8 @@ import { useLibrary } from "../../context/LibraryContext";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
 import { ChapterDownloads } from "../../services/chapterDownloads";
+import type { EpubExportCoverImage } from "../../services/epubExport";
+import { EpubExportService } from "../../services/epubExport";
 import {
   normalizePluginDetailForCache,
   NovelDetailCache,
@@ -297,6 +302,11 @@ export const NovelDetailScreen: React.FC = () => {
   // ── State ─────────────────────────────────────────────────────────────────
   const [isDownloadMenuVisible, setIsDownloadMenuVisible] = useState(false);
   const [isMoreMenuVisible, setIsMoreMenuVisible] = useState(false);
+  const [isEpubExporting, setIsEpubExporting] = useState(false);
+  const [epubExportProgress, setEpubExportProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
   const [isInLibrary, setIsInLibrary] = useState(Boolean(novel?.isInLibrary));
   const [remoteDetail, setRemoteDetail] = useState<any>(
     () => initialCached?.detail ?? null,
@@ -1551,6 +1561,205 @@ export const NovelDetailScreen: React.FC = () => {
     ],
   );
 
+  const handleExportEpub = useCallback(async () => {
+    if (isEpubExporting) return;
+    if (!novel) return;
+    if (!novel.pluginId) {
+      Alert.alert("Export EPUB", "This novel does not have a source plugin.");
+      return;
+    }
+
+    const chapterSource: PluginChapterItem[] = remoteChapters.length
+      ? remoteChapters
+      : ((novel.pluginCache?.chapters as any) ?? []);
+
+    const downloadedMap = novel.chapterDownloaded || {};
+    const downloadedPaths = new Set(
+      Object.keys(downloadedMap).filter((p) => downloadedMap[p]),
+    );
+    if (downloadedPaths.size === 0) {
+      Alert.alert(
+        "Export EPUB",
+        "No downloaded chapters found. Download some chapters first.",
+      );
+      return;
+    }
+
+    const order = detectChapterListOrder(chapterSource);
+    const orderedChapters =
+      order === "desc" ? [...chapterSource].reverse() : [...chapterSource];
+
+    const exportCandidates = orderedChapters.filter((c) =>
+      downloadedPaths.has(c.path),
+    );
+
+    const exportList =
+      exportCandidates.length > 0
+        ? exportCandidates
+        : Array.from(downloadedPaths).map((p) => ({ name: p, path: p }));
+
+    setIsEpubExporting(true);
+    setEpubExportProgress({ current: 0, total: exportList.length });
+
+    try {
+      const chapters: { title: string; html: string; sourceUrl?: string }[] =
+        [];
+      let missingFiles = 0;
+
+      for (let i = 0; i < exportList.length; i++) {
+        const c = exportList[i];
+        setEpubExportProgress({ current: i + 1, total: exportList.length });
+        const html = await ChapterDownloads.readChapterHtml(
+          novel.pluginId,
+          novel.id,
+          c.path,
+          settings.general.downloadLocation,
+        );
+        if (!html) {
+          missingFiles++;
+          continue;
+        }
+        chapters.push({
+          title: String(c.name || `Chapter ${i + 1}`),
+          html,
+          sourceUrl: c.path,
+        });
+      }
+
+      if (chapters.length === 0) {
+        throw new Error("Could not read any downloaded chapter files.");
+      }
+
+      const getCoverImage = async (): Promise<EpubExportCoverImage | null> => {
+        const coverUrl = String(novel.coverUrl || "").trim();
+        if (!coverUrl) return null;
+
+        // Data URI support (common for cached images).
+        const dataMatch = coverUrl.match(
+          /^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i,
+        );
+        if (dataMatch?.[1] && dataMatch?.[2]) {
+          const mediaType = dataMatch[1].toLowerCase();
+          if (mediaType === "image/webp") return null;
+          const extension =
+            mediaType === "image/png"
+              ? "png"
+              : mediaType === "image/jpeg"
+                ? "jpg"
+                : null;
+          if (!extension) return null;
+          return { base64: dataMatch[2], mediaType, extension };
+        }
+
+        if (!/^https?:\/\//i.test(coverUrl)) return null;
+        const base = FileSystem.cacheDirectory || FileSystem.documentDirectory;
+        if (!base) return null;
+
+        let extension = "jpg";
+        try {
+          const u = new URL(coverUrl);
+          const path = u.pathname || "";
+          const ext = path.split(".").pop()?.toLowerCase();
+          if (ext === "png") extension = "png";
+          else if (ext === "jpg" || ext === "jpeg") extension = "jpg";
+          else if (ext === "webp") return null;
+        } catch {
+          // ignore
+        }
+
+        const mediaType = extension === "png" ? "image/png" : "image/jpeg";
+        const tmp = `${base}novelnest-epub-cover-${Date.now()}.${extension}`;
+
+        try {
+          await FileSystem.downloadAsync(coverUrl, tmp);
+          const base64 = await FileSystem.readAsStringAsync(tmp, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          return { base64, mediaType, extension };
+        } catch {
+          return null;
+        } finally {
+          try {
+            await FileSystem.deleteAsync(tmp, { idempotent: true });
+          } catch {
+            // ignore
+          }
+        }
+      };
+
+      const { base64, fileName, mimeType } =
+        await EpubExportService.buildEpubBase64({
+          uuid: `novelnest:${novel.pluginId}:${novel.id}`,
+          title: novel.title || "Untitled",
+          author: novel.author || "Unknown",
+          language: settings.general.language || "en",
+          subject: Array.isArray(novel.genres) ? novel.genres.join(", ") : "",
+          description: novel.summary || "",
+          chapters,
+          cover: await getCoverImage(),
+        });
+
+      let uri: string | null = null;
+
+      if (Platform.OS === "android" && FileSystem.StorageAccessFramework) {
+        const perm =
+          await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+        if (perm.granted) {
+          const targetUri =
+            await FileSystem.StorageAccessFramework.createFileAsync(
+              perm.directoryUri,
+              fileName,
+              mimeType,
+            );
+          await FileSystem.writeAsStringAsync(targetUri, base64, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          uri = targetUri;
+        }
+      }
+
+      if (!uri) {
+        const baseDir = FileSystem.documentDirectory;
+        if (!baseDir) throw new Error("Missing document directory.");
+        const path = `${baseDir}${fileName}`;
+        await FileSystem.writeAsStringAsync(path, base64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        uri = path;
+      }
+
+      const canShare = await Sharing.isAvailableAsync();
+      const isContentUri = String(uri).startsWith("content://");
+      if (canShare && (Platform.OS !== "android" || !isContentUri)) {
+        await Sharing.shareAsync(uri, {
+          mimeType,
+          dialogTitle: "Share EPUB",
+        });
+        return;
+      }
+
+      const warning =
+        missingFiles > 0
+          ? `\n\nNote: ${missingFiles} chapter file(s) were missing and skipped.`
+          : "";
+      Alert.alert("EPUB Exported", `Saved to:\n${uri}${warning}`);
+    } catch (e: any) {
+      Alert.alert(
+        "Export Failed",
+        e?.message || "Could not export EPUB. Please try again.",
+      );
+    } finally {
+      setIsEpubExporting(false);
+      setEpubExportProgress(null);
+    }
+  }, [
+    isEpubExporting,
+    novel,
+    remoteChapters,
+    settings.general.downloadLocation,
+    settings.general.language,
+  ]);
+
   const downloadOptions = [
     {
       id: "next",
@@ -1597,6 +1806,12 @@ export const NovelDetailScreen: React.FC = () => {
       label: "Open website",
       icon: "globe-outline" as const,
       onPress: handleWebView,
+    },
+    {
+      id: "exportEpub",
+      label: isEpubExporting ? "Exporting EPUB..." : "Export EPUB",
+      icon: "download-outline" as const,
+      onPress: handleExportEpub,
     },
     {
       id: "markRead",
@@ -2245,6 +2460,40 @@ export const NovelDetailScreen: React.FC = () => {
         items={moreOptions}
       />
 
+      <Modal
+        visible={isEpubExporting}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <View style={styles.exportOverlay}>
+          <View
+            style={[
+              styles.exportCard,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+              },
+            ]}
+          >
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Text style={[styles.exportTitle, { color: theme.colors.text }]}>
+              Exporting EPUB
+            </Text>
+            {epubExportProgress ? (
+              <Text
+                style={[
+                  styles.exportSubtitle,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                {epubExportProgress.current}/{epubExportProgress.total}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
+
       {/* Category modal */}
       <Modal
         visible={isCategoryModalVisible}
@@ -2593,6 +2842,26 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   footerLoadMoreText: { fontWeight: "700", color: "#FFF", fontSize: 14 },
+
+  // Export modal
+  exportOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  exportCard: {
+    width: "100%",
+    maxWidth: 320,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 18,
+    alignItems: "center",
+    gap: 10,
+  },
+  exportTitle: { fontSize: 16, fontWeight: "800", marginTop: 4 },
+  exportSubtitle: { fontSize: 12, fontWeight: "700" },
 
   // Modal
   modalOverlay: {

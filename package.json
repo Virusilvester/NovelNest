@@ -48,6 +48,7 @@
     "expo-web-browser": "~15.0.10",
     "html-entities": "^2.6.0",
     "htmlparser2": "^10.0.0",
+    "jszip": "^3.10.1",
     "moti": "^0.30.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
