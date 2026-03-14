@@ -20,7 +20,7 @@ on:
 
 jobs:
   sync-to-web:
-    name: Download APK and push to novelnest-web
+    name: Update releases.json in novelnest-web
     runs-on: ubuntu-latest
 
     steps:
@@ -37,8 +37,6 @@ jobs:
           fi
 
       # ── Wait for APK asset to finish uploading ────────────────────────────────
-      # The release is published before the APK asset finishes uploading.
-      # Poll the API until the .apk asset appears (up to 5 minutes).
       - name: Wait for APK asset and get download URL
         id: asset
         run: |
@@ -55,7 +53,8 @@ jobs:
               -H "Accept: application/vnd.github+json" \
               "https://api.github.com/repos/${{ github.repository }}/releases/tags/${TAG}")
 
-            APK_URL=$(echo "$RELEASE" | jq -r '.assets[] | select(.name | endswith(".apk")) | .url // empty')
+            # Use browser_download_url — this is the public-facing direct download link
+            APK_URL=$(echo "$RELEASE" | jq -r '.assets[] | select(.name | endswith(".apk")) | .browser_download_url // empty')
             PUBLISHED=$(echo "$RELEASE" | jq -r '.published_at')
             NOTES=$(echo "$RELEASE" | jq -r '.name')
 
@@ -74,27 +73,6 @@ jobs:
           echo "ERROR: APK asset not found after $MAX_ATTEMPTS attempts"
           exit 1
 
-      # ── Download the APK using the API asset URL (works for private repos) ────
-      # Use .url (API endpoint) not .browser_download_url — private repos need
-      # the Accept: application/octet-stream header on the API URL directly.
-      - name: Download release APK
-        run: |
-          TAG="${{ steps.vars.outputs.tag }}"
-          curl -L \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/octet-stream" \
-            "${{ steps.asset.outputs.apk_url }}" \
-            -o "NovelNest-${TAG}.apk"
-
-          # Verify the file was actually downloaded and is not empty/an error page
-          FILE_SIZE=$(stat -c%s "NovelNest-${TAG}.apk")
-          echo "Downloaded file size: ${FILE_SIZE} bytes"
-          if [ "$FILE_SIZE" -lt 10000 ]; then
-            echo "ERROR: Downloaded file is too small — likely an auth error"
-            cat "NovelNest-${TAG}.apk"
-            exit 1
-          fi
-
       # ── Checkout novelnest-web ────────────────────────────────────────────────
       - name: Checkout novelnest-web
         uses: actions/checkout@v4
@@ -103,16 +81,7 @@ jobs:
           token: ${{ secrets.WEB_REPO_PAT }}
           path: web
 
-      # ── Copy APK into novelnest-web/releases/ ─────────────────────────────────
-      - name: Copy APK to web repo
-        run: |
-          TAG="${{ steps.vars.outputs.tag }}"
-          mkdir -p web/releases
-          cp "NovelNest-${TAG}.apk" web/releases/
-          echo "Copied APK:"
-          ls -lh web/releases/
-
-      # ── Update releases.json manifest ────────────────────────────────────────
+      # ── Update releases.json — store the GitHub release URL, not the APK file ─
       - name: Update releases.json
         run: |
           cd web
@@ -125,11 +94,10 @@ jobs:
 
           VERSION="${{ steps.vars.outputs.tag }}"
           IS_PRERELEASE=${{ steps.vars.outputs.prerelease }}
-          APK_FILENAME="NovelNest-${VERSION}.apk"
 
           NEW_ENTRY=$(jq -n \
             --arg version "$VERSION" \
-            --arg apk "releases/$APK_FILENAME" \
+            --arg apk "${{ steps.asset.outputs.apk_url }}" \
             --argjson prerelease "$IS_PRERELEASE" \
             --arg published "${{ steps.asset.outputs.published }}" \
             --arg notes "${{ steps.asset.outputs.notes }}" \
@@ -147,7 +115,7 @@ jobs:
           cd web
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add releases/ releases.json
+          git add releases.json
           git diff --staged --quiet && echo "Nothing to commit" && exit 0
-          git commit -m "release: add NovelNest ${{ steps.vars.outputs.tag }}"
+          git commit -m "release: update manifest for NovelNest ${{ steps.vars.outputs.tag }}"
           git push
