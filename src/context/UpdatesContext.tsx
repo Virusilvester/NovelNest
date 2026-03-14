@@ -14,6 +14,7 @@ import {
   normalizePluginDetailForCache,
   NovelDetailCache,
 } from "../services/novelDetailCache";
+import { AndroidProgressNotifications } from "../services/androidProgressNotifications";
 import { PluginRuntimeService } from "../services/pluginRuntime";
 import type { CachedPluginChapter, CachedPluginNovelDetail, Novel } from "../types";
 import { detectChapterListOrder } from "../utils/chapterState";
@@ -253,6 +254,32 @@ export const UpdatesProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     void loadPersisted();
   }, [loadPersisted]);
+
+  useEffect(() => {
+    if (!isChecking) {
+      AndroidProgressNotifications.clearTask("updates");
+      return;
+    }
+
+    if (progress && progress.total > 0) {
+      AndroidProgressNotifications.setTask("updates", {
+        title: "Checking for updates",
+        body: `Checking ${progress.current}/${progress.total}`,
+        progress: {
+          current: progress.current,
+          max: progress.total,
+          indeterminate: false,
+        },
+      });
+      return;
+    }
+
+    AndroidProgressNotifications.setTask("updates", {
+      title: "Checking for updates",
+      body: "Starting…",
+      progress: { indeterminate: true },
+    });
+  }, [isChecking, progress]);
 
   const persist = useCallback(async (next: PersistedUpdatesV1) => {
     try {

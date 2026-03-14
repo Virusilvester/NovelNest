@@ -221,7 +221,6 @@ const inlineChapterImages = async (opts: {
   const imgNodes = $("img").toArray();
   for (const el of imgNodes) {
     const src = String($(el).attr("src") || "");
-    // eslint-disable-next-line no-await-in-loop
     await replaceWithDataUri(src, (next) => $(el).attr("src", next));
   }
 
@@ -230,10 +229,8 @@ const inlineChapterImages = async (opts: {
     const href = String($(el).attr("href") || "");
     const xlinkHref = String($(el).attr("xlink:href") || "");
     if (href) {
-      // eslint-disable-next-line no-await-in-loop
       await replaceWithDataUri(href, (next) => $(el).attr("href", next));
     } else if (xlinkHref) {
-      // eslint-disable-next-line no-await-in-loop
       await replaceWithDataUri(xlinkHref, (next) =>
         $(el).attr("xlink:href", next),
       );
@@ -273,7 +270,6 @@ export const EpubImportService = {
 
     const title = parsed.title || safeTitleFallback(opts.filename);
     const author = pickFirstText([parsed.creators[0] || "Unknown"]);
-    const language = parsed.language || opts.languageFallback || "en";
     const summary = parsed.description || "";
     const genres = parsed.subjects
       .flatMap((s) =>
@@ -379,12 +375,10 @@ export const EpubImportService = {
         text: `Importing ${i + 1}/${chapterItems.length}`,
       });
 
-      // eslint-disable-next-line no-await-in-loop
       const html = await file.async("text");
       const titleFromDoc = extractChapterTitle(html);
       const chapterTitle = titleFromDoc || `Chapter ${i + 1}`;
 
-      // eslint-disable-next-line no-await-in-loop
       const inlined = await inlineChapterImages({
         zip,
         html,
@@ -396,7 +390,6 @@ export const EpubImportService = {
         },
       });
 
-      // eslint-disable-next-line no-await-in-loop
       await ChapterDownloads.writeChapterHtml(
         LOCAL_PLUGIN_ID,
         novelId,

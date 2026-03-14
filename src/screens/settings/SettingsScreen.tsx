@@ -26,6 +26,7 @@ import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
 import { useUpdates } from "../../context/UpdatesContext";
 import { EpubImportService } from "../../services/epubImport";
+import { AndroidProgressNotifications } from "../../services/androidProgressNotifications";
 import { StartScreen } from "../../types";
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
@@ -291,6 +292,11 @@ export const SettingsScreen: React.FC = () => {
       setIsEpubImporting(true);
       setEpubImportText("Preparing import...");
       setEpubImportProgress(null);
+      AndroidProgressNotifications.setTask("epubImport", {
+        title: "Importing EPUB",
+        body: filename,
+        progress: { indeterminate: true },
+      });
 
       const novel = await EpubImportService.importFromUri({
         uri,
@@ -301,10 +307,24 @@ export const SettingsScreen: React.FC = () => {
           if (p.stage === "chapters") {
             setEpubImportProgress({ current: p.current, total: p.total });
             setEpubImportText(p.text);
+            AndroidProgressNotifications.setTask("epubImport", {
+              title: "Importing EPUB",
+              body: `${p.text}\n${p.current}/${p.total}`,
+              progress: {
+                current: p.current,
+                max: p.total,
+                indeterminate: false,
+              },
+            });
             return;
           }
           setEpubImportProgress(null);
           setEpubImportText(p.text);
+          AndroidProgressNotifications.setTask("epubImport", {
+            title: "Importing EPUB",
+            body: p.text,
+            progress: { indeterminate: true },
+          });
         },
       });
 
@@ -321,6 +341,7 @@ export const SettingsScreen: React.FC = () => {
     } catch (e: any) {
       Alert.alert("Import Failed", e?.message || "Could not import EPUB.");
     } finally {
+      AndroidProgressNotifications.clearTask("epubImport");
       setIsEpubImporting(false);
       setEpubImportText("");
       setEpubImportProgress(null);

@@ -10,6 +10,7 @@ import React, {
   useState,
 } from "react";
 import { ChapterDownloads } from "../services/chapterDownloads";
+import { AndroidProgressNotifications } from "../services/androidProgressNotifications";
 import { PluginRuntimeService } from "../services/pluginRuntime";
 import { useLibrary } from "./LibraryContext";
 import { useSettings } from "./SettingsContext";
@@ -258,6 +259,46 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
     const payload = JSON.stringify({ version: 1, paused, tasks });
     AsyncStorage.setItem(STORAGE_KEY, payload).catch((e) => {
       console.warn("Failed to persist download queue:", e);
+    });
+  }, [hydrated, paused, tasks]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const downloading = tasks
+      .filter((t) => t.status === "downloading")
+      .slice()
+      .sort((a, b) => a.createdAt - b.createdAt);
+    const pending = tasks
+      .filter((t) => t.status === "pending")
+      .slice()
+      .sort((a, b) => a.createdAt - b.createdAt);
+
+    const activeCount = downloading.length;
+    const queuedCount = pending.length;
+
+    if (activeCount === 0 && queuedCount === 0) {
+      AndroidProgressNotifications.clearTask("downloads");
+      return;
+    }
+
+    const current = downloading[0] || pending[0];
+    const summaryParts = [
+      paused ? "Paused" : null,
+      `${activeCount} active`,
+      `${queuedCount} queued`,
+    ].filter(Boolean) as string[];
+
+    const summary = summaryParts.join(" • ");
+    const chapterLine =
+      current && (current.novelTitle || current.chapterTitle)
+        ? `${current.novelTitle} — ${current.chapterTitle}`.trim()
+        : "";
+
+    AndroidProgressNotifications.setTask("downloads", {
+      title: paused ? "Downloads paused" : "Downloading chapters",
+      body: chapterLine ? `${summary}\n${chapterLine}` : summary,
+      progress: { indeterminate: true },
     });
   }, [hydrated, paused, tasks]);
 

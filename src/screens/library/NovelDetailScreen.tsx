@@ -33,6 +33,7 @@ import { useLibrary } from "../../context/LibraryContext";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
 import { ChapterDownloads } from "../../services/chapterDownloads";
+import { AndroidProgressNotifications } from "../../services/androidProgressNotifications";
 import type { EpubExportCoverImage } from "../../services/epubExport";
 import { EpubExportService } from "../../services/epubExport";
 import {
@@ -1600,6 +1601,11 @@ export const NovelDetailScreen: React.FC = () => {
 
     setIsEpubExporting(true);
     setEpubExportProgress({ current: 0, total: exportList.length });
+    AndroidProgressNotifications.setTask("epubExport", {
+      title: "Exporting EPUB",
+      body: novel.title || "Untitled",
+      progress: { current: 0, max: exportList.length, indeterminate: false },
+    });
 
     try {
       const chapters: { title: string; html: string; sourceUrl?: string }[] =
@@ -1609,6 +1615,15 @@ export const NovelDetailScreen: React.FC = () => {
       for (let i = 0; i < exportList.length; i++) {
         const c = exportList[i];
         setEpubExportProgress({ current: i + 1, total: exportList.length });
+        AndroidProgressNotifications.setTask("epubExport", {
+          title: "Exporting EPUB",
+          body: `${String(c.name || `Chapter ${i + 1}`)}\n${i + 1}/${exportList.length}`,
+          progress: {
+            current: i + 1,
+            max: exportList.length,
+            indeterminate: false,
+          },
+        });
         const html = await ChapterDownloads.readChapterHtml(
           novel.pluginId,
           novel.id,
@@ -1749,6 +1764,7 @@ export const NovelDetailScreen: React.FC = () => {
         e?.message || "Could not export EPUB. Please try again.",
       );
     } finally {
+      AndroidProgressNotifications.clearTask("epubExport");
       setIsEpubExporting(false);
       setEpubExportProgress(null);
     }
