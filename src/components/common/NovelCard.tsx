@@ -36,6 +36,10 @@ const NovelCardComponent: React.FC<NovelCardProps> = ({
     totalChapters > 0 ? totalChapters - (novel.unreadChapters || 0) : 0;
   const progressPercent =
     totalChapters > 0 ? (totalChaptersRead / totalChapters) * 100 : 0;
+  const downloadedCount = novel.chapterDownloaded
+    ? Object.values(novel.chapterDownloaded).filter(Boolean).length
+    : 0;
+  const showDownloaded = showDownloadBadge && (downloadedCount > 0 || novel.isDownloaded);
 
   // LIST MODE
   if (displayMode === "list") {
@@ -115,7 +119,7 @@ const NovelCardComponent: React.FC<NovelCardProps> = ({
                   <Text style={styles.badgeText}>{novel.unreadChapters}</Text>
                 </View>
               )}
-              {showDownloadBadge && novel.isDownloaded && (
+              {showDownloaded ? (
                 <View
                   style={[
                     styles.listDownloadBadge,
@@ -123,8 +127,11 @@ const NovelCardComponent: React.FC<NovelCardProps> = ({
                   ]}
                 >
                   <Ionicons name="download" size={10} color="#FFF" />
+                  {downloadedCount > 0 ? (
+                    <Text style={styles.badgeText}>{downloadedCount}</Text>
+                  ) : null}
                 </View>
-              )}
+              ) : null}
             </View>
           </View>
 
@@ -269,7 +276,7 @@ const NovelCardComponent: React.FC<NovelCardProps> = ({
         )}
 
         {/* Download Badge */}
-        {!isSelectionMode && showDownloadBadge && novel.isDownloaded && (
+        {!isSelectionMode && showDownloaded ? (
           <View
             style={[
               styles.gridDownloadBadge,
@@ -277,8 +284,11 @@ const NovelCardComponent: React.FC<NovelCardProps> = ({
             ]}
           >
             <Ionicons name="download" size={10} color="#FFF" />
+            {downloadedCount > 0 ? (
+              <Text style={styles.badgeText}>{downloadedCount}</Text>
+            ) : null}
           </View>
-        )}
+        ) : null}
 
         {/* Completion Badge */}
         {novel.status === "completed" && (
@@ -379,11 +389,14 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 6,
     left: 6,
-    width: 24,
+    minWidth: 24,
     height: 24,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 6,
+    flexDirection: "row",
+    gap: 3,
   },
   gridStatusBadge: {
     position: "absolute",
@@ -482,11 +495,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
   },
   listDownloadBadge: {
-    width: 20,
+    minWidth: 20,
     height: 20,
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 6,
+    flexDirection: "row",
+    gap: 3,
   },
   listAuthor: {
     fontSize: 13,

@@ -20,6 +20,24 @@ const isAbsoluteUrl = (url: string) => {
   return /^https?:\/\//i.test(url);
 };
 
+const toAbsoluteHttpUrl = (input: string, base?: string) => {
+  const raw = String(input || "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("//")) return `https:${raw}`;
+  if (/^https?:\/\//i.test(raw)) return raw;
+
+  const baseRaw = String(base || "").trim();
+  if (!baseRaw) return "";
+  const baseNorm = baseRaw.startsWith("//") ? `https:${baseRaw}` : baseRaw;
+  if (!/^https?:\/\//i.test(baseNorm)) return "";
+
+  try {
+    return new URL(raw, baseNorm).toString();
+  } catch {
+    return "";
+  }
+};
+
 const stripNovelForHistory = (novel: any) => {
   if (!novel || typeof novel !== "object") return novel;
   const { pluginCache: _pluginCache, ...rest } = novel as any;
@@ -398,15 +416,23 @@ export const ReaderScreen: React.FC = () => {
 
   const handleOpenWeb = useCallback(
     (path: string) => {
-      const url =
-        (isAbsoluteUrl(path) && path) ||
-        (isAbsoluteUrl(plugin?.site || "") && (plugin?.site as string)) ||
-        (isAbsoluteUrl(plugin?.url || "") && (plugin?.url as string)) ||
+      const siteBase = toAbsoluteHttpUrl(String(plugin?.site || ""));
+      const novelPath = String(novelRef.current?.pluginNovelPath || "");
+      const novelUrl =
+        toAbsoluteHttpUrl(novelPath) || toAbsoluteHttpUrl(novelPath, siteBase) || "";
+
+      // Reader context: prefer opening the *current chapter* URL.
+      const chapterUrl =
+        toAbsoluteHttpUrl(path) ||
+        toAbsoluteHttpUrl(path, novelUrl) ||
+        toAbsoluteHttpUrl(path, siteBase) ||
         "";
+
+      const url = chapterUrl || novelUrl || siteBase;
       if (!url) return;
       (navigation as any).navigate("WebView", { url });
     },
-    [navigation, plugin?.site, plugin?.url],
+    [navigation, plugin?.site],
   );
 
   if (!novel) {

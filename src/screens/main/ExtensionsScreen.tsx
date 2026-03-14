@@ -523,6 +523,7 @@ export const ExtensionsScreen: React.FC = () => {
                   </TouchableOpacity>
                 </View>
               )}
+              style={styles.repoList}
               contentContainerStyle={{ paddingBottom: 8 }}
               showsVerticalScrollIndicator={false}
               removeClippedSubviews={Platform.OS === "android"}
@@ -615,7 +616,13 @@ const styles = StyleSheet.create({
     padding: 16,
     justifyContent: "center",
   },
-  modalCard: { borderRadius: 12, overflow: "hidden", maxHeight: "85%" },
+  modalCard: {
+    borderRadius: 12,
+    overflow: "hidden",
+    maxHeight: "85%",
+    width: "100%",
+    flex: 1,
+  },
   modalHeader: {
     padding: 16,
     flexDirection: "row",
@@ -652,6 +659,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
   },
+  repoList: { flex: 1 },
   repoFetchedAt: { marginTop: 4, fontSize: 11 },
   repoRemoveButton: { padding: 8 },
   modalFooterButton: {

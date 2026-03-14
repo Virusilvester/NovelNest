@@ -858,17 +858,44 @@ export const NovelDetailScreen: React.FC = () => {
   }, [cancelNovelTasks, novel, settings.general.downloadLocation, updateNovel]);
 
   const handleWebView = useCallback(() => {
-    const url =
-      remoteDetail?.url ||
-      (novel?.pluginId
-        ? settings.extensions.installedPlugins?.[novel.pluginId]?.site
-        : null) ||
+    const toAbsoluteHttpUrl = (input: string, base?: string) => {
+      const raw = String(input || "").trim();
+      if (!raw) return "";
+      if (raw.startsWith("//")) return `https:${raw}`;
+      if (/^https?:\/\//i.test(raw)) return raw;
+
+      const baseRaw = String(base || "").trim();
+      if (!baseRaw) return "";
+      const baseNorm = baseRaw.startsWith("//") ? `https:${baseRaw}` : baseRaw;
+      if (!/^https?:\/\//i.test(baseNorm)) return "";
+
+      try {
+        return new URL(raw, baseNorm).toString();
+      } catch {
+        return "";
+      }
+    };
+
+    const pluginSite = novel?.pluginId
+      ? String(settings.extensions.installedPlugins?.[novel.pluginId]?.site || "")
+      : "";
+    const siteBase = toAbsoluteHttpUrl(pluginSite);
+
+    const novelPath = String(novel?.pluginNovelPath || "");
+    const novelUrl =
+      toAbsoluteHttpUrl(String(remoteDetail?.url || "")) ||
+      toAbsoluteHttpUrl(novelPath) ||
+      toAbsoluteHttpUrl(novelPath, siteBase) ||
+      siteBase ||
       `https://example.com/novel/${novel?.id || ""}`;
+
+    const url = novelUrl;
     (navigation as any).navigate("WebView", { url });
   }, [
     navigation,
     novel?.id,
     novel?.pluginId,
+    novel?.pluginNovelPath,
     remoteDetail?.url,
     settings.extensions.installedPlugins,
   ]);
