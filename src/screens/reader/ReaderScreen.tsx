@@ -51,15 +51,17 @@ export const ReaderScreen: React.FC = () => {
   }, [novel]);
 
   const pluginId = novel?.pluginId;
-  const novelPath = novel?.pluginNovelPath;
+  const isLocalNovel = pluginId === "local";
 
   const installed = settings.extensions.installedPlugins || {};
   const plugin = pluginId ? installed[pluginId] : undefined;
 
   const cacheKey = useMemo(() => {
-    if (!pluginId || !novelPath) return null;
-    return NovelDetailCache.key(pluginId, novelPath);
-  }, [novelPath, pluginId]);
+    if (!pluginId) return null;
+    const path = novel?.pluginNovelPath;
+    if (!path) return null;
+    return NovelDetailCache.key(pluginId, path);
+  }, [novel?.pluginNovelPath, pluginId]);
 
   const cached = useMemo(() => {
     if (!cacheKey) return undefined;
@@ -130,21 +132,35 @@ export const ReaderScreen: React.FC = () => {
 
   const loadChapterHtml = useCallback(
     async (path: string) => {
-      if (!pluginId) throw new Error("Novel does not have a source plugin.");
-      if (!plugin) throw new Error("Plugin not installed.");
-      if (!plugin.enabled) throw new Error("Plugin is disabled.");
+      const n = novelRef.current;
+      const pid = n?.pluginId;
+      if (!pid) throw new Error("This novel has no source and cannot be read.");
 
-      if (novel?.chapterDownloaded?.[path]) {
+      // Local/imported novels always read from stored HTML. Plugin novels prefer stored HTML if available.
+      const shouldReadFromDisk = pid === "local" || Boolean(n?.chapterDownloaded?.[path]);
+      if (shouldReadFromDisk) {
         const html = await ChapterDownloads.readChapterHtml(
-          pluginId,
+          pid,
           novelId,
           path,
           settings.general.downloadLocation,
         );
         if (html != null) return html;
+        if (pid === "local") {
+          throw new Error("Local chapter file not found.");
+        }
       }
 
-      const instance = await PluginRuntimeService.loadLnReaderPlugin(plugin, {
+      if (pid === "local") {
+        throw new Error("Local chapter file not found.");
+      }
+
+      const installedPlugins = settings.extensions.installedPlugins || {};
+      const sourcePlugin = installedPlugins[pid];
+      if (!sourcePlugin) throw new Error("Plugin not installed.");
+      if (!sourcePlugin.enabled) throw new Error("Plugin is disabled.");
+
+      const instance = await PluginRuntimeService.loadLnReaderPlugin(sourcePlugin, {
         userAgent: settings.advanced.userAgent,
       });
       const parseChapter = (instance as any).parseChapter;
@@ -153,14 +169,7 @@ export const ReaderScreen: React.FC = () => {
       }
       return (await parseChapter.call(instance, path)) || "";
     },
-    [
-      novel?.chapterDownloaded,
-      novelId,
-      plugin,
-      pluginId,
-      settings.advanced.userAgent,
-      settings.general.downloadLocation,
-    ],
+    [novelId, settings.advanced.userAgent, settings.extensions.installedPlugins, settings.general.downloadLocation],
   );
 
   const historyEntriesRef = useRef(historyEntries);
@@ -418,7 +427,7 @@ export const ReaderScreen: React.FC = () => {
     );
   }
 
-  if (!pluginId || !novelPath) {
+  if (!pluginId) {
     return (
       <View
         style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -429,12 +438,14 @@ export const ReaderScreen: React.FC = () => {
         />
         <View style={styles.center}>
           <Text style={[styles.message, { color: theme.colors.textSecondary }]}>
-            This reader currently supports plugin novels only.
+            This novel has no source and cannot be read.
           </Text>
         </View>
       </View>
     );
   }
+
+  const onOpenWeb = !isLocalNovel && plugin ? handleOpenWeb : undefined;
 
   return (
     <ChapterReader
@@ -445,7 +456,7 @@ export const ReaderScreen: React.FC = () => {
       loadChapterHtml={loadChapterHtml}
       baseUrl={baseUrl}
       onBack={() => (navigation as any).goBack()}
-      onOpenWeb={handleOpenWeb}
+      onOpenWeb={onOpenWeb}
       onChapterChange={handleChapterChange}
       onChapterRead={handleChapterRead}
       onScrollProgress={handleScrollProgress}

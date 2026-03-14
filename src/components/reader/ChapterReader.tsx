@@ -12,6 +12,7 @@ import React, {
 import {
   ActivityIndicator,
   Animated,
+  Easing,
   Linking,
   Modal,
   ScrollView,
@@ -19,6 +20,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -203,6 +205,7 @@ export const ChapterReader: React.FC<Props> = ({
   const { settings, updateReaderSettings, updateReaderSettingsBatch } =
     useSettings();
   const insets = useSafeAreaInsets();
+  const { width: viewportWidth } = useWindowDimensions();
 
   const webViewRef = useRef<any>(null);
   // FIX: separate cache from in-memory so downloaded chapters skip async fetch entirely
@@ -225,6 +228,16 @@ export const ChapterReader: React.FC<Props> = ({
   // ── Animation for top/bottom bars ────────────────────────────────────────
   const barsAnim = useRef(new Animated.Value(0)).current; // 0=hidden, 1=visible
   const isAnimatingRef = useRef(false);
+
+  // Smooth swipe transition between chapters
+  const viewportWidthRef = useRef(viewportWidth);
+  useEffect(() => {
+    viewportWidthRef.current = viewportWidth;
+  }, [viewportWidth]);
+
+  const pageTranslateX = useRef(new Animated.Value(0)).current;
+  const pageOpacity = useRef(new Animated.Value(1)).current;
+  const isPageTransitioningRef = useRef(false);
 
   const showBars = useCallback(() => {
     if (isAnimatingRef.current) return;
@@ -396,6 +409,10 @@ export const ChapterReader: React.FC<Props> = ({
 
   const navigateTo = useCallback((chapter: ReaderChapterItem) => {
     setDrawerVisible(false);
+    setError(null);
+    setLoading(true);
+    setRawHtml("");
+    setScrollProgress(0);
     setCurrentPath(chapter.path);
     setCurrentTitle(chapter.name);
     webViewRef.current?.injectJavaScript(
@@ -403,17 +420,112 @@ export const ChapterReader: React.FC<Props> = ({
     );
   }, []);
 
+  const bounceAtEdge = useCallback(
+    (direction: "left" | "right") => {
+      if (isPageTransitioningRef.current) return;
+      isPageTransitioningRef.current = true;
+
+      const w = Math.max(1, viewportWidthRef.current || 1);
+      const dist = Math.min(34, Math.max(14, w * 0.06));
+      const sign = direction === "left" ? -1 : 1;
+
+      Animated.sequence([
+        Animated.timing(pageTranslateX, {
+          toValue: sign * dist,
+          duration: 90,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.spring(pageTranslateX, {
+          toValue: 0,
+          tension: 180,
+          friction: 16,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        isPageTransitioningRef.current = false;
+      });
+    },
+    [pageTranslateX],
+  );
+
+  const animateChapterTransition = useCallback(
+    (direction: "left" | "right") => {
+      if (isPageTransitioningRef.current) return;
+
+      const idx = chapterIndexRef.current;
+      const list = chaptersRef.current;
+      if (idx < 0 || list.length === 0) {
+        bounceAtEdge(direction);
+        return;
+      }
+
+      const target =
+        direction === "left" ? list[idx + 1] : list[idx - 1];
+      if (!target) {
+        bounceAtEdge(direction);
+        return;
+      }
+
+      isPageTransitioningRef.current = true;
+
+      const w = Math.max(1, viewportWidthRef.current || 1);
+      const outTo = direction === "left" ? -w : w;
+      const inFrom = direction === "left" ? w : -w;
+
+      Animated.parallel([
+        Animated.timing(pageTranslateX, {
+          toValue: outTo,
+          duration: 180,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pageOpacity, {
+          toValue: 0.86,
+          duration: 180,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start(({ finished }) => {
+        if (!finished) {
+          pageTranslateX.setValue(0);
+          pageOpacity.setValue(1);
+          isPageTransitioningRef.current = false;
+          return;
+        }
+
+        pageTranslateX.setValue(inFrom);
+        pageOpacity.setValue(0.86);
+        navigateTo(target);
+
+        Animated.parallel([
+          Animated.timing(pageTranslateX, {
+            toValue: 0,
+            duration: 220,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pageOpacity, {
+            toValue: 1,
+            duration: 220,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          isPageTransitioningRef.current = false;
+        });
+      });
+    },
+    [bounceAtEdge, navigateTo, pageOpacity, pageTranslateX],
+  );
+
   const goPrev = useCallback(() => {
-    if (!canGoPrev) return;
-    const prev = chapters[chapterIndex - 1];
-    if (prev) navigateTo(prev);
-  }, [canGoPrev, chapterIndex, chapters, navigateTo]);
+    animateChapterTransition("right");
+  }, [animateChapterTransition]);
 
   const goNext = useCallback(() => {
-    if (!canGoNext) return;
-    const next = chapters[chapterIndex + 1];
-    if (next) navigateTo(next);
-  }, [canGoNext, chapterIndex, chapters, navigateTo]);
+    animateChapterTransition("left");
+  }, [animateChapterTransition]);
 
   const goPrevRef = useRef(goPrev);
   const goNextRef = useRef(goNext);
@@ -786,7 +898,16 @@ export const ChapterReader: React.FC<Props> = ({
       />
 
       {/* ── WebView ─────────────────────────────────────────────────── */}
-      <WebView
+      <Animated.View
+        style={[
+          styles.page,
+          {
+            transform: [{ translateX: pageTranslateX }],
+            opacity: pageOpacity,
+          },
+        ]}
+      >
+        <WebView
         ref={webViewRef}
         source={{ html: preparedHtml, baseUrl: effectiveBaseUrl }}
         originWhitelist={["*"]}
@@ -873,6 +994,7 @@ export const ChapterReader: React.FC<Props> = ({
                 chapterHtmlCacheRef.current.delete(currentPath);
                 setError(null);
                 setLoading(true);
+                setRawHtml("");
                 setReloadToken((prev) => prev + 1);
               }}
             >
@@ -884,6 +1006,8 @@ export const ChapterReader: React.FC<Props> = ({
       ) : null}
 
       {/* ── Top bar ─────────────────────────────────────────────────── */}
+      </Animated.View>
+
       {controlsVisible ? (
         <Animated.View
           style={[
@@ -1703,6 +1827,7 @@ export const ChapterReader: React.FC<Props> = ({
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  page: { flex: 1 },
 
   // Loading / error
   center: {
