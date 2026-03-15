@@ -29,7 +29,7 @@ jobs:
       - name: Install dependencies
         run: |
           npm cache clean --force
-          npm ci
+          npm install
 
       - name: Lint + typecheck + android prebuild
         run: npm run ci:android
