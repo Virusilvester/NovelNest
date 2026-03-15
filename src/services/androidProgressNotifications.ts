@@ -194,7 +194,7 @@ const flush = async () => {
         body: active.task.body ? String(active.task.body) : undefined,
         android: {
           channelId: CHANNEL_ID,
-          smallIcon: "ic_launcher",
+          smallIcon: "notification_icon",
           ongoing: true,
           autoCancel: false,
           onlyAlertOnce: true,

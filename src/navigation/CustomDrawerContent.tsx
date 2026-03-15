@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { useTheme } from "../context/ThemeContext";
 
-const logo = require("../../assets/novelnest.svg");
+const logo = require("../../assets/images/icon.png");
 
 export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
   props,
@@ -50,6 +50,7 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
               borderRadius: logoSize / 2,
             },
           ]}
+          resizeMode="contain"
         />
         <Text style={styles.appName}>NovelNest</Text>
       </View>

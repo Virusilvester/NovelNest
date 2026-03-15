@@ -12,10 +12,12 @@ import { ThemeProvider } from "./src/context/ThemeContext";
 import { UpdatesProvider } from "./src/context/UpdatesContext";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 import { AndroidProgressNotifications } from "./src/services/androidProgressNotifications";
+import { FirstInstallService } from "./src/services/firstInstall";
 
 export default function App() {
   useEffect(() => {
     void AndroidProgressNotifications.dismissStaleNotification();
+    void FirstInstallService.runOnce();
   }, []);
 
   return (

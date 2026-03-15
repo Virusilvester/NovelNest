@@ -581,7 +581,7 @@ export const SettingsScreen: React.FC = () => {
           <Row
             icon="information-circle-outline"
             label="Version"
-            subtitle="2.0.1"
+            subtitle="2.0.3-beta"
             isLast
           />
         </Section>
