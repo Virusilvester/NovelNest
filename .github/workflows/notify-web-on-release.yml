@@ -7,16 +7,16 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to sync (e.g. v0.1.0-beta.1)"
+        description: 'Release tag to sync (e.g. v0.1.0-beta.1)'
         required: true
       prerelease:
-        description: "Is this a pre-release?"
+        description: 'Is this a pre-release?'
         required: true
-        default: "true"
+        default: 'true'
         type: choice
         options:
-          - "true"
-          - "false"
+          - 'true'
+          - 'false'
 
 jobs:
   sync-to-web:
