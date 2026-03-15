@@ -45,7 +45,7 @@ jobs:
 
       # ── Dependencies ─────────────────────────────────────────────────────────
       - name: Install Node dependencies
-        run: npm install
+        run: npm ci
 
       # ── Expo prebuild (generates the android/ folder) ────────────────────────
       - name: Run Expo prebuild
