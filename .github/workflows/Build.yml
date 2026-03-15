@@ -41,12 +41,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "npm"
 
       # ── Dependencies ─────────────────────────────────────────────────────────
       - name: Install Node dependencies
-        run: |
-          npm cache clean --force
-          npm install
+        run: npm ci
 
       # ── Expo prebuild (generates the android/ folder) ────────────────────────
       - name: Run Expo prebuild
