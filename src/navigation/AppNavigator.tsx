@@ -2,6 +2,7 @@
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React from "react";
+import { useSettings } from "../context/SettingsContext";
 import { DownloadQueueScreen } from "../screens/DownloadQueueScreen";
 import { NovelDetailScreen } from "../screens/library/NovelDetailScreen";
 import { ReaderScreen } from "../screens/reader/ReaderScreen";
@@ -24,6 +25,23 @@ import { RootStackParamList } from "./types";
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const AppNavigator: React.FC = () => {
+  const { settings, isReady } = useSettings();
+
+  const drawerInitialRoute = React.useMemo(() => {
+    const start = settings.general.startScreen;
+    switch (start) {
+      case "updates":
+        return "Updates";
+      case "history":
+        return "History";
+      case "sources":
+        return "Sources";
+      case "library":
+      default:
+        return "Library";
+    }
+  }, [settings.general.startScreen]);
+
   return (
     <NavigationContainer>
       <Stack.Navigator
@@ -31,7 +49,14 @@ export const AppNavigator: React.FC = () => {
           headerShown: false,
         }}
       >
-        <Stack.Screen name="Main" component={MainDrawer} />
+        <Stack.Screen name="Main">
+          {() => (
+            <MainDrawer
+              key={isReady ? drawerInitialRoute : "boot"}
+              initialRouteName={drawerInitialRoute as any}
+            />
+          )}
+        </Stack.Screen>
         <Stack.Screen name="NovelDetail" component={NovelDetailScreen} />
         <Stack.Screen name="SourceDetail" component={SourceDetailScreen} />
         <Stack.Screen name="Reader" component={ReaderScreen} />

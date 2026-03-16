@@ -17,13 +17,16 @@ import { MainDrawerParamList } from "./types";
 
 const Drawer = createDrawerNavigator<MainDrawerParamList>();
 
-export const MainDrawer: React.FC = () => {
+export const MainDrawer: React.FC<{
+  initialRouteName?: keyof MainDrawerParamList;
+}> = ({ initialRouteName }) => {
   const { width, height } = useWindowDimensions();
   const { theme } = useTheme();
   const drawerWidth = getDrawerWidth(width, height);
 
   return (
     <Drawer.Navigator
+      initialRouteName={initialRouteName ?? "Library"}
       drawerContent={(props) => <CustomDrawerContent {...props} />}
       screenOptions={{
         headerShown: false,

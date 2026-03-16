@@ -405,81 +405,12 @@ export const SettingsScreen: React.FC = () => {
             label="Download location"
             subtitle={downloadLocationLabel}
             onPress={handleSelectDownloadLocation}
-            isLast
           />
-        </Section>
-
-        {/* Display */}
-        <Section title="Display">
-          <Row
-            icon={
-              settings.display.theme === "dark"
-                ? "moon-outline"
-                : "sunny-outline"
-            }
-            label="Dark mode"
-            isLast
-            rightElement={
-              <ImprovedSwitch
-                value={settings.display.theme === "dark"}
-                onValueChange={(v) =>
-                  updateDisplaySettings("theme", v ? "dark" : "light")
-                }
-              />
-            }
-          />
-        </Section>
-
-        {/* Auto-download */}
-        <Section title="Auto-download">
-          <Row
-            icon="cloud-download-outline"
-            label="Download new chapters"
-            rightElement={
-              <ImprovedSwitch
-                value={settings.autoDownload.downloadNewChapters}
-                onValueChange={(v) =>
-                  updateAutoDownloadSettings("downloadNewChapters", v)
-                }
-              />
-            }
-          />
-          <Row
-            icon="download-outline"
-            label="Download available updates"
-            subtitle={
-              updates.length > 0 ? `${updates.length} update(s)` : "No updates"
-            }
-            onPress={
-              updates.length > 0 ? handleDownloadAvailableUpdates : undefined
-            }
-            isLast
-          />
-        </Section>
-
-        {/* Library */}
-        <Section title="Library">
           <Row
             icon="albums-outline"
             label="Categories"
             onPress={() => navigation.navigate("EditCategories")}
-            isLast
           />
-        </Section>
-
-        {/* EPUB */}
-        <Section title="EPUB">
-          <Row
-            icon="cloud-upload-outline"
-            label="Import EPUB"
-            subtitle="Add a local book from an EPUB file"
-            onPress={isEpubImporting ? undefined : () => void handleImportEpub()}
-            isLast
-          />
-        </Section>
-
-        {/* Updates */}
-        <Section title="Updates">
           <Row
             icon="alarm-outline"
             label="Update frequency"
@@ -515,8 +446,57 @@ export const SettingsScreen: React.FC = () => {
                 ? handleClearUpdatesList
                 : undefined
             }
-            isLast
             isDestructive
+          />
+          <Row
+            icon="cloud-download-outline"
+            label="Download new chapters"
+            rightElement={
+              <ImprovedSwitch
+                value={settings.autoDownload.downloadNewChapters}
+                onValueChange={(v) =>
+                  updateAutoDownloadSettings("downloadNewChapters", v)
+                }
+              />
+            }
+          />
+          <Row
+            icon="download-outline"
+            label="Download available updates"
+            subtitle={
+              updates.length > 0 ? `${updates.length} update(s)` : "No updates"
+            }
+            onPress={
+              updates.length > 0 ? handleDownloadAvailableUpdates : undefined
+            }
+          />
+          <Row
+            icon="cloud-upload-outline"
+            label="Import EPUB"
+            subtitle="Add a local book from an EPUB file"
+            onPress={isEpubImporting ? undefined : () => void handleImportEpub()}
+            isLast
+          />
+        </Section>
+
+        {/* Appearance */}
+        <Section title="Appearance">
+          <Row
+            icon={
+              settings.display.theme === "dark"
+                ? "moon-outline"
+                : "sunny-outline"
+            }
+            label="Dark mode"
+            isLast
+            rightElement={
+              <ImprovedSwitch
+                value={settings.display.theme === "dark"}
+                onValueChange={(v) =>
+                  updateDisplaySettings("theme", v ? "dark" : "light")
+                }
+              />
+            }
           />
         </Section>
 
@@ -638,9 +618,10 @@ export const SettingsScreen: React.FC = () => {
         title="Select Start Screen"
         options={START_SCREENS}
         selectedValue={settings.general.startScreen}
-        onSelect={(value) =>
-          updateGeneralSettings("startScreen", value as StartScreen)
-        }
+        onSelect={(value) => {
+          void updateGeneralSettings("startScreen", value as StartScreen);
+          setShowStartScreenModal(false);
+        }}
         onClose={() => setShowStartScreenModal(false)}
       />
       <SelectionModal
