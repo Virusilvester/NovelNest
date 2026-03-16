@@ -12,7 +12,10 @@ const fr = {
     updates: { title: "Mises à jour" },
     history: { title: "Historique" },
     extensions: { title: "Extensions" },
-    downloadQueue: { title: "File de téléchargement", pausedTitle: "File (En pause)" },
+    downloadQueue: {
+      title: "File de téléchargement",
+      pausedTitle: "File (En pause)",
+    },
     reader: { title: "Lecteur" },
     sources: { title: "Sources" },
     dataManagement: { title: "Gestion des données" },
@@ -53,7 +56,8 @@ const fr = {
   downloadQueue: {
     alerts: {
       cancelTitle: "Annuler le téléchargement",
-      cancelMessage: "Annuler ce chapitre ou tous les téléchargements de ce roman ?",
+      cancelMessage:
+        "Annuler ce chapitre ou tous les téléchargements de ce roman ?",
       keep: "Garder",
       cancelChapter: "Annuler le chapitre",
       cancelNovel: "Annuler le roman",
@@ -75,7 +79,8 @@ const fr = {
   categories: {
     delete: {
       title: "Supprimer la catégorie",
-      body: "Retirer \"{name}\" de votre bibliothèque ? Les romans dans cette catégorie deviendront non classés.",
+      body:
+        "Retirer \"{name}\" de votre bibliothèque ? Les romans dans cette catégorie deviendront non classés.",
       action: "Supprimer",
     },
   },
@@ -121,8 +126,7 @@ const fr = {
   extensions: {
     alerts: {
       invalidUrlTitle: "URL invalide",
-      invalidUrlBody:
-        "L'URL du dépôt doit commencer par http(s)://",
+      invalidUrlBody: "L'URL du dépôt doit commencer par http(s)://",
       removeRepoTitle: "Supprimer le dépôt ?",
       remove: "Supprimer",
       installedTitle: "Installé",
@@ -130,6 +134,13 @@ const fr = {
         "Les métadonnées du plugin ont été enregistrées, mais le téléchargement du fichier n'est pas pris en charge sur cette plateforme.",
       errorTitle: "Erreur",
       errorBody: "Impossible d'installer/désinstaller le plugin.",
+    },
+    filters: {
+      sortAz: "Trier : A-Z",
+      sortZa: "Trier : Z-A",
+      language: "Langue",
+      languageAny: "Langue : Toutes",
+      allLanguages: "Toutes les langues",
     },
   },
   history: {
@@ -189,3 +200,4 @@ const fr = {
 } as const;
 
 export default fr;
+

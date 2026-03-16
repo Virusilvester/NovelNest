@@ -53,7 +53,8 @@ const es = {
   downloadQueue: {
     alerts: {
       cancelTitle: "Cancelar descarga",
-      cancelMessage: "¿Cancelar este capítulo o todas las descargas de esta novela?",
+      cancelMessage:
+        "¿Cancelar este capítulo o todas las descargas de esta novela?",
       keep: "Mantener",
       cancelChapter: "Cancelar capítulo",
       cancelNovel: "Cancelar novela",
@@ -75,7 +76,8 @@ const es = {
   categories: {
     delete: {
       title: "Eliminar categoría",
-      body: "¿Quitar \"{name}\" de tu biblioteca? Las novelas en esta categoría quedarán sin categorizar.",
+      body:
+        "¿Quitar \"{name}\" de tu biblioteca? Las novelas en esta categoría quedarán sin categorizar.",
       action: "Eliminar",
     },
   },
@@ -127,6 +129,13 @@ const es = {
         "Los metadatos del plugin se guardaron, pero la descarga del archivo no está soportada en esta plataforma.",
       errorTitle: "Error",
       errorBody: "No se pudo instalar/desinstalar el plugin.",
+    },
+    filters: {
+      sortAz: "Ordenar: A-Z",
+      sortZa: "Ordenar: Z-A",
+      language: "Idioma",
+      languageAny: "Idioma: Cualquiera",
+      allLanguages: "Todos los idiomas",
     },
   },
   history: {
@@ -186,3 +195,4 @@ const es = {
 } as const;
 
 export default es;
+

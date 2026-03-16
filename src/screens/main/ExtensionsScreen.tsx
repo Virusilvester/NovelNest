@@ -18,6 +18,7 @@ import {
 import { Header } from "../../components/common/Header";
 import { ImprovedSwitch } from "../../components/common/ImprovedSwitch";
 import { PopupMenu } from "../../components/common/PopupMenu";
+import { SelectionModal } from "../../components/common/SelectionModal";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
 import type { MainDrawerNavigationProp } from "../../navigation/navigationTypes";
@@ -52,6 +53,8 @@ export const ExtensionsScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOption, setSortOption] = useState<SortOption>("az");
   const [isFilterMenuVisible, setIsFilterMenuVisible] = useState(false);
+  const [isLanguageModalVisible, setIsLanguageModalVisible] = useState(false);
+  const [languageFilter, setLanguageFilter] = useState<string>("all");
   const [isRepoModalVisible, setIsRepoModalVisible] = useState(false);
   const [newRepoUrl, setNewRepoUrl] = useState("");
 
@@ -138,9 +141,28 @@ export const ExtensionsScreen: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [repositories.join("|")]);
 
+  const allLanguagesLabel = getString("extensions.filters.allLanguages");
+
+  const languageOptions = useMemo(() => {
+    const raw = plugins
+      .map((p) => String(p.lang || "").trim())
+      .filter(Boolean);
+    const unique = Array.from(new Set(raw.map((l) => l.toLowerCase()))).sort(
+      (a, b) => a.localeCompare(b),
+    );
+    const opts = unique.map((value) => ({
+      value,
+      label: value,
+    }));
+    return [
+      { value: "all", label: allLanguagesLabel },
+      ...opts,
+    ];
+  }, [allLanguagesLabel, plugins]);
+
   const displayedPlugins = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    const filtered = q
+    const filteredByQuery = q
       ? plugins.filter((p) => {
           return (
             p.name.toLowerCase().includes(q) ||
@@ -150,6 +172,13 @@ export const ExtensionsScreen: React.FC = () => {
           );
         })
       : plugins;
+
+    const filtered =
+      languageFilter === "all"
+        ? filteredByQuery
+        : filteredByQuery.filter(
+            (p) => String(p.lang || "").trim().toLowerCase() === languageFilter,
+          );
 
     // Group installed extensions on top, then sort within each group
     const installedExtensions = filtered.filter((p) =>
@@ -168,7 +197,7 @@ export const ExtensionsScreen: React.FC = () => {
       ...installedExtensions.sort(sortFn),
       ...availableExtensions.sort(sortFn),
     ];
-  }, [installed, plugins, searchQuery, sortOption]);
+  }, [installed, languageFilter, plugins, searchQuery, sortOption]);
 
   const handleAddRepo = async () => {
     const normalized = ExtensionsService.normalizeRepoUrl(newRepoUrl);
@@ -319,9 +348,29 @@ export const ExtensionsScreen: React.FC = () => {
   };
 
   const sortOptions = [
-    { id: "az", label: "A-Z", onPress: () => setSortOption("az") },
-    { id: "za", label: "Z-A", onPress: () => setSortOption("za") },
+    {
+      id: "az",
+      label: getString("extensions.filters.sortAz"),
+      icon: "arrow-down-outline" as const,
+      onPress: () => setSortOption("az"),
+    },
+    {
+      id: "za",
+      label: getString("extensions.filters.sortZa"),
+      icon: "arrow-up-outline" as const,
+      onPress: () => setSortOption("za"),
+    },
   ];
+
+  const languageMenuItem = {
+    id: "lang",
+    label:
+      languageFilter === "all"
+        ? getString("extensions.filters.languageAny")
+        : `${getString("extensions.filters.language")}: ${languageFilter}`,
+    icon: "language-outline" as const,
+    onPress: () => setIsLanguageModalVisible(true),
+  };
 
   return (
     <View
@@ -405,6 +454,9 @@ export const ExtensionsScreen: React.FC = () => {
               >
                 {Object.keys(installed).length} installed •{" "}
                 {repositories.length} repos • {plugins.length} plugins
+                {languageFilter !== "all"
+                  ? ` • ${getString("extensions.filters.language")}: ${languageFilter}`
+                  : ""}
               </Text>
               {repositories.map((r) => {
                 const s = repoFetchStatus[r];
@@ -429,13 +481,16 @@ export const ExtensionsScreen: React.FC = () => {
       <PopupMenu
         visible={isFilterMenuVisible}
         onClose={() => setIsFilterMenuVisible(false)}
-        items={sortOptions.map((item) => ({
-          ...item,
-          onPress: () => {
-            item.onPress();
-            setIsFilterMenuVisible(false);
-          },
-        }))}
+        items={[...sortOptions, languageMenuItem]}
+      />
+
+      <SelectionModal
+        visible={isLanguageModalVisible}
+        title={getString("extensions.filters.language")}
+        options={languageOptions}
+        selectedValue={languageFilter}
+        onSelect={(value) => setLanguageFilter(String(value || "all"))}
+        onClose={() => setIsLanguageModalVisible(false)}
       />
 
       <Modal

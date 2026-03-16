@@ -127,6 +127,13 @@ const en = {
       errorTitle: "Error",
       errorBody: "Failed to install/uninstall plugin.",
     },
+    filters: {
+      sortAz: "Sort: A-Z",
+      sortZa: "Sort: Z-A",
+      language: "Language",
+      languageAny: "Language: Any",
+      allLanguages: "All languages",
+    },
   },
   history: {
     remove: {
