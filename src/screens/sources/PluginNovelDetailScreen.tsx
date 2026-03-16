@@ -123,7 +123,7 @@ const ChapterRow = React.memo(
         ]}
         onPress={handlePress}
         onLongPress={handleLongPress}
-        delayLongPress={220}
+        delayLongPress={380}
         activeOpacity={0.75}
       >
         {/* Read status stripe */}

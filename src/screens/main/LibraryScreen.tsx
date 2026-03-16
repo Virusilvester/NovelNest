@@ -377,7 +377,10 @@ export const LibraryScreen: React.FC = () => {
       {
         id: "removeDownloads",
         label: "Remove downloads",
-        onPress: markSelectedUndownloaded,
+        onPress: () => {
+          markSelectedUndownloaded();
+          clearSelection();
+        },
       },
       {
         id: "delete",
@@ -388,6 +391,7 @@ export const LibraryScreen: React.FC = () => {
     ],
     [
       bulkDelete,
+      clearSelection,
       invertSelection,
       markSelectedDownloaded,
       markSelectedRead,

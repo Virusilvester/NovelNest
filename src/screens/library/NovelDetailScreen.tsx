@@ -1,6 +1,7 @@
 // src/screens/library/NovelDetailScreen.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import React, {
@@ -15,12 +16,14 @@ import {
   Alert,
   FlatList,
   Image,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
@@ -132,7 +135,7 @@ const ChapterItem = React.memo(
           handlePluginChapterPress(item);
         }}
         onLongPress={() => toggleChapterSelected(item.path)}
-        delayLongPress={220}
+        delayLongPress={380}
         activeOpacity={0.75}
       >
         {/* Read stripe */}
@@ -333,6 +336,10 @@ export const NovelDetailScreen: React.FC = () => {
   const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(
     null,
   );
+  const [isEditInfoModalVisible, setIsEditInfoModalVisible] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editAuthor, setEditAuthor] = useState("");
+  const [editSummary, setEditSummary] = useState("");
   const [selectedChapterPaths, setSelectedChapterPaths] = useState<Set<string>>(
     () => new Set(),
   );
@@ -980,6 +987,73 @@ export const NovelDetailScreen: React.FC = () => {
       });
     }
   };
+
+  const openEditInfo = useCallback(() => {
+    if (!novel) return;
+    setEditTitle(String(novel.title || ""));
+    setEditAuthor(String(novel.author || ""));
+    setEditSummary(String(novel.summary || ""));
+    setIsMoreMenuVisible(false);
+    setIsEditInfoModalVisible(true);
+  }, [novel]);
+
+  const saveEditInfo = useCallback(() => {
+    if (!novel) return;
+    const nextTitle = editTitle.trim();
+    if (!nextTitle) {
+      Alert.alert("Invalid title", "Title cannot be empty.");
+      return;
+    }
+    updateNovel(novel.id, {
+      title: nextTitle,
+      author: editAuthor.trim(),
+      summary: editSummary,
+    });
+    setIsEditInfoModalVisible(false);
+  }, [editAuthor, editSummary, editTitle, novel, updateNovel]);
+
+  const handleEditCover = useCallback(() => {
+    if (!novel) return;
+    setIsMoreMenuVisible(false);
+
+    Alert.alert("Edit cover", "Choose a new cover image or remove the current one.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: () => updateNovel(novel.id, { coverUrl: "" }),
+      },
+      {
+        text: "Choose image",
+        onPress: async () => {
+          try {
+            const res = await DocumentPicker.getDocumentAsync({
+              type: ["image/*"],
+              multiple: false,
+              copyToCacheDirectory: true,
+            });
+            if (res.canceled || !res.assets?.[0]?.uri) return;
+            const asset = res.assets[0];
+            const srcUri = asset.uri;
+            const name = String(asset.name || "cover");
+            const extMatch = name.match(/\.([a-z0-9]+)$/i);
+            const ext = extMatch ? extMatch[1].toLowerCase() : "jpg";
+
+            const dir = `${FileSystem.documentDirectory}covers/`;
+            await FileSystem.makeDirectoryAsync(dir, { intermediates: true }).catch(
+              () => {},
+            );
+            const dest = `${dir}${novel.id}.${ext}`;
+            await FileSystem.copyAsync({ from: srcUri, to: dest });
+
+            updateNovel(novel.id, { coverUrl: dest });
+          } catch (e: any) {
+            Alert.alert("Cover update failed", e?.message || "Could not update cover.");
+          }
+        },
+      },
+    ]);
+  }, [novel, updateNovel]);
 
   const handleLibraryToggle = useCallback(() => {
     if (!novel) return;
@@ -1872,13 +1946,13 @@ export const NovelDetailScreen: React.FC = () => {
       id: "editInfo",
       label: "Edit info",
       icon: "create-outline" as const,
-      onPress: () => {},
+      onPress: openEditInfo,
     },
     {
       id: "editCover",
       label: "Edit cover",
       icon: "image-outline" as const,
-      onPress: () => {},
+      onPress: handleEditCover,
     },
   ];
 
@@ -2667,6 +2741,128 @@ export const NovelDetailScreen: React.FC = () => {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {/* Edit info modal */}
+      <Modal
+        visible={isEditInfoModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsEditInfoModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setIsEditInfoModalVisible(false)}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={{ width: "100%" }}
+          >
+            <TouchableOpacity
+              activeOpacity={1}
+              style={[
+                styles.modalCard,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
+                },
+              ]}
+              onPress={() => {}}
+            >
+              <View style={styles.modalHeader}>
+                <Ionicons
+                  name="create-outline"
+                  size={22}
+                  color={theme.colors.primary}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+                    Edit info
+                  </Text>
+                  <Text
+                    style={[
+                      styles.modalSubtitle,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    Update title, author and summary.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.editForm}>
+                <Text style={[styles.editLabel, { color: theme.colors.textSecondary }]}>
+                  Title
+                </Text>
+                <TextInput
+                  value={editTitle}
+                  onChangeText={setEditTitle}
+                  placeholder="Title"
+                  placeholderTextColor={theme.colors.textSecondary}
+                  style={[
+                    styles.editInput,
+                    { color: theme.colors.text, borderColor: theme.colors.border },
+                  ]}
+                />
+
+                <Text style={[styles.editLabel, { color: theme.colors.textSecondary }]}>
+                  Author
+                </Text>
+                <TextInput
+                  value={editAuthor}
+                  onChangeText={setEditAuthor}
+                  placeholder="Author"
+                  placeholderTextColor={theme.colors.textSecondary}
+                  style={[
+                    styles.editInput,
+                    { color: theme.colors.text, borderColor: theme.colors.border },
+                  ]}
+                />
+
+                <Text style={[styles.editLabel, { color: theme.colors.textSecondary }]}>
+                  Summary
+                </Text>
+                <TextInput
+                  value={editSummary}
+                  onChangeText={setEditSummary}
+                  placeholder="Summary"
+                  placeholderTextColor={theme.colors.textSecondary}
+                  multiline
+                  style={[
+                    styles.editTextarea,
+                    { color: theme.colors.text, borderColor: theme.colors.border },
+                  ]}
+                />
+
+                <View style={styles.editActions}>
+                  <TouchableOpacity
+                    onPress={() => setIsEditInfoModalVisible(false)}
+                    style={[
+                      styles.editBtn,
+                      { backgroundColor: theme.colors.border },
+                    ]}
+                  >
+                    <Text style={[styles.editBtnText, { color: theme.colors.text }]}>
+                      Cancel
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={saveEditInfo}
+                    style={[
+                      styles.editBtn,
+                      { backgroundColor: theme.colors.primary },
+                    ]}
+                  >
+                    <Text style={[styles.editBtnText, { color: "#FFF" }]}>
+                      Save
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </KeyboardAvoidingView>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
@@ -2944,4 +3140,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   modalBtnText: { fontWeight: "800", fontSize: 14 },
+
+  // Edit info
+  editForm: { paddingHorizontal: 16, paddingBottom: 16, gap: 8 },
+  editLabel: { fontSize: 11, fontWeight: "700", marginTop: 4 },
+  editInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+  },
+  editTextarea: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    minHeight: 110,
+    textAlignVertical: "top",
+  },
+  editActions: { flexDirection: "row", gap: 10, marginTop: 8 },
+  editBtn: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  editBtnText: { fontWeight: "800", fontSize: 14 },
 });

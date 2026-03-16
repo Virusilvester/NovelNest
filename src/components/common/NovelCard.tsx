@@ -66,6 +66,7 @@ const NovelCardComponent: React.FC<NovelCardProps> = ({
             style={styles.listCover}
             contentFit="cover"
             cachePolicy="memory-disk"
+            recyclingKey={`${novel.id}-${novel.coverUrl}`}
           />
           {isSelectionMode ? (
             <View
@@ -242,6 +243,7 @@ const NovelCardComponent: React.FC<NovelCardProps> = ({
           style={styles.gridCover}
           contentFit="cover"
           cachePolicy="memory-disk"
+          recyclingKey={`${novel.id}-${novel.coverUrl}`}
         />
 
         {isSelectionMode ? (
