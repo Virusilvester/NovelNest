@@ -11,6 +11,7 @@ import React, {
 } from "react";
 import { ChapterDownloads } from "../services/chapterDownloads";
 import { AndroidProgressNotifications } from "../services/androidProgressNotifications";
+import { BackgroundTaskControls } from "../services/backgroundTaskControls";
 import { PluginRuntimeService } from "../services/pluginRuntime";
 import { useLibrary } from "./LibraryContext";
 import { useSettings } from "./SettingsContext";
@@ -299,6 +300,12 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
       title: paused ? "Downloads paused" : "Downloading chapters",
       body: chapterLine ? `${summary}\n${chapterLine}` : summary,
       progress: { indeterminate: true },
+      actions: [
+        {
+          id: "downloads_toggle_pause",
+          title: paused ? "Resume" : "Pause",
+        },
+      ],
     });
   }, [hydrated, paused, tasks]);
 
@@ -384,6 +391,13 @@ export const DownloadQueueProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const togglePaused = useCallback(() => setPaused((p) => !p), []);
+
+  useEffect(() => {
+    BackgroundTaskControls.registerToggleDownloadsPaused(togglePaused);
+    return () => {
+      BackgroundTaskControls.registerToggleDownloadsPaused(null);
+    };
+  }, [togglePaused]);
 
   const cancelTask = useCallback(
     (taskId: string) => {

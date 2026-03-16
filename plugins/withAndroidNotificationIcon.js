@@ -9,7 +9,7 @@ const { withDangerousMod } = require("@expo/config-plugins");
  * - Notifee `android.smallIcon`
  *
  * This runs during `expo prebuild` and writes into:
- *   android/app/src/main/res/drawable/notification_icon.xml
+ *   android/app/src/main/res/drawable/notification_icon.png
  */
 module.exports = function withAndroidNotificationIcon(config) {
   return withDangerousMod(config, [
@@ -28,25 +28,27 @@ module.exports = function withAndroidNotificationIcon(config) {
 
       await fs.promises.mkdir(drawableDir, { recursive: true });
 
-      const targetPath = path.join(drawableDir, "notification_icon.xml");
+      const targetPath = path.join(drawableDir, "notification_icon.png");
+      const sourcePath = path.join(
+        projectRoot,
+        "assets",
+        "images",
+        "android-icon-monochrome.png",
+      );
 
-      // Simple "book" icon path (24x24 viewport). Fill is white; Android tints it as needed.
-      const xml = `<?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-  android:width="24dp"
-  android:height="24dp"
-  android:viewportWidth="24"
-  android:viewportHeight="24">
-  <path
-    android:fillColor="#FFFFFFFF"
-    android:pathData="M18,2H6C4.9,2 4,2.9 4,4v16c0,1.1 0.9,2 2,2h12v-2H6V4h12v16h2V4C20,2.9 19.1,2 18,2zM8,6h8v2H8V6zM8,10h8v2H8V10zM8,14h6v2H8v-2z" />
-</vector>
-`;
-
-      await fs.promises.writeFile(targetPath, xml, "utf8");
+      if (fs.existsSync(sourcePath)) {
+        await fs.promises.copyFile(sourcePath, targetPath);
+      } else {
+        // Fallback: 1x1 transparent PNG.
+        const transparentPngBase64 =
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/6X8l6QAAAAASUVORK5CYII=";
+        await fs.promises.writeFile(
+          targetPath,
+          Buffer.from(transparentPngBase64, "base64"),
+        );
+      }
 
       return config;
     },
   ]);
 };
-

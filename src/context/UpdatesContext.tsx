@@ -15,6 +15,7 @@ import {
   NovelDetailCache,
 } from "../services/novelDetailCache";
 import { AndroidProgressNotifications } from "../services/androidProgressNotifications";
+import { BackgroundTaskControls } from "../services/backgroundTaskControls";
 import { PluginRuntimeService } from "../services/pluginRuntime";
 import type { CachedPluginChapter, CachedPluginNovelDetail, Novel } from "../types";
 import { detectChapterListOrder } from "../utils/chapterState";
@@ -192,6 +193,7 @@ export const UpdatesProvider: React.FC<{ children: React.ReactNode }> = ({
   const [progress, setProgress] = useState<UpdatesProgress>(null);
 
   const isCheckingRef = useRef(false);
+  const cancelCheckRef = useRef(false);
   const updatesRef = useRef(updates);
   useEffect(() => {
     updatesRef.current = updates;
@@ -270,6 +272,12 @@ export const UpdatesProvider: React.FC<{ children: React.ReactNode }> = ({
           max: progress.total,
           indeterminate: false,
         },
+        actions: [
+          {
+            id: "updates_cancel",
+            title: "Cancel",
+          },
+        ],
       });
       return;
     }
@@ -278,8 +286,26 @@ export const UpdatesProvider: React.FC<{ children: React.ReactNode }> = ({
       title: "Checking for updates",
       body: "Starting…",
       progress: { indeterminate: true },
+      actions: [
+        {
+          id: "updates_cancel",
+          title: "Cancel",
+        },
+      ],
     });
   }, [isChecking, progress]);
+
+  const cancelCheckForUpdates = useCallback(() => {
+    if (!isCheckingRef.current) return;
+    cancelCheckRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    BackgroundTaskControls.registerCancelUpdatesCheck(cancelCheckForUpdates);
+    return () => {
+      BackgroundTaskControls.registerCancelUpdatesCheck(null);
+    };
+  }, [cancelCheckForUpdates]);
 
   const persist = useCallback(async (next: PersistedUpdatesV1) => {
     try {
@@ -306,6 +332,7 @@ export const UpdatesProvider: React.FC<{ children: React.ReactNode }> = ({
       const now = Date.now();
 
       isCheckingRef.current = true;
+      cancelCheckRef.current = false;
       setIsChecking(true);
 
       try {
@@ -331,6 +358,7 @@ export const UpdatesProvider: React.FC<{ children: React.ReactNode }> = ({
           { length: Math.min(concurrency, toCheck.length) },
           async () => {
             while (true) {
+              if (cancelCheckRef.current) break;
               const index = nextIndex;
               nextIndex += 1;
               if (index >= toCheck.length) break;
@@ -506,6 +534,10 @@ export const UpdatesProvider: React.FC<{ children: React.ReactNode }> = ({
         );
 
         await Promise.all(workers);
+
+        if (cancelCheckRef.current) {
+          return { checked, added, errors };
+        }
 
         const mergedUpdates = (() => {
           const prev = updatesRef.current;

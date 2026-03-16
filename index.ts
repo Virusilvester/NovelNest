@@ -2,6 +2,7 @@ import { registerRootComponent } from "expo";
 import { enableScreens } from "react-native-screens";
 
 import App from "./App";
+import "./src/services/notifeeEvents";
 
 enableScreens(true);
 

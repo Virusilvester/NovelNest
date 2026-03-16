@@ -9,6 +9,10 @@ export type ProgressNotificationTask = {
     max?: number;
     indeterminate?: boolean;
   };
+  actions?: {
+    id: string;
+    title: string;
+  }[];
 };
 
 type InternalTask = ProgressNotificationTask & {
@@ -194,12 +198,17 @@ const flush = async () => {
         body: active.task.body ? String(active.task.body) : undefined,
         android: {
           channelId: CHANNEL_ID,
+          // Use app monochrome icon for notifications.
           smallIcon: "notification_icon",
           ongoing: true,
           autoCancel: false,
           onlyAlertOnce: true,
           color: "#00adb5",
           pressAction: { id: "default" },
+          actions: (active.task.actions || []).map((a) => ({
+            title: String(a.title),
+            pressAction: { id: String(a.id) },
+          })),
           progress: {
             indeterminate,
             max,
