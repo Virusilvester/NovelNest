@@ -15,6 +15,7 @@ import {
   Easing,
   Linking,
   Modal,
+  PanResponder,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -205,7 +206,7 @@ export const ChapterReader: React.FC<Props> = ({
   const { settings, updateReaderSettings, updateReaderSettingsBatch } =
     useSettings();
   const insets = useSafeAreaInsets();
-  const { width: viewportWidth } = useWindowDimensions();
+  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
 
   const webViewRef = useRef<any>(null);
   // FIX: separate cache from in-memory so downloaded chapters skip async fetch entirely
@@ -224,6 +225,93 @@ export const ChapterReader: React.FC<Props> = ({
   const [scrollProgress, setScrollProgress] = useState(0);
   const [reloadToken, setReloadToken] = useState(0);
   const [quickSettingsVisible, setQuickSettingsVisible] = useState(false);
+
+  const sheetMaxHeight = useMemo(
+    () => Math.min(Math.round(viewportHeight * 0.88), 720),
+    [viewportHeight],
+  );
+  const sheetMinHeight = useMemo(
+    () => Math.min(Math.round(viewportHeight * 0.45), 420),
+    [viewportHeight],
+  );
+  const sheetCollapsedY = useMemo(
+    () => Math.max(0, sheetMaxHeight - sheetMinHeight),
+    [sheetMaxHeight, sheetMinHeight],
+  );
+
+  const sheetTranslateY = useRef(new Animated.Value(sheetMaxHeight)).current;
+  const sheetDragStartY = useRef(0);
+
+  const clamp = useCallback((v: number, min: number, max: number) => {
+    return Math.max(min, Math.min(max, v));
+  }, []);
+
+  const closeQuickSettings = useCallback(() => {
+    Animated.timing(sheetTranslateY, {
+      toValue: sheetMaxHeight,
+      duration: 180,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) setQuickSettingsVisible(false);
+    });
+  }, [sheetMaxHeight, sheetTranslateY]);
+
+  const sheetPanResponder = useMemo(() => {
+    return PanResponder.create({
+      onMoveShouldSetPanResponder: (_evt, g) =>
+        Math.abs(g.dy) > 4 && Math.abs(g.dy) > Math.abs(g.dx),
+      onPanResponderGrant: () => {
+        sheetTranslateY.stopAnimation((value) => {
+          sheetDragStartY.current = typeof value === "number" ? value : 0;
+        });
+      },
+      onPanResponderMove: (_evt, g) => {
+        const next = clamp(
+          sheetDragStartY.current + g.dy,
+          0,
+          sheetMaxHeight,
+        );
+        sheetTranslateY.setValue(next);
+      },
+      onPanResponderRelease: (_evt, g) => {
+        const current = clamp(
+          sheetDragStartY.current + g.dy,
+          0,
+          sheetMaxHeight,
+        );
+
+        const shouldClose =
+          current > sheetMaxHeight * 0.6 || (g.vy > 1.4 && g.dy > 40);
+        if (shouldClose) {
+          closeQuickSettings();
+          return;
+        }
+
+        const shouldExpand =
+          current < sheetCollapsedY / 2 || (g.vy < -1.2 && g.dy < -40);
+        const dest = shouldExpand ? 0 : sheetCollapsedY;
+
+        Animated.spring(sheetTranslateY, {
+          toValue: dest,
+          useNativeDriver: true,
+          bounciness: 0,
+          speed: 20,
+        }).start();
+      },
+    });
+  }, [clamp, closeQuickSettings, sheetCollapsedY, sheetMaxHeight, sheetTranslateY]);
+
+  useEffect(() => {
+    if (!quickSettingsVisible) return;
+    sheetTranslateY.setValue(sheetMaxHeight);
+    Animated.timing(sheetTranslateY, {
+      toValue: sheetCollapsedY,
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [quickSettingsVisible, sheetCollapsedY, sheetMaxHeight, sheetTranslateY]);
 
   // ── Animation for top/bottom bars ────────────────────────────────────────
   const barsAnim = useRef(new Animated.Value(0)).current; // 0=hidden, 1=visible
@@ -1213,58 +1301,56 @@ export const ChapterReader: React.FC<Props> = ({
       <Modal
         visible={quickSettingsVisible}
         transparent
-        animationType="slide"
-        onRequestClose={() => setQuickSettingsVisible(false)}
+        animationType="fade"
+        onRequestClose={closeQuickSettings}
         statusBarTranslucent
       >
         <TouchableOpacity
           activeOpacity={1}
           style={styles.sheetOverlay}
-          onPress={() => setQuickSettingsVisible(false)}
+          onPress={closeQuickSettings}
         >
-          <TouchableOpacity
-            activeOpacity={1}
-            style={[
-              styles.sheetCard,
-              {
-                backgroundColor: theme.colors.surface,
-                paddingBottom: Math.max(insets.bottom, 20),
-              },
-            ]}
-            onPress={() => {}}
-          >
-            {/* Handle pill */}
-            <View
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <Animated.View
               style={[
-                styles.sheetHandle,
-                { backgroundColor: theme.colors.border },
+                styles.sheetCard,
+                {
+                  backgroundColor: theme.colors.surface,
+                  paddingBottom: Math.max(insets.bottom, 20),
+                  height: sheetMaxHeight,
+                  transform: [{ translateY: sheetTranslateY }],
+                },
               ]}
-            />
-
-            {/* Header */}
-            <View style={styles.sheetHeader}>
-              <Text style={[styles.sheetTitle, { color: theme.colors.text }]}>
-                Reading Settings
-              </Text>
-              <TouchableOpacity
-                onPress={() => setQuickSettingsVisible(false)}
-                style={[
-                  styles.sheetCloseBtn,
-                  { backgroundColor: theme.colors.border },
-                ]}
-              >
-                <Ionicons
-                  name="close"
-                  size={16}
-                  color={theme.colors.textSecondary}
-                />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              style={{ maxHeight: 480 }}
             >
+              <View {...sheetPanResponder.panHandlers}>
+                <View
+                  style={[
+                    styles.sheetHandle,
+                    { backgroundColor: theme.colors.border },
+                  ]}
+                />
+
+                <View style={styles.sheetHeader}>
+                  <Text style={[styles.sheetTitle, { color: theme.colors.text }]}>
+                    Reading Settings
+                  </Text>
+                  <TouchableOpacity
+                    onPress={closeQuickSettings}
+                    style={[
+                      styles.sheetCloseBtn,
+                      { backgroundColor: theme.colors.border },
+                    ]}
+                  >
+                    <Ionicons
+                      name="close"
+                      size={16}
+                      color={theme.colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
               {/* ── Colour themes ────────────────────────────── */}
               <View style={styles.qs_section}>
                 <Text
@@ -1798,10 +1884,10 @@ export const ChapterReader: React.FC<Props> = ({
                   { borderColor: theme.colors.divider },
                 ]}
                 onPress={() => {
-                  setQuickSettingsVisible(false);
+                  closeQuickSettings();
                   setTimeout(
                     () => (navigation as any).navigate("ReaderSettings"),
-                    200,
+                    240,
                   );
                 }}
               >
@@ -1817,6 +1903,7 @@ export const ChapterReader: React.FC<Props> = ({
                 />
               </TouchableOpacity>
             </ScrollView>
+            </Animated.View>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>

@@ -19,7 +19,7 @@ import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
 import type { RootStackParamList } from "../../navigation/types";
 import { PluginRuntimeService } from "../../services/pluginRuntime";
-import type { Novel, SourceSortOption } from "../../types";
+import type { Novel } from "../../types";
 
 type SearchItem = { name: string; cover?: string; path: string };
 const isSearchItem = (value: any): value is SearchItem =>
@@ -43,8 +43,6 @@ export const SourceDetailScreen: React.FC = () => {
 
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortOption, setSortOption] = useState<SourceSortOption>("popular");
-  const [isFilterVisible, setIsFilterVisible] = useState(false);
   const [isMoreVisible, setIsMoreVisible] = useState(false);
   const [displayMode, setDisplayMode] = useState<"compactGrid" | "list">(
     "compactGrid",
@@ -60,27 +58,19 @@ export const SourceDetailScreen: React.FC = () => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const lastSubmittedQueryRef = React.useRef<string>("");
 
-  const pickBrowseFn = React.useCallback(
-    (instance: any) => {
-      if (
-        sortOption === "latest" &&
-        typeof instance.latestNovels === "function"
-      ) {
-        return (p: number) => instance.latestNovels(p);
-      }
-      if (typeof instance.popularNovels === "function") {
-        return (p: number) => instance.popularNovels(p);
-      }
-      if (typeof instance.latestNovels === "function") {
-        return (p: number) => instance.latestNovels(p);
-      }
-      if (typeof instance.searchNovels === "function") {
-        return (p: number) => instance.searchNovels("", p);
-      }
-      return null;
-    },
-    [sortOption],
-  );
+  const pickBrowseFn = React.useCallback((instance: any) => {
+    // No client-side sorting: use source-provided ordering.
+    if (typeof instance.popularNovels === "function") {
+      return (p: number) => instance.popularNovels(p);
+    }
+    if (typeof instance.latestNovels === "function") {
+      return (p: number) => instance.latestNovels(p);
+    }
+    if (typeof instance.searchNovels === "function") {
+      return (p: number) => instance.searchNovels("", p);
+    }
+    return null;
+  }, []);
 
   const loadPage = React.useCallback(async (
     opts: { pageNo: number; reset: boolean; query: string },
@@ -146,7 +136,7 @@ export const SourceDetailScreen: React.FC = () => {
       await loadPage({ pageNo: 1, reset: true, query: "" });
     };
     load();
-  }, [loadPage, plugin, sortOption]);
+  }, [loadPage, plugin]);
 
   const refresh = async () => {
     if (!plugin || !plugin.enabled) return;
@@ -189,18 +179,7 @@ export const SourceDetailScreen: React.FC = () => {
     await loadPage({ pageNo: 1, reset: true, query });
   };
 
-  const displayedResults = useMemo(() => {
-    const items = [...results];
-    switch (sortOption) {
-      case "completed":
-      case "latest":
-      case "topRated":
-      case "popular":
-      default:
-        items.sort((a, b) => a.name.localeCompare(b.name));
-        return items;
-    }
-  }, [results, sortOption]);
+  const displayedResults = useMemo(() => results, [results]);
 
   const displayedNovels: Novel[] = useMemo(() => {
     const sourceLabel = plugin?.name || headerTitle;
@@ -277,7 +256,6 @@ export const SourceDetailScreen: React.FC = () => {
         setIsSelectionMode(true);
         setSelectedIds(new Set([novel.id]));
         setIsSearchActive(false);
-        setIsFilterVisible(false);
         setIsMoreVisible(false);
         return;
       }
@@ -389,13 +367,6 @@ export const SourceDetailScreen: React.FC = () => {
     await loadPage({ pageNo: page + 1, reset: false, query: searchQuery.trim() });
   };
 
-  const filterItems = [
-    { id: "popular", label: "Popular", onPress: () => setSortOption("popular") },
-    { id: "latest", label: "Latest", onPress: () => setSortOption("latest") },
-    { id: "topRated", label: "Top Rated", onPress: () => setSortOption("topRated") },
-    { id: "completed", label: "Completed", onPress: () => setSortOption("completed") },
-  ];
-
   const moreItems = [
     {
       id: "displayMode",
@@ -461,12 +432,6 @@ export const SourceDetailScreen: React.FC = () => {
                 </TouchableOpacity>
                 <TouchableOpacity onPress={refresh} style={styles.iconButton}>
                   <Ionicons name="refresh" size={24} color={theme.colors.text} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setIsFilterVisible(true)}
-                  style={styles.iconButton}
-                >
-                  <Ionicons name="filter" size={24} color={theme.colors.text} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => setIsMoreVisible(true)}
@@ -555,18 +520,6 @@ export const SourceDetailScreen: React.FC = () => {
           onNovelLongPress={handleNovelLongPress}
         />
       )}
-
-      <PopupMenu
-        visible={isFilterVisible}
-        onClose={() => setIsFilterVisible(false)}
-        items={filterItems.map((item) => ({
-          ...item,
-          onPress: () => {
-            item.onPress();
-            setIsFilterVisible(false);
-          },
-        }))}
-      />
 
       <PopupMenu
         visible={isMoreVisible}

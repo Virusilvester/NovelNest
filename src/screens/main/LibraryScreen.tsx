@@ -1,6 +1,7 @@
 // src/screens/main/LibraryScreen.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import * as DocumentPicker from "expo-document-picker";
 import React, { useCallback, useMemo, useState } from "react";
 import {
   Alert,
@@ -16,14 +17,18 @@ import { PopupMenu } from "../../components/common/PopupMenu";
 import { CategoryTabs } from "../../components/library/CategoryTabs";
 import { NovelGrid } from "../../components/library/NovelGrid";
 import { useLibrary } from "../../context/LibraryContext";
+import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
 import { useUpdates } from "../../context/UpdatesContext";
 import type { MainDrawerNavigationProp } from "../../navigation/navigationTypes";
+import { AndroidProgressNotifications } from "../../services/androidProgressNotifications";
+import { EpubImportService } from "../../services/epubImport";
 import { Novel } from "../../types";
 
 export const LibraryScreen: React.FC = () => {
   const navigation = useNavigation<MainDrawerNavigationProp>();
   const { theme } = useTheme();
+  const { settings } = useSettings();
   const {
     categories,
     selectedCategoryId,
@@ -42,6 +47,7 @@ export const LibraryScreen: React.FC = () => {
     setShowItemCount,
     getFilteredNovels,
     novels,
+    addNovel,
     updateNovel,
     removeNovel,
   } = useLibrary();
@@ -145,6 +151,91 @@ export const LibraryScreen: React.FC = () => {
     Alert.alert("Library updated", base + extra);
   }, [checkForUpdates, isUpdateChecking, navigation]);
 
+  const defaultCategoryId = useMemo(() => {
+    if (selectedCategoryId && selectedCategoryId !== "all") return selectedCategoryId;
+    const list = Array.isArray(categories) ? categories : [];
+    const choices = list
+      .filter((c) => c && c.id && c.id !== "all")
+      .slice()
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    if (choices.some((c) => c.id === "reading")) return "reading";
+    return choices[0]?.id || "all";
+  }, [categories, selectedCategoryId]);
+
+  const [isEpubImporting, setIsEpubImporting] = useState(false);
+  const handleImportEpub = useCallback(async () => {
+    if (isEpubImporting) return;
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["application/epub+zip", "application/octet-stream", "*/*"],
+        multiple: false,
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+      const asset = result.assets[0];
+      const uri = asset.uri;
+      const filename = String(asset.name || "book.epub");
+
+      setIsEpubImporting(true);
+      AndroidProgressNotifications.setTask("epubImport", {
+        title: "Importing EPUB",
+        body: filename,
+        progress: { indeterminate: true },
+      });
+
+      const novel = await EpubImportService.importFromUri({
+        uri,
+        filename,
+        defaultCategoryId,
+        languageFallback: settings.general.language || "en",
+        onProgress: (p) => {
+          if (p.stage === "chapters") {
+            AndroidProgressNotifications.setTask("epubImport", {
+              title: "Importing EPUB",
+              body: `${p.text}\n${p.current}/${p.total}`,
+              progress: {
+                current: p.current,
+                max: p.total,
+                indeterminate: false,
+              },
+            });
+            return;
+          }
+          AndroidProgressNotifications.setTask("epubImport", {
+            title: "Importing EPUB",
+            body: p.text,
+            progress: { indeterminate: true },
+          });
+        },
+      });
+
+      addNovel(novel);
+      Alert.alert(
+        "Import Complete",
+        `"${novel.title}" was added to your library.`,
+        [
+          { text: "OK", style: "cancel" },
+          {
+            text: "Open",
+            onPress: () =>
+              (navigation as any).navigate("NovelDetail", { novelId: novel.id }),
+          },
+        ],
+      );
+    } catch (e: any) {
+      Alert.alert("Import Failed", e?.message || "Could not import EPUB.");
+    } finally {
+      AndroidProgressNotifications.clearTask("epubImport");
+      setIsEpubImporting(false);
+    }
+  }, [
+    addNovel,
+    defaultCategoryId,
+    isEpubImporting,
+    navigation,
+    settings.general.language,
+  ]);
+
   const getItemCount = useCallback(
     (categoryId: string) => {
       if (categoryId === "all") return novels.length;
@@ -158,6 +249,11 @@ export const LibraryScreen: React.FC = () => {
       id: "update",
       label: "Update library",
       onPress: handleUpdateLibrary,
+    },
+    {
+      id: "importEpub",
+      label: "Import EPUB",
+      onPress: handleImportEpub,
     },
   ];
 
