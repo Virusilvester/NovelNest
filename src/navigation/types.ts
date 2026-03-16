@@ -21,6 +21,7 @@ export type RootStackParamList = {
     chapterTitle?: string;
   };
   Settings: undefined;
+  Appearance: undefined;
   EditCategories: undefined;
   ReaderSettings: undefined;
   ReaderTheme: undefined;

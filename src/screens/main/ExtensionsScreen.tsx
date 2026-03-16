@@ -22,6 +22,7 @@ import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
 import type { MainDrawerNavigationProp } from "../../navigation/navigationTypes";
 import { ExtensionsService } from "../../services/extensions";
+import { getString } from "../../strings/translations";
 import type { ExtensionRepoPlugin } from "../../types";
 
 type RepoPlugin = ExtensionRepoPlugin & { repoUrl: string };
@@ -173,7 +174,10 @@ export const ExtensionsScreen: React.FC = () => {
     const normalized = ExtensionsService.normalizeRepoUrl(newRepoUrl);
     if (!normalized) return;
     if (!/^https?:\/\//i.test(normalized)) {
-      Alert.alert("Invalid URL", "Repository URL must start with http(s)://");
+      Alert.alert(
+        getString("extensions.alerts.invalidUrlTitle"),
+        getString("extensions.alerts.invalidUrlBody"),
+      );
       return;
     }
     await addExtensionRepository(normalized);
@@ -181,10 +185,10 @@ export const ExtensionsScreen: React.FC = () => {
   };
 
   const handleRemoveRepo = async (repoUrl: string) => {
-    Alert.alert("Remove repository?", repoUrl, [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(getString("extensions.alerts.removeRepoTitle"), repoUrl, [
+      { text: getString("common.cancel"), style: "cancel" },
       {
-        text: "Remove",
+        text: getString("extensions.alerts.remove"),
         style: "destructive",
         onPress: async () => removeExtensionRepository(repoUrl),
       },
@@ -214,12 +218,15 @@ export const ExtensionsScreen: React.FC = () => {
 
       if (!localPath) {
         Alert.alert(
-          "Installed",
-          "Plugin metadata saved, but file download is not supported on this platform.",
+          getString("extensions.alerts.installedTitle"),
+          getString("extensions.alerts.installedBody"),
         );
       }
     } catch (e: any) {
-      Alert.alert("Error", e?.message || "Failed to install/uninstall plugin.");
+      Alert.alert(
+        getString("extensions.alerts.errorTitle"),
+        e?.message || getString("extensions.alerts.errorBody"),
+      );
     } finally {
       setInstallingIds((prev) => ({ ...prev, [plugin.id]: false }));
     }
@@ -321,7 +328,7 @@ export const ExtensionsScreen: React.FC = () => {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       <Header
-        title="Extensions"
+        title={getString("screens.extensions.title")}
         onMenuPress={() => navigation.openDrawer()}
         isSearchActive={isSearchActive}
         searchQuery={searchQuery}

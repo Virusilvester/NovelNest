@@ -27,6 +27,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { useUpdates } from "../../context/UpdatesContext";
 import { EpubImportService } from "../../services/epubImport";
 import { AndroidProgressNotifications } from "../../services/androidProgressNotifications";
+import { getString } from "../../strings/translations";
 import { StartScreen } from "../../types";
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
@@ -131,7 +132,7 @@ const Row: React.FC<RowProps> = ({
   );
 };
 
-// ── Main screen ───────────────────────────────────────────────────────────────
+// ---- Main screen ----
 
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -139,7 +140,6 @@ export const SettingsScreen: React.FC = () => {
   const {
     settings,
     updateGeneralSettings,
-    updateDisplaySettings,
     updateAutoDownloadSettings,
     updateUpdatesSettings,
     setDownloadLocation,
@@ -359,7 +359,7 @@ export const SettingsScreen: React.FC = () => {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       <Header
-        title="Settings"
+        title={getString("settings.title")}
         onBackPress={() => navigation.goBack()}
         rightButtons={
           <TouchableOpacity
@@ -381,28 +381,16 @@ export const SettingsScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
       >
         {/* General */}
-        <Section title="General">
+        <Section title={getString("settings.sections.general")}>
           <Row
             icon="home-outline"
-            label="Start screen"
+            label={getString("settings.general.startScreen")}
             subtitle={getStartScreenLabel(settings.general.startScreen)}
             onPress={() => setShowStartScreenModal(true)}
           />
           <Row
-            icon="language-outline"
-            label="Language"
-            subtitle={
-              settings.general.language === "en"
-                ? "English"
-                : settings.general.language
-            }
-            onPress={() => {
-              /* show language picker */
-            }}
-          />
-          <Row
             icon="folder-open-outline"
-            label="Download location"
+            label={getString("settings.general.downloadLocation")}
             subtitle={downloadLocationLabel}
             onPress={handleSelectDownloadLocation}
           />
@@ -480,28 +468,24 @@ export const SettingsScreen: React.FC = () => {
         </Section>
 
         {/* Appearance */}
-        <Section title="Appearance">
+        <Section title={getString("settings.sections.appearance")}>
           <Row
-            icon={
-              settings.display.theme === "dark"
-                ? "moon-outline"
-                : "sunny-outline"
+            icon="color-palette-outline"
+            label={getString("settings.sections.appearance")}
+            subtitle={
+              settings.display.theme === "system"
+                ? getString("settings.appearance.themeSystem")
+                : settings.display.theme === "dark"
+                  ? getString("settings.appearance.themeDark")
+                  : getString("settings.appearance.themeLight")
             }
-            label="Dark mode"
+            onPress={() => navigation.navigate("Appearance")}
             isLast
-            rightElement={
-              <ImprovedSwitch
-                value={settings.display.theme === "dark"}
-                onValueChange={(v) =>
-                  updateDisplaySettings("theme", v ? "dark" : "light")
-                }
-              />
-            }
           />
         </Section>
 
         {/* Reader */}
-        <Section title="Reader">
+        <Section title={getString("settings.sections.reader")}>
           <Row
             icon="settings-outline"
             label="General"
@@ -521,7 +505,7 @@ export const SettingsScreen: React.FC = () => {
         </Section>
 
         {/* Tracking */}
-        <Section title="Tracking">
+        <Section title={getString("settings.sections.tracking")}>
           <Row
             icon="analytics-outline"
             label="Services"
@@ -531,7 +515,7 @@ export const SettingsScreen: React.FC = () => {
         </Section>
 
         {/* Backup */}
-        <Section title="Backup">
+        <Section title={getString("settings.sections.backup")}>
           <Row
             icon="cloud-outline"
             label="Remote Backup"
@@ -546,7 +530,7 @@ export const SettingsScreen: React.FC = () => {
         </Section>
 
         {/* Advanced */}
-        <Section title="Advanced">
+        <Section title={getString("settings.sections.advanced")}>
           <Row
             icon="server-outline"
             label="Data Management"
@@ -557,7 +541,7 @@ export const SettingsScreen: React.FC = () => {
         </Section>
 
         {/* About */}
-        <Section title="About">
+        <Section title={getString("settings.sections.about")}>
           <Row
             icon="information-circle-outline"
             label="Version"

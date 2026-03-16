@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useState,
 } from "react";
+import { useColorScheme } from "react-native";
 import { darkTheme, lightTheme, Theme } from "../theme";
 import { useSettings } from "./SettingsContext";
 
@@ -22,16 +23,24 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const settingsContext = useSettings();
+  const systemScheme = useColorScheme();
 
   const [isDark, setIsDark] = useState(() => {
     // Initialize from settings if available, otherwise default to false
-    return settingsContext.settings.display.theme === "dark";
+    const pref = settingsContext.settings.display.theme;
+    if (pref === "system") return systemScheme === "dark";
+    return pref === "dark";
   });
 
   // Sync with settings when they change
   useEffect(() => {
-    setIsDark(settingsContext.settings.display.theme === "dark");
-  }, [settingsContext.settings.display.theme]);
+    const pref = settingsContext.settings.display.theme;
+    if (pref === "system") {
+      setIsDark(systemScheme === "dark");
+      return;
+    }
+    setIsDark(pref === "dark");
+  }, [settingsContext.settings.display.theme, systemScheme]);
 
   const toggleTheme = useCallback(() => {
     const newValue = !isDark;

@@ -13,8 +13,11 @@ import { UpdatesProvider } from "./src/context/UpdatesContext";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 import { AndroidProgressNotifications } from "./src/services/androidProgressNotifications";
 import { FirstInstallService } from "./src/services/firstInstall";
+import { useLocale } from "./src/strings/useLocale";
 
 export default function App() {
+  useLocale();
+
   useEffect(() => {
     void AndroidProgressNotifications.dismissStaleNotification();
     void FirstInstallService.runOnce();

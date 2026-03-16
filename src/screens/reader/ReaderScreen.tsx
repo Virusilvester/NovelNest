@@ -12,6 +12,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { ChapterDownloads } from "../../services/chapterDownloads";
 import { NovelDetailCache } from "../../services/novelDetailCache";
 import { PluginRuntimeService } from "../../services/pluginRuntime";
+import { getString } from "../../strings/translations";
 import type { Chapter } from "../../types";
 
 const isAbsoluteUrl = (url: string) => {
@@ -441,12 +442,12 @@ export const ReaderScreen: React.FC = () => {
         style={[styles.container, { backgroundColor: theme.colors.background }]}
       >
         <Header
-          title="Reader"
+          title={getString("screens.reader.title")}
           onBackPress={() => (navigation as any).goBack()}
         />
         <View style={styles.center}>
           <Text style={[styles.message, { color: theme.colors.error }]}>
-            Novel not found.
+            {getString("reader.errors.novelNotFound")}
           </Text>
         </View>
       </View>
@@ -459,12 +460,12 @@ export const ReaderScreen: React.FC = () => {
         style={[styles.container, { backgroundColor: theme.colors.background }]}
       >
         <Header
-          title="Reader"
+          title={getString("screens.reader.title")}
           onBackPress={() => (navigation as any).goBack()}
         />
         <View style={styles.center}>
           <Text style={[styles.message, { color: theme.colors.textSecondary }]}>
-            This novel has no source and cannot be read.
+            {getString("reader.errors.noSource")}
           </Text>
         </View>
       </View>

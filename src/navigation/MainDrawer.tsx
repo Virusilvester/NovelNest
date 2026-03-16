@@ -11,6 +11,7 @@ import { LibraryScreen } from "../screens/main/LibraryScreen";
 import { SourcesScreen } from "../screens/main/SourcesScreen";
 import { UpdatesScreen } from "../screens/main/UpdatesScreen";
 import { SettingsScreen } from "../screens/settings/SettingsScreen";
+import { getString } from "../strings/translations";
 import { getDrawerWidth } from "../utils/responsive";
 import { CustomDrawerContent } from "./CustomDrawerContent";
 import { MainDrawerParamList } from "./types";
@@ -45,6 +46,7 @@ export const MainDrawer: React.FC<{
         name="Library"
         component={LibraryScreen}
         options={{
+          drawerLabel: getString("screens.library.title"),
           drawerIcon: ({ color }) => (
             <Ionicons name="library" size={24} color={color} />
           ),
@@ -54,6 +56,7 @@ export const MainDrawer: React.FC<{
         name="Updates"
         component={UpdatesScreen}
         options={{
+          drawerLabel: getString("screens.updates.title"),
           drawerIcon: ({ color }) => (
             <Ionicons name="notifications" size={24} color={color} />
           ),
@@ -63,6 +66,7 @@ export const MainDrawer: React.FC<{
         name="History"
         component={HistoryScreen}
         options={{
+          drawerLabel: getString("screens.history.title"),
           drawerIcon: ({ color }) => (
             <Ionicons name="time" size={24} color={color} />
           ),
@@ -72,6 +76,7 @@ export const MainDrawer: React.FC<{
         name="Sources"
         component={SourcesScreen}
         options={{
+          drawerLabel: getString("screens.sources.title"),
           drawerIcon: ({ color }) => (
             <Ionicons name="globe" size={24} color={color} />
           ),
@@ -81,6 +86,7 @@ export const MainDrawer: React.FC<{
         name="Extensions"
         component={ExtensionsScreen}
         options={{
+          drawerLabel: getString("screens.extensions.title"),
           drawerIcon: ({ color }) => (
             <Ionicons name="cube" size={24} color={color} />
           ),
@@ -90,6 +96,7 @@ export const MainDrawer: React.FC<{
         name="DownloadQueue"
         component={DownloadQueueScreen}
         options={{
+          drawerLabel: getString("screens.downloadQueue.title"),
           drawerIcon: ({ color }) => (
             <Ionicons name="download" size={24} color={color} />
           ),
@@ -99,6 +106,7 @@ export const MainDrawer: React.FC<{
         name="Settings"
         component={SettingsScreen}
         options={{
+          drawerLabel: getString("settings.title"),
           drawerIcon: ({ color }) => (
             <Ionicons name="settings" size={24} color={color} />
           ),

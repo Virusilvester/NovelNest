@@ -20,6 +20,7 @@ import { useHistory } from "../../context/HistoryContext";
 import { useLibrary } from "../../context/LibraryContext";
 import { useTheme } from "../../context/ThemeContext";
 import { DatabaseService, BackupPayload } from "../../services/database";
+import { getString, t } from "../../strings/translations";
 
 interface DataActionProps {
   title: string;
@@ -155,13 +156,19 @@ export const LegacyBackupScreen: React.FC = () => {
       if (Platform.OS !== "android" && (await Sharing.isAvailableAsync())) {
         await Sharing.shareAsync(uri, {
           mimeType: "application/json",
-          dialogTitle: "Share NovelNest backup",
+          dialogTitle: getString("backup.shareTitle"),
         });
       } else {
-        Alert.alert("Backup Exported", `Saved to:\n${uri}`);
+        Alert.alert(
+          getString("backup.exportedTitle"),
+          t("backup.savedTo", { uri }),
+        );
       }
     } catch (e: any) {
-      Alert.alert("Export Failed", e?.message || "Could not export backup.");
+      Alert.alert(
+        getString("backup.exportFailedTitle"),
+        e?.message || getString("backup.exportFailedBody"),
+      );
     } finally {
       setIsLoading(false);
     }
@@ -194,16 +201,24 @@ export const LegacyBackupScreen: React.FC = () => {
 
       await new Promise<void>((resolve, reject) => {
         Alert.alert(
-          "Confirm Import",
-          `You are about to ${mode === "replace" ? "replace" : "merge"} your library with this backup:\n\n${summaryLines}\n\nProceed?`,
+          getString("backup.confirmImportTitle"),
+          t(
+            mode === "replace"
+              ? "backup.confirmImportBodyReplace"
+              : "backup.confirmImportBodyMerge",
+            { summary: summaryLines },
+          ),
           [
             {
-              text: "Cancel",
+              text: getString("common.cancel"),
               style: "cancel",
               onPress: () => reject(new Error("Import cancelled")),
             },
             {
-              text: mode === "replace" ? "Replace" : "Merge",
+              text:
+                mode === "replace"
+                  ? getString("backup.actions.replace")
+                  : getString("backup.actions.merge"),
               style: mode === "replace" ? "destructive" : "default",
               onPress: () => resolve(),
             },
@@ -220,17 +235,20 @@ export const LegacyBackupScreen: React.FC = () => {
       const hasSettingsInBackup = !!(parsed as any).settings;
 
       const settingsNote = hasSettingsInBackup
-        ? "\n\nNote: Settings from this backup have also been applied and will fully take effect after restarting the app."
+        ? `\n\n${getString("backup.settingsNote")}`
         : "";
 
       Alert.alert(
-        "Import Complete",
+        getString("backup.importCompleteTitle"),
         (mode === "replace"
-          ? "Your library database was replaced with the backup."
-          : "Backup was merged into your library database.") + settingsNote,
+          ? getString("backup.importCompleteReplaced")
+          : getString("backup.importCompleteMerged")) + settingsNote,
       );
     } catch (e: any) {
-      Alert.alert("Import Failed", e?.message || "Could not import backup.");
+      Alert.alert(
+        getString("backup.importFailedTitle"),
+        e?.message || getString("backup.importFailedBody"),
+      );
     } finally {
       setIsLoading(false);
     }
@@ -246,20 +264,23 @@ export const LegacyBackupScreen: React.FC = () => {
       if (result.canceled || !result.assets?.[0]?.uri) return;
       const uri = result.assets[0].uri;
 
-      Alert.alert("Import Backup", "How do you want to import this backup?", [
-        { text: "Cancel", style: "cancel" },
+      Alert.alert(getString("backup.importPickTitle"), getString("backup.importPickBody"), [
+        { text: getString("common.cancel"), style: "cancel" },
         {
-          text: "Merge",
+          text: getString("backup.actions.merge"),
           onPress: () => void importBackupFromUri(uri, "merge"),
         },
         {
-          text: "Replace",
+          text: getString("backup.actions.replace"),
           style: "destructive",
           onPress: () => void importBackupFromUri(uri, "replace"),
         },
       ]);
     } catch (e: any) {
-      Alert.alert("Import Failed", e?.message || "Could not open file picker.");
+      Alert.alert(
+        getString("backup.importFailedTitle"),
+        e?.message || getString("backup.importPickerFailedBody"),
+      );
     }
   };
 
@@ -267,7 +288,10 @@ export const LegacyBackupScreen: React.FC = () => {
     <View
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
-      <Header title="Legacy Backup" onBackPress={() => navigation.goBack()} />
+      <Header
+        title={getString("screens.legacyBackup.title")}
+        onBackPress={() => navigation.goBack()}
+      />
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.contentContainer}
@@ -277,18 +301,18 @@ export const LegacyBackupScreen: React.FC = () => {
           <Text
             style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}
           >
-            Backups
+            {getString("backup.sectionTitle")}
           </Text>
           <DataAction
-            title="Export backup"
-            description="Save your library, history, and settings to a JSON file"
+            title={getString("backup.export.title")}
+            description={getString("backup.export.description")}
             icon="download-outline"
             onPress={() => void handleExportBackup()}
             isLoading={isLoading}
           />
           <DataAction
-            title="Import backup"
-            description="Restore a previously exported JSON backup"
+            title={getString("backup.import.title")}
+            description={getString("backup.import.description")}
             icon="cloud-upload-outline"
             onPress={() => void handleImportBackup()}
             isLoading={isLoading}
@@ -299,7 +323,7 @@ export const LegacyBackupScreen: React.FC = () => {
           <Text
             style={[styles.footerText, { color: theme.colors.textSecondary }]}
           >
-            Backups are stored as JSON files.
+            {getString("backup.footer")}
           </Text>
         </View>
       </ScrollView>

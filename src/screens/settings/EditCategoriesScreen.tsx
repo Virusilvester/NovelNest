@@ -15,6 +15,7 @@ import {
 import { Header } from "../../components/common/Header";
 import { useLibrary } from "../../context/LibraryContext";
 import { useTheme } from "../../context/ThemeContext";
+import { getString, t } from "../../strings/translations";
 
 export const EditCategoriesScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -32,12 +33,12 @@ export const EditCategoriesScreen: React.FC = () => {
 
   const handleDeleteCategory = (id: string, name: string) => {
     Alert.alert(
-      "Delete category",
-      `Remove "${name}" from your library? Novels in this category will become uncategorised.`,
+      getString("categories.delete.title"),
+      t("categories.delete.body", { name }),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: getString("common.cancel"), style: "cancel" },
         {
-          text: "Delete",
+          text: getString("categories.delete.action"),
           style: "destructive",
           onPress: () => removeCategory(id),
         },
@@ -101,7 +102,10 @@ export const EditCategoriesScreen: React.FC = () => {
     <View
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
-      <Header title="Categories" onBackPress={() => navigation.goBack()} />
+      <Header
+        title={getString("screens.categories.title")}
+        onBackPress={() => navigation.goBack()}
+      />
 
       {/* Add new */}
       <View style={styles.addSection}>

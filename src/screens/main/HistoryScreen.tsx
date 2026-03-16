@@ -17,6 +17,7 @@ import { Header } from "../../components/common/Header";
 import { useHistory } from "../../context/HistoryContext";
 import { useTheme } from "../../context/ThemeContext";
 import type { MainDrawerNavigationProp } from "../../navigation/navigationTypes";
+import { getString, t } from "../../strings/translations";
 import { HistoryEntry } from "../../types";
 
 type HistoryGroup = {
@@ -107,12 +108,12 @@ export const HistoryScreen: React.FC = () => {
   const handleRemovePress = useCallback(
     (entry: HistoryEntry) => {
       Alert.alert(
-        "Remove from History",
-        `Remove "${entry.novel.title}" from your reading history?`,
+        getString("history.remove.title"),
+        t("history.remove.body", { title: entry.novel.title }),
         [
-          { text: "Cancel", style: "cancel" },
+          { text: getString("common.cancel"), style: "cancel" },
           {
-            text: "Remove",
+            text: getString("history.remove.action"),
             style: "destructive",
             onPress: () => removeFromHistory(entry.id),
           },
@@ -291,7 +292,7 @@ export const HistoryScreen: React.FC = () => {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       <Header
-        title="History"
+        title={getString("screens.history.title")}
         onMenuPress={() => navigation.openDrawer()}
         isSearchActive={isSearchActive}
         searchQuery={searchQuery}

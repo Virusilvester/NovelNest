@@ -149,7 +149,7 @@ export interface AppSettings {
     downloadLocation: string | null;
   };
   display: {
-    theme: "dark" | "light";
+    theme: "dark" | "light" | "system";
   };
   extensions: {
     repositories: string[];

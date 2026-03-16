@@ -16,6 +16,7 @@ import { PopupMenu } from "../../components/common/PopupMenu";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
 import type { MainDrawerNavigationProp } from "../../navigation/navigationTypes";
+import { getString } from "../../strings/translations";
 
 type SortOption = "alphabetically" | "enabled";
 
@@ -176,7 +177,7 @@ export const SourcesScreen: React.FC = () => {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       <Header
-        title="Sources"
+        title={getString("screens.sources.title")}
         onMenuPress={() => navigation.openDrawer()}
         isSearchActive={isSearchActive}
         searchQuery={searchQuery}

@@ -4,6 +4,7 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Header } from "../../components/common/Header";
 import { useTheme } from "../../context/ThemeContext";
+import { getString } from "../../strings/translations";
 
 export const TrackingServicesScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -14,7 +15,7 @@ export const TrackingServicesScreen: React.FC = () => {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       <Header
-        title="Tracking Services"
+        title={getString("screens.trackingServices.title")}
         onBackPress={() => navigation.goBack()}
       />
       <View style={styles.content}>

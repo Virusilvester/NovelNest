@@ -4,6 +4,7 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Header } from "../../components/common/Header";
 import { useTheme } from "../../context/ThemeContext";
+import { getString } from "../../strings/translations";
 
 export const TTSSettingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -13,7 +14,10 @@ export const TTSSettingsScreen: React.FC = () => {
     <View
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
-      <Header title="Text to Speech" onBackPress={() => navigation.goBack()} />
+      <Header
+        title={getString("screens.ttsSettings.title")}
+        onBackPress={() => navigation.goBack()}
+      />
       <View style={styles.content}>
         <Text style={{ color: theme.colors.textSecondary }}>Coming soon.</Text>
       </View>

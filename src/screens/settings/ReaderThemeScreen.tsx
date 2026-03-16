@@ -14,6 +14,7 @@ import {
 import { Header } from "../../components/common/Header";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
+import { getString } from "../../strings/translations";
 
 // ─── Colour swatch ────────────────────────────────────────────────────────────
 const SWATCHES_BG = [
@@ -236,7 +237,10 @@ export const ReaderThemeScreen: React.FC = () => {
 
   return (
     <View style={[S.container, { backgroundColor: theme.colors.background }]}>
-      <Header title="Reader Theme" onBackPress={() => navigation.goBack()} />
+      <Header
+        title={getString("screens.readerTheme.title")}
+        onBackPress={() => navigation.goBack()}
+      />
 
       <ScrollView
         style={S.scroll}

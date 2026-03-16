@@ -13,6 +13,7 @@ import { Header } from "../../components/common/Header";
 import { ImprovedSwitch } from "../../components/common/ImprovedSwitch";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
+import { getString } from "../../strings/translations";
 
 // ─── Reusable sub-components ────────────────────────────────────────────────
 
@@ -305,7 +306,10 @@ export const ReaderSettingsScreen: React.FC = () => {
     <View
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
-      <Header title="Reader Settings" onBackPress={() => navigation.goBack()} />
+      <Header
+        title={getString("screens.readerSettings.title")}
+        onBackPress={() => navigation.goBack()}
+      />
 
       <ScrollView
         style={styles.scroll}

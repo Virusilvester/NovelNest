@@ -7,6 +7,7 @@ import React, {
   useState,
 } from "react";
 import { StorageService } from "../services/storage";
+import { setLocale } from "../strings/translations";
 import {
   AppSettings,
   DEFAULT_SETTINGS,
@@ -141,9 +142,11 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
       const loadedSettings = await StorageService.loadSettings();
       const merged = deepMerge(EXTENDED_DEFAULTS, loadedSettings);
       setSettings(merged);
+      setLocale(merged.general.language || "en");
     } catch (error) {
       console.error("Failed to load settings:", error);
       setSettings(EXTENDED_DEFAULTS);
+      setLocale(EXTENDED_DEFAULTS.general.language || "en");
     } finally {
       setIsLoading(false);
       setIsReady(true);
@@ -169,6 +172,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
         void StorageService.saveSettings(newSettings);
         return newSettings;
       });
+      if (key === "language") {
+        setLocale(String(value || "en"));
+      }
     },
     [],
   );

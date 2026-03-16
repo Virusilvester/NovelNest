@@ -23,6 +23,7 @@ import { useUpdates } from "../../context/UpdatesContext";
 import type { MainDrawerNavigationProp } from "../../navigation/navigationTypes";
 import { AndroidProgressNotifications } from "../../services/androidProgressNotifications";
 import { EpubImportService } from "../../services/epubImport";
+import { getString, t } from "../../strings/translations";
 import { Novel } from "../../types";
 
 export const LibraryScreen: React.FC = () => {
@@ -134,21 +135,27 @@ export const LibraryScreen: React.FC = () => {
     const result = await checkForUpdates({ force: true });
     if (result.added > 0) {
       Alert.alert(
-        "Library updated",
-        `Found ${result.added} new chapter(s).`,
+        getString("library.update.title"),
+        t("library.update.foundNew", { count: result.added }),
         [
-          { text: "OK" },
+          { text: getString("common.ok") },
           {
-            text: "View updates",
+            text: getString("library.update.viewUpdates"),
             onPress: () => navigation.navigate("Updates"),
           },
         ],
       );
       return;
     }
-    const base = result.checked > 0 ? "No new chapters found." : "Nothing to update.";
-    const extra = result.errors > 0 ? `\n\nErrors: ${result.errors}.` : "";
-    Alert.alert("Library updated", base + extra);
+    const base =
+      result.checked > 0
+        ? getString("library.update.noneFound")
+        : getString("library.update.nothingToUpdate");
+    const extra =
+      result.errors > 0
+        ? `\n\n${t("library.update.errors", { count: result.errors })}`
+        : "";
+    Alert.alert(getString("library.update.title"), base + extra);
   }, [checkForUpdates, isUpdateChecking, navigation]);
 
   const defaultCategoryId = useMemo(() => {
@@ -178,7 +185,7 @@ export const LibraryScreen: React.FC = () => {
 
       setIsEpubImporting(true);
       AndroidProgressNotifications.setTask("epubImport", {
-        title: "Importing EPUB",
+        title: getString("epub.importingTitle"),
         body: filename,
         progress: { indeterminate: true },
       });
@@ -191,7 +198,7 @@ export const LibraryScreen: React.FC = () => {
         onProgress: (p) => {
           if (p.stage === "chapters") {
             AndroidProgressNotifications.setTask("epubImport", {
-              title: "Importing EPUB",
+              title: getString("epub.importingTitle"),
               body: `${p.text}\n${p.current}/${p.total}`,
               progress: {
                 current: p.current,
@@ -202,7 +209,7 @@ export const LibraryScreen: React.FC = () => {
             return;
           }
           AndroidProgressNotifications.setTask("epubImport", {
-            title: "Importing EPUB",
+            title: getString("epub.importingTitle"),
             body: p.text,
             progress: { indeterminate: true },
           });
@@ -211,19 +218,22 @@ export const LibraryScreen: React.FC = () => {
 
       addNovel(novel);
       Alert.alert(
-        "Import Complete",
-        `"${novel.title}" was added to your library.`,
+        getString("epub.importCompleteTitle"),
+        t("epub.importAddedToLibrary", { title: novel.title }),
         [
-          { text: "OK", style: "cancel" },
+          { text: getString("common.ok"), style: "cancel" },
           {
-            text: "Open",
+            text: getString("library.actions.open"),
             onPress: () =>
               (navigation as any).navigate("NovelDetail", { novelId: novel.id }),
           },
         ],
       );
     } catch (e: any) {
-      Alert.alert("Import Failed", e?.message || "Could not import EPUB.");
+      Alert.alert(
+        getString("library.import.failedTitle"),
+        e?.message || getString("library.import.failedBody"),
+      );
     } finally {
       AndroidProgressNotifications.clearTask("epubImport");
       setIsEpubImporting(false);
@@ -495,7 +505,7 @@ export const LibraryScreen: React.FC = () => {
         />
       ) : (
         <Header
-          title="Library"
+          title={getString("screens.library.title")}
           onMenuPress={() => navigation.openDrawer()}
           isSearchActive={isSearchActive}
           searchQuery={searchQuery}

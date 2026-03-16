@@ -20,6 +20,7 @@ import { useLibrary } from "../../context/LibraryContext";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
 import { DatabaseService } from "../../services/database";
+import { getString } from "../../strings/translations";
 
 interface DataActionProps {
   title: string;
@@ -223,7 +224,10 @@ export const DataManagementScreen: React.FC = () => {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
-      <Header title="Data Management" onBackPress={() => navigation.goBack()} />
+      <Header
+        title={getString("screens.dataManagement.title")}
+        onBackPress={() => navigation.goBack()}
+      />
 
       <ScrollView
         style={styles.content}

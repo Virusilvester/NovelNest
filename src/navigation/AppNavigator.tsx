@@ -7,6 +7,7 @@ import { DownloadQueueScreen } from "../screens/DownloadQueueScreen";
 import { NovelDetailScreen } from "../screens/library/NovelDetailScreen";
 import { ReaderScreen } from "../screens/reader/ReaderScreen";
 import { DataManagementScreen } from "../screens/settings/DataManagementScreen";
+import { AppearanceScreen } from "../screens/settings/AppearanceScreen";
 import { EditCategoriesScreen } from "../screens/settings/EditCategoriesScreen";
 import { LegacyBackupScreen } from "../screens/settings/LegacyBackupScreen";
 import { ReaderSettingsScreen } from "../screens/settings/ReaderSettingsScreen";
@@ -21,6 +22,7 @@ import { SourceDetailScreen } from "../screens/sources/SourceDetailScreen";
 import { WebViewScreen } from "../screens/WebViewScreen";
 import { MainDrawer } from "./MainDrawer";
 import { RootStackParamList } from "./types";
+import { getString } from "../strings/translations";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -68,6 +70,7 @@ export const AppNavigator: React.FC = () => {
         <Stack.Screen name="PluginReader" component={PluginReaderScreen} />
         <Stack.Screen name="DownloadQueue" component={DownloadQueueScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="Appearance" component={AppearanceScreen} />
         <Stack.Screen name="EditCategories" component={EditCategoriesScreen} />
         <Stack.Screen name="ReaderSettings" component={ReaderSettingsScreen} />
         <Stack.Screen name="ReaderTheme" component={ReaderThemeScreen} />
@@ -81,7 +84,7 @@ export const AppNavigator: React.FC = () => {
         <Stack.Screen
           name="DataManagement"
           component={DataManagementScreen}
-          options={{ title: "Data Management" }}
+          options={{ title: getString("screens.dataManagement.title") }}
         />
       </Stack.Navigator>
     </NavigationContainer>

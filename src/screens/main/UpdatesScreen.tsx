@@ -19,6 +19,7 @@ import { useLibrary } from "../../context/LibraryContext";
 import { useTheme } from "../../context/ThemeContext";
 import { useUpdates, type UpdateEntry } from "../../context/UpdatesContext";
 import type { MainDrawerNavigationProp } from "../../navigation/navigationTypes";
+import { getString, t } from "../../strings/translations";
 
 export const UpdatesScreen: React.FC = () => {
   const navigation = useNavigation<MainDrawerNavigationProp>();
@@ -46,9 +47,13 @@ export const UpdatesScreen: React.FC = () => {
 
   const handleClearUpdates = useCallback(() => {
     if (updates.length === 0) return;
-    Alert.alert("Clear updates", "Remove all update entries?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Clear", style: "destructive", onPress: () => void clearUpdates() },
+    Alert.alert(getString("updates.clear.title"), getString("updates.clear.body"), [
+      { text: getString("common.cancel"), style: "cancel" },
+      {
+        text: getString("updates.clear.action"),
+        style: "destructive",
+        onPress: () => void clearUpdates(),
+      },
     ]);
   }, [clearUpdates, updates.length]);
 
@@ -71,12 +76,18 @@ export const UpdatesScreen: React.FC = () => {
     });
 
     if (tasks.length === 0) {
-      Alert.alert("Downloads", "No new chapters to download.");
+      Alert.alert(
+        getString("downloads.title"),
+        getString("updates.download.noneNew"),
+      );
       return;
     }
 
     enqueue(tasks);
-    Alert.alert("Downloads", `Queued ${tasks.length} chapter(s) for download.`);
+    Alert.alert(
+      getString("downloads.title"),
+      t("downloads.queuedChapters", { count: tasks.length }),
+    );
   }, [enqueue, novelById, updates]);
 
   const renderUpdateItem = useCallback(
@@ -89,13 +100,13 @@ export const UpdatesScreen: React.FC = () => {
           style={[styles.updateItem, { backgroundColor: theme.colors.surface }]}
           activeOpacity={0.8}
           onPress={() => {
-            if (!novel) {
-              Alert.alert(
-                "Not found",
-                "This novel is no longer in your library.",
-              );
-              return;
-            }
+             if (!novel) {
+               Alert.alert(
+                 getString("updates.notFound.title"),
+                 getString("updates.notFound.body"),
+               );
+               return;
+             }
             navigation.navigate("Reader", {
               novelId: item.novelId,
               chapterId: item.chapterPath,
@@ -221,7 +232,7 @@ export const UpdatesScreen: React.FC = () => {
           <Text
             style={[styles.progressText, { color: theme.colors.textSecondary }]}
           >
-            Last checked: {d.toLocaleString()}
+            {t("updates.lastChecked", { date: d.toLocaleString() })}
           </Text>
         </View>
       );
@@ -241,7 +252,7 @@ export const UpdatesScreen: React.FC = () => {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       <Header
-        title="Updates"
+        title={getString("screens.updates.title")}
         onMenuPress={() => navigation.openDrawer()}
         rightButtons={
           <>
