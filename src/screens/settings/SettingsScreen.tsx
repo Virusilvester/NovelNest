@@ -25,8 +25,8 @@ import { useLibrary } from "../../context/LibraryContext";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
 import { useUpdates } from "../../context/UpdatesContext";
-import { EpubImportService } from "../../services/epubImport";
 import { AndroidProgressNotifications } from "../../services/androidProgressNotifications";
+import { EpubImportService } from "../../services/epubImport";
 import { getString } from "../../strings/translations";
 import { StartScreen } from "../../types";
 
@@ -330,14 +330,20 @@ export const SettingsScreen: React.FC = () => {
 
       addNovel(novel);
 
-      Alert.alert("Import Complete", `"${novel.title}" was added to your library.`, [
-        { text: "OK", style: "cancel" },
-        {
-          text: "Open",
-          onPress: () =>
-            (navigation as any).navigate("NovelDetail", { novelId: novel.id }),
-        },
-      ]);
+      Alert.alert(
+        "Import Complete",
+        `"${novel.title}" was added to your library.`,
+        [
+          { text: "OK", style: "cancel" },
+          {
+            text: "Open",
+            onPress: () =>
+              (navigation as any).navigate("NovelDetail", {
+                novelId: novel.id,
+              }),
+          },
+        ],
+      );
     } catch (e: any) {
       Alert.alert("Import Failed", e?.message || "Could not import EPUB.");
     } finally {
@@ -462,7 +468,9 @@ export const SettingsScreen: React.FC = () => {
             icon="cloud-upload-outline"
             label="Import EPUB"
             subtitle="Add a local book from an EPUB file"
-            onPress={isEpubImporting ? undefined : () => void handleImportEpub()}
+            onPress={
+              isEpubImporting ? undefined : () => void handleImportEpub()
+            }
             isLast
           />
         </Section>
@@ -545,7 +553,7 @@ export const SettingsScreen: React.FC = () => {
           <Row
             icon="information-circle-outline"
             label="Version"
-            subtitle="2.0.3-beta"
+            subtitle="2.0.4-beta"
             isLast
           />
         </Section>
