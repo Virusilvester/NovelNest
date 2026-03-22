@@ -163,6 +163,32 @@ const en = {
       noSource: "This novel has no source and cannot be read.",
     },
   },
+  tracking: {
+    note:
+      "Connect a tracking service to sync your reading progress. You must configure client IDs in app.json (expo.extra.tracking.*) before authentication will work.",
+    connected: "Connected",
+    notConnected: "Not connected",
+    connect: "Connect",
+    reauth: "Re-auth",
+    disconnect: "Disconnect",
+    expiresAt: "Expires: {date}",
+    noExpiry: "No expiry",
+    alerts: {
+      authFailedTitle: "Authentication failed",
+      authFailedBody: "Could not authenticate.",
+      disconnectTitle: "Disconnect tracker",
+      disconnectBody: "Remove saved login for this tracking service?",
+      disconnectAction: "Disconnect",
+    },
+    search: {
+      title: "Search",
+      placeholder: "Type a title…",
+      search: "Search",
+      empty: "Search for a title to link tracking.",
+      failed: "Search failed.",
+      chapters: "Chapters",
+    },
+  },
   settings: {
     title: "Settings",
     sections: {

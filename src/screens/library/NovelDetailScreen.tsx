@@ -30,6 +30,8 @@ import {
 } from "react-native";
 import { Header } from "../../components/common/Header";
 import { PopupMenu } from "../../components/common/PopupMenu";
+import { SelectionModal } from "../../components/common/SelectionModal";
+import { TrackingSearchModal } from "../../components/tracking/TrackingSearchModal";
 import { useDownloadQueue } from "../../context/DownloadQueueContext";
 import { useHistory } from "../../context/HistoryContext";
 import { useLibrary } from "../../context/LibraryContext";
@@ -39,12 +41,14 @@ import { ChapterDownloads } from "../../services/chapterDownloads";
 import { AndroidProgressNotifications } from "../../services/androidProgressNotifications";
 import type { EpubExportCoverImage } from "../../services/epubExport";
 import { EpubExportService } from "../../services/epubExport";
+import { getTracker, trackers } from "../../services/tracking/registry";
+import { TrackingService } from "../../services/tracking/TrackingService";
 import {
   normalizePluginDetailForCache,
   NovelDetailCache,
 } from "../../services/novelDetailCache";
 import { PluginRuntimeService } from "../../services/pluginRuntime";
-import type { CachedPluginNovelDetail, Novel } from "../../types";
+import type { CachedPluginNovelDetail, Novel, TrackerId } from "../../types";
 import {
   computeTotalEffectiveReadCount,
   detectChapterListOrder,
@@ -54,7 +58,7 @@ import {
 } from "../../utils/chapterState";
 import { clamp } from "../../utils/responsive";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type PluginChapterItem = {
   name: string;
@@ -69,7 +73,7 @@ const isPluginChapterItem = (v: any): v is PluginChapterItem =>
   typeof v.name === "string" &&
   typeof v.path === "string";
 
-// ─── Chapter Row ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ Chapter Row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const ChapterItem = React.memo(
   ({
@@ -233,7 +237,7 @@ const ChapterItem = React.memo(
 
 ChapterItem.displayName = "ChapterItem";
 
-// ─── Main Screen ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ Main Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export const NovelDetailScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -303,9 +307,14 @@ export const NovelDetailScreen: React.FC = () => {
     return mem.cachedAt >= persisted.cachedAt ? mem : persisted;
   }, [cacheKey, novel?.pluginCache]);
 
-  // ── State ─────────────────────────────────────────────────────────────────
+  // â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [isDownloadMenuVisible, setIsDownloadMenuVisible] = useState(false);
   const [isMoreMenuVisible, setIsMoreMenuVisible] = useState(false);
+  const [isTrackerPickerVisible, setIsTrackerPickerVisible] = useState(false);
+  const [isTrackingSearchVisible, setIsTrackingSearchVisible] = useState(false);
+  const [trackingTrackerId, setTrackingTrackerId] =
+    useState<TrackerId>("anilist");
+  const [isTrackingSyncing, setIsTrackingSyncing] = useState(false);
   const [isEpubExporting, setIsEpubExporting] = useState(false);
   const [epubExportProgress, setEpubExportProgress] = useState<{
     current: number;
@@ -409,7 +418,7 @@ export const NovelDetailScreen: React.FC = () => {
     setIsInLibrary(Boolean(novel?.isInLibrary));
   }, [novel?.isInLibrary]);
 
-  // ── Data fetch ────────────────────────────────────────────────────────────
+  // â”€â”€ Data fetch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     const run = async () => {
       if (!novel?.pluginId || !novel?.pluginNovelPath) return;
@@ -609,7 +618,7 @@ export const NovelDetailScreen: React.FC = () => {
     fetchSignature,
   ]);
 
-  // ── Display values ────────────────────────────────────────────────────────
+  // â”€â”€ Display values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const displayTitle = remoteDetail?.name || novel?.title || "Novel";
   const displayAuthor = remoteDetail?.author || novel?.author || "Unknown";
   const displayCover =
@@ -635,7 +644,7 @@ export const NovelDetailScreen: React.FC = () => {
     return (novel?.status as any) || "ongoing";
   }, [remoteDetail?.status, novel?.status]);
 
-  // ── Progress ──────────────────────────────────────────────────────────────
+  // â”€â”€ Progress â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const chaptersTotal = remoteChapters.length;
   const progressTotal = novel?.totalChapters
     ? Math.max(0, novel.totalChapters)
@@ -724,7 +733,7 @@ export const NovelDetailScreen: React.FC = () => {
     return map;
   }, [downloadTasks, novel?.id, novel?.pluginId]);
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
+  // â”€â”€ Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handlePluginChapterPress = useCallback(
     (chapter: PluginChapterItem) => {
       if (!novel?.pluginId) return;
@@ -1303,7 +1312,7 @@ export const NovelDetailScreen: React.FC = () => {
     updateNovel,
   ]);
 
-  // ── Chapter selection ─────────────────────────────────────────────────────
+  // â”€â”€ Chapter selection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const clearChapterSelection = useCallback(() => {
     setIsChapterSelectionMenuVisible(false);
     setSelectedChapterPaths(new Set());
@@ -1917,6 +1926,97 @@ export const NovelDetailScreen: React.FC = () => {
     },
   ];
 
+  const trackerOptions = useMemo(
+    () => trackers.map((tr) => ({ value: tr.id, label: tr.name })),
+    [],
+  );
+
+  const handleStartTrackingLink = useCallback(() => {
+    if (!novel) return;
+    setIsTrackerPickerVisible(true);
+  }, [novel]);
+
+  const handlePickTracker = useCallback(
+    async (value: string) => {
+      const id = value as TrackerId;
+      setTrackingTrackerId(id);
+      try {
+        await TrackingService.ensureValidAuth(id);
+        setIsTrackingSearchVisible(true);
+      } catch (e: any) {
+        Alert.alert(
+          "Tracker not connected",
+          e?.message ||
+            "Connect this tracker first in Settings â†’ Tracking Services.",
+          [
+            { text: "OK", style: "cancel" },
+            {
+              text: "Open settings",
+              onPress: () => (navigation as any).navigate("TrackingServices"),
+            },
+          ],
+        );
+      }
+    },
+    [navigation],
+  );
+
+  const handleLinkTrackerResult = useCallback(
+    (result: { id: string; title: string; coverImage?: string }) => {
+      if (!novel) return;
+      const base = novel.trackingLinks || {};
+      updateNovel(novel.id, {
+        trackingLinks: {
+          ...base,
+          [trackingTrackerId]: {
+            trackerId: trackingTrackerId,
+            remoteId: String(result.id),
+            title: String(result.title),
+            coverImage: result.coverImage,
+          },
+        },
+      });
+    },
+    [novel, trackingTrackerId, updateNovel],
+  );
+
+  const handleSyncTracking = useCallback(async () => {
+    if (!novel) return;
+    const links = novel.trackingLinks || {};
+    const linkList = Object.values(links);
+    if (linkList.length === 0) {
+      Alert.alert("Tracking", "No trackers linked for this novel.");
+      return;
+    }
+    if (isTrackingSyncing) return;
+
+    setIsTrackingSyncing(true);
+    try {
+      const total = Math.max(0, Math.floor(novel.totalChapters || 0));
+      const read = Math.max(
+        0,
+        Math.min(total, total - Math.max(0, Math.floor(novel.unreadChapters || 0))),
+      );
+      const status = total > 0 && read >= total ? "COMPLETED" : "CURRENT";
+
+      for (const link of linkList) {
+        const auth = await TrackingService.ensureValidAuth(link.trackerId);
+        const tracker = getTracker(link.trackerId);
+        await tracker.updateUserListEntry(
+          link.remoteId,
+          { progress: read, status },
+          auth,
+        );
+      }
+
+      Alert.alert("Tracking", "Synced progress to linked trackers.");
+    } catch (e: any) {
+      Alert.alert("Tracking", e?.message || "Failed to sync tracking.");
+    } finally {
+      setIsTrackingSyncing(false);
+    }
+  }, [isTrackingSyncing, novel]);
+
   const moreOptions = [
     {
       id: "openWeb",
@@ -1929,6 +2029,18 @@ export const NovelDetailScreen: React.FC = () => {
       label: isEpubExporting ? "Exporting EPUB..." : "Export EPUB",
       icon: "download-outline" as const,
       onPress: handleExportEpub,
+    },
+    {
+      id: "track",
+      label: "Track...",
+      icon: "sync-outline" as const,
+      onPress: handleStartTrackingLink,
+    },
+    {
+      id: "syncTrack",
+      label: isTrackingSyncing ? "Syncing..." : "Sync tracking",
+      icon: "cloud-upload-outline" as const,
+      onPress: handleSyncTracking,
     },
     {
       id: "markRead",
@@ -1965,7 +2077,7 @@ export const NovelDetailScreen: React.FC = () => {
     else (navigation as any).navigate("Main", { screen: "Library" });
   }, [clearChapterSelection, isChapterSelectionMode, navigation]);
 
-  // ── Render chapter item ────────────────────────────────────────────────────
+  // â”€â”€ Render chapter item â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const renderChapterItem = useCallback(
     ({ item, index }: { item: PluginChapterItem; index: number }) => (
       <ChapterItem
@@ -1995,7 +2107,7 @@ export const NovelDetailScreen: React.FC = () => {
     ],
   );
 
-  // ── List header ────────────────────────────────────────────────────────────
+  // â”€â”€ List header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const listHeader = useMemo(
     () => (
       <>
@@ -2151,7 +2263,7 @@ export const NovelDetailScreen: React.FC = () => {
                 { color: theme.colors.textSecondary },
               ]}
             >
-              Loading details…
+              Loading details...
             </Text>
           </View>
         )}
@@ -2321,7 +2433,7 @@ export const NovelDetailScreen: React.FC = () => {
               ]}
             >
               {progressPercent >= 100
-                ? "Completed ✓"
+                ? "Completed âœ“"
                 : `${Math.round(progressPercent)}% read`}
             </Text>
             <Text
@@ -2445,7 +2557,7 @@ export const NovelDetailScreen: React.FC = () => {
     ],
   );
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return (
     <View
       style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -2575,6 +2687,22 @@ export const NovelDetailScreen: React.FC = () => {
         visible={isMoreMenuVisible}
         onClose={() => setIsMoreMenuVisible(false)}
         items={moreOptions}
+      />
+
+      <SelectionModal
+        visible={isTrackerPickerVisible}
+        title="Tracking service"
+        options={trackerOptions}
+        selectedValue={trackingTrackerId}
+        onSelect={handlePickTracker}
+        onClose={() => setIsTrackerPickerVisible(false)}
+      />
+      <TrackingSearchModal
+        visible={isTrackingSearchVisible}
+        trackerId={trackingTrackerId}
+        initialQuery={novel?.title || ""}
+        onSelect={handleLinkTrackerResult}
+        onClose={() => setIsTrackingSearchVisible(false)}
       />
 
       <Modal
@@ -2867,7 +2995,7 @@ export const NovelDetailScreen: React.FC = () => {
   );
 };
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

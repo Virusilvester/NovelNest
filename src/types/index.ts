@@ -28,7 +28,25 @@ export interface Novel {
   chapterReadOverrides?: Record<string, boolean>;
   // Downloaded chapter files (keyed by chapter path).
   chapterDownloaded?: Record<string, boolean>;
+  trackingLinks?: Record<string, TrackerLink>;
 }
+
+export type TrackerId = "anilist" | "myanimelist";
+
+export type UserListStatus =
+  | "CURRENT"
+  | "COMPLETED"
+  | "PAUSED"
+  | "DROPPED"
+  | "PLANNING"
+  | "REPEATING";
+
+export type TrackerLink = {
+  trackerId: TrackerId;
+  remoteId: string;
+  title: string;
+  coverImage?: string;
+};
 
 export type CachedPluginChapter = {
   name: string;

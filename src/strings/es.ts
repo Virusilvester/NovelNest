@@ -166,6 +166,32 @@ const es = {
       noSource: "Esta novela no tiene fuente y no se puede leer.",
     },
   },
+  tracking: {
+    note:
+      "Conecta un servicio de seguimiento para sincronizar tu progreso. Debes configurar los client IDs en app.json (expo.extra.tracking.*) antes de que funcione la autenticación.",
+    connected: "Conectado",
+    notConnected: "No conectado",
+    connect: "Conectar",
+    reauth: "Reautorizar",
+    disconnect: "Desconectar",
+    expiresAt: "Expira: {date}",
+    noExpiry: "Sin caducidad",
+    alerts: {
+      authFailedTitle: "Autenticación fallida",
+      authFailedBody: "No se pudo autenticar.",
+      disconnectTitle: "Desconectar tracker",
+      disconnectBody: "¿Quitar el inicio de sesión guardado de este servicio?",
+      disconnectAction: "Desconectar",
+    },
+    search: {
+      title: "Buscar",
+      placeholder: "Escribe un título…",
+      search: "Buscar",
+      empty: "Busca un título para vincular el seguimiento.",
+      failed: "La búsqueda falló.",
+      chapters: "Capítulos",
+    },
+  },
   settings: {
     title: "Ajustes",
     sections: {
@@ -195,4 +221,3 @@ const es = {
 } as const;
 
 export default es;
-

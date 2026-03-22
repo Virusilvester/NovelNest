@@ -20,6 +20,8 @@ import {
 } from "react-native";
 import { Header } from "../../components/common/Header";
 import { PopupMenu } from "../../components/common/PopupMenu";
+import { SelectionModal } from "../../components/common/SelectionModal";
+import { TrackingSearchModal } from "../../components/tracking/TrackingSearchModal";
 import { useDownloadQueue } from "../../context/DownloadQueueContext";
 import { useHistory } from "../../context/HistoryContext";
 import { useLibrary } from "../../context/LibraryContext";
@@ -27,13 +29,15 @@ import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
 import type { RootStackParamList } from "../../navigation/types";
 import { ChapterDownloads } from "../../services/chapterDownloads";
+import { getTracker, trackers } from "../../services/tracking/registry";
+import { TrackingService } from "../../services/tracking/TrackingService";
 import {
   normalizePluginDetailForCache,
   NovelDetailCache,
 } from "../../services/novelDetailCache";
 import { PluginRuntimeService } from "../../services/pluginRuntime";
 import type { Theme } from "../../theme";
-import type { CachedPluginNovelDetail, Novel } from "../../types";
+import type { CachedPluginNovelDetail, Novel, TrackerId } from "../../types";
 import {
   computeTotalEffectiveReadCount,
   detectChapterListOrder,
@@ -263,6 +267,11 @@ export const PluginNovelDetailScreen: React.FC = () => {
   );
   const [isDownloadMenuVisible, setIsDownloadMenuVisible] = useState(false);
   const [isMoreMenuVisible, setIsMoreMenuVisible] = useState(false);
+  const [isTrackerPickerVisible, setIsTrackerPickerVisible] = useState(false);
+  const [isTrackingSearchVisible, setIsTrackingSearchVisible] = useState(false);
+  const [trackingTrackerId, setTrackingTrackerId] =
+    useState<TrackerId>("anilist");
+  const [isTrackingSyncing, setIsTrackingSyncing] = useState(false);
   const [chaptersPage, setChaptersPage] = useState(() => initialCached?.chaptersPage ?? 1);
   const [chaptersHasMore, setChaptersHasMore] = useState(() => initialCached?.chaptersHasMore ?? false);
   const [isChaptersLoadingMore, setIsChaptersLoadingMore] = useState(false);
@@ -699,9 +708,111 @@ export const PluginNovelDetailScreen: React.FC = () => {
     }
   };
 
+  const trackerOptions = useMemo(
+    () => trackers.map((tr) => ({ value: tr.id, label: tr.name })),
+    [],
+  );
+
+  const handleStartTrackingLink = useCallback(() => {
+    if (!existingNovel) {
+      Alert.alert("Not in library", "Add this novel to your library to track.");
+      return;
+    }
+    setIsTrackerPickerVisible(true);
+  }, [existingNovel]);
+
+  const handlePickTracker = useCallback(
+    async (value: string) => {
+      const id = value as TrackerId;
+      setTrackingTrackerId(id);
+      try {
+        await TrackingService.ensureValidAuth(id);
+        setIsTrackingSearchVisible(true);
+      } catch (e: any) {
+        Alert.alert(
+          "Tracker not connected",
+          e?.message ||
+            "Connect this tracker first in Settings → Tracking Services.",
+          [
+            { text: "OK", style: "cancel" },
+            {
+              text: "Open settings",
+              onPress: () => (navigation as any).navigate("TrackingServices"),
+            },
+          ],
+        );
+      }
+    },
+    [navigation],
+  );
+
+  const handleLinkTrackerResult = useCallback(
+    (result: { id: string; title: string; coverImage?: string }) => {
+      if (!existingNovel) return;
+      const base = existingNovel.trackingLinks || {};
+      updateNovel(existingNovel.id, {
+        trackingLinks: {
+          ...base,
+          [trackingTrackerId]: {
+            trackerId: trackingTrackerId,
+            remoteId: String(result.id),
+            title: String(result.title),
+            coverImage: result.coverImage,
+          },
+        },
+      });
+    },
+    [existingNovel, trackingTrackerId, updateNovel],
+  );
+
+  const handleSyncTracking = useCallback(async () => {
+    if (!existingNovel) {
+      Alert.alert("Not in library", "Add this novel to your library to track.");
+      return;
+    }
+    const links = existingNovel.trackingLinks || {};
+    const linkList = Object.values(links);
+    if (linkList.length === 0) {
+      Alert.alert("Tracking", "No trackers linked for this novel.");
+      return;
+    }
+    if (isTrackingSyncing) return;
+
+    setIsTrackingSyncing(true);
+    try {
+      const total = Math.max(0, Math.floor(existingNovel.totalChapters || 0));
+      const read = Math.max(
+        0,
+        Math.min(
+          total,
+          total - Math.max(0, Math.floor(existingNovel.unreadChapters || 0)),
+        ),
+      );
+      const status = total > 0 && read >= total ? "COMPLETED" : "CURRENT";
+
+      for (const link of linkList) {
+        const auth = await TrackingService.ensureValidAuth(link.trackerId);
+        const tracker = getTracker(link.trackerId);
+        await tracker.updateUserListEntry(
+          link.remoteId,
+          { progress: read, status },
+          auth,
+        );
+      }
+
+      Alert.alert("Tracking", "Synced progress to linked trackers.");
+    } catch (e: any) {
+      Alert.alert("Tracking", e?.message || "Failed to sync tracking.");
+    } finally {
+      setIsTrackingSyncing(false);
+    }
+  }, [existingNovel, isTrackingSyncing]);
+
   const moreOptions = [
     { id: "openWeb", label: "Open website", icon: "globe-outline" as const, onPress: handleWebView },
     ...(existingNovel ? [
+      { id: "track", label: "Track...", icon: "sync-outline" as const, onPress: handleStartTrackingLink },
+      { id: "syncTrack", label: isTrackingSyncing ? "Syncing..." : "Sync tracking", icon: "cloud-upload-outline" as const, onPress: handleSyncTracking },
       { id: "markRead", label: "Mark all read", icon: "checkmark-done-outline" as const, onPress: handleMarkRead },
       { id: "markUnread", label: "Mark all unread", icon: "ellipse-outline" as const, onPress: handleMarkUnread },
     ] : []),
@@ -1208,6 +1319,22 @@ export const PluginNovelDetailScreen: React.FC = () => {
       <PopupMenu visible={isDownloadMenuVisible} onClose={() => setIsDownloadMenuVisible(false)} items={downloadOptions} />
       <PopupMenu visible={isChapterSelectionMenuVisible} onClose={() => setIsChapterSelectionMenuVisible(false)} items={chapterSelectionMenuItems} />
       <PopupMenu visible={isMoreMenuVisible} onClose={() => setIsMoreMenuVisible(false)} items={moreOptions} />
+
+      <SelectionModal
+        visible={isTrackerPickerVisible}
+        title="Tracking service"
+        options={trackerOptions}
+        selectedValue={trackingTrackerId}
+        onSelect={handlePickTracker}
+        onClose={() => setIsTrackerPickerVisible(false)}
+      />
+      <TrackingSearchModal
+        visible={isTrackingSearchVisible}
+        trackerId={trackingTrackerId}
+        initialQuery={existingNovel?.title || novelName || ""}
+        onSelect={handleLinkTrackerResult}
+        onClose={() => setIsTrackingSearchVisible(false)}
+      />
 
       {/* Category modal */}
       <Modal visible={isCategoryModalVisible} transparent animationType="fade" onRequestClose={() => setIsCategoryModalVisible(false)}>
