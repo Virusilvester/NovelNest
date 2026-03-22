@@ -27,7 +27,7 @@ const en = {
   epub: {
     importingTitle: "Importing EPUB",
     importCompleteTitle: "Import Complete",
-    importAddedToLibrary: "\"{title}\" was added to your library.",
+    importAddedToLibrary: '"{title}" was added to your library.',
     exportTitle: "Exporting EPUB",
   },
   library: {
@@ -75,7 +75,7 @@ const en = {
   categories: {
     delete: {
       title: "Delete category",
-      body: "Remove \"{name}\" from your library? Novels in this category will become uncategorised.",
+      body: 'Remove "{name}" from your library? Novels in this category will become uncategorised.',
       action: "Delete",
     },
   },
@@ -99,7 +99,8 @@ const en = {
     settingsNote:
       "Note: Settings from this backup have also been applied and will fully take effect after restarting the app.",
     importCompleteTitle: "Import Complete",
-    importCompleteReplaced: "Your library database was replaced with the backup.",
+    importCompleteReplaced:
+      "Your library database was replaced with the backup.",
     importCompleteMerged: "Backup was merged into your library database.",
     importFailedTitle: "Import Failed",
     importFailedBody: "Could not import backup.",
@@ -138,7 +139,7 @@ const en = {
   history: {
     remove: {
       title: "Remove from History",
-      body: "Remove \"{title}\" from your reading history?",
+      body: 'Remove "{title}" from your reading history?',
       action: "Remove",
     },
   },
@@ -164,8 +165,7 @@ const en = {
     },
   },
   tracking: {
-    note:
-      "Connect a tracking service to sync your reading progress. You must configure client IDs in app.json (expo.extra.tracking.*) before authentication will work.",
+    note: "",
     connected: "Connected",
     notConnected: "Not connected",
     connect: "Connect",
