@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { useTheme } from "../context/ThemeContext";
 
-const logo = require("../../assets/images/icon.png");
+const icon = require("../../assets/images/icon.png");
 
 export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
   props,
@@ -41,7 +41,7 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
         ]}
       >
         <Image
-          source={logo}
+          source={icon}
           style={[
             styles.logo,
             {
