@@ -30,7 +30,7 @@ const fr = {
   epub: {
     importingTitle: "Importation EPUB",
     importCompleteTitle: "Import terminé",
-    importAddedToLibrary: "\"{title}\" a été ajouté à votre bibliothèque.",
+    importAddedToLibrary: '"{title}" a été ajouté à votre bibliothèque.',
     exportTitle: "Exportation EPUB",
   },
   library: {
@@ -79,8 +79,7 @@ const fr = {
   categories: {
     delete: {
       title: "Supprimer la catégorie",
-      body:
-        "Retirer \"{name}\" de votre bibliothèque ? Les romans dans cette catégorie deviendront non classés.",
+      body: 'Retirer "{name}" de votre bibliothèque ? Les romans dans cette catégorie deviendront non classés.',
       action: "Supprimer",
     },
   },
@@ -146,7 +145,7 @@ const fr = {
   history: {
     remove: {
       title: "Retirer de l'historique",
-      body: "Retirer \"{title}\" de votre historique de lecture ?",
+      body: 'Retirer "{title}" de votre historique de lecture ?',
       action: "Retirer",
     },
   },
@@ -172,8 +171,7 @@ const fr = {
     },
   },
   tracking: {
-    note:
-      "Connectez un service de suivi pour synchroniser votre progression. Vous devez configurer les IDs client dans app.json (expo.extra.tracking.*) avant que l'authentification fonctionne.",
+    note: "",
     connected: "Connecté",
     notConnected: "Non connecté",
     connect: "Connecter",

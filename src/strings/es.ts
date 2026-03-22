@@ -12,7 +12,10 @@ const es = {
     updates: { title: "Actualizaciones" },
     history: { title: "Historial" },
     extensions: { title: "Extensiones" },
-    downloadQueue: { title: "Cola de descargas", pausedTitle: "Cola (Pausada)" },
+    downloadQueue: {
+      title: "Cola de descargas",
+      pausedTitle: "Cola (Pausada)",
+    },
     reader: { title: "Lector" },
     sources: { title: "Fuentes" },
     dataManagement: { title: "Gestión de datos" },
@@ -27,7 +30,7 @@ const es = {
   epub: {
     importingTitle: "Importando EPUB",
     importCompleteTitle: "Importación completa",
-    importAddedToLibrary: "\"{title}\" se añadió a tu biblioteca.",
+    importAddedToLibrary: '"{title}" se añadió a tu biblioteca.',
     exportTitle: "Exportando EPUB",
   },
   library: {
@@ -76,8 +79,7 @@ const es = {
   categories: {
     delete: {
       title: "Eliminar categoría",
-      body:
-        "¿Quitar \"{name}\" de tu biblioteca? Las novelas en esta categoría quedarán sin categorizar.",
+      body: '¿Quitar "{name}" de tu biblioteca? Las novelas en esta categoría quedarán sin categorizar.',
       action: "Eliminar",
     },
   },
@@ -141,7 +143,7 @@ const es = {
   history: {
     remove: {
       title: "Quitar del historial",
-      body: "¿Quitar \"{title}\" de tu historial de lectura?",
+      body: '¿Quitar "{title}" de tu historial de lectura?',
       action: "Quitar",
     },
   },
@@ -167,8 +169,7 @@ const es = {
     },
   },
   tracking: {
-    note:
-      "Conecta un servicio de seguimiento para sincronizar tu progreso. Debes configurar los client IDs en app.json (expo.extra.tracking.*) antes de que funcione la autenticación.",
+    note: "",
     connected: "Conectado",
     notConnected: "No conectado",
     connect: "Conectar",
