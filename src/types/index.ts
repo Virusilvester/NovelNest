@@ -168,6 +168,7 @@ export interface AppSettings {
     startScreen: StartScreen;
     language: string;
     downloadLocation: string | null;
+    confirmExitOnBack: boolean;
   };
   display: {
     theme: "dark" | "light" | "system";
@@ -220,6 +221,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     startScreen: "library",
     language: "en",
     downloadLocation: null,
+    confirmExitOnBack: false,
   },
   display: {
     theme: "light",

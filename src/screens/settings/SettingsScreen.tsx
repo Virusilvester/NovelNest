@@ -395,6 +395,19 @@ export const SettingsScreen: React.FC = () => {
             onPress={() => setShowStartScreenModal(true)}
           />
           <Row
+            icon="log-out-outline"
+            label="Confirm exit on back"
+            subtitle="Ask before closing the app"
+            rightElement={
+              <ImprovedSwitch
+                value={settings.general.confirmExitOnBack}
+                onValueChange={(v) =>
+                  void updateGeneralSettings("confirmExitOnBack", v)
+                }
+              />
+            }
+          />
+          <Row
             icon="folder-open-outline"
             label={getString("settings.general.downloadLocation")}
             subtitle={downloadLocationLabel}

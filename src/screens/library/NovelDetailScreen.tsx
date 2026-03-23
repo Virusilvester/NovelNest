@@ -252,7 +252,7 @@ export const NovelDetailScreen: React.FC = () => {
     cancelTask,
     cancelNovelTasks,
   } = useDownloadQueue();
-  const { width: SW } = useWindowDimensions();
+  const { width: SW, height: SH } = useWindowDimensions();
 
   const coverWidth = clamp(Math.round(Math.min(SW * 0.28, 160)), 96, 160);
   const coverHeight = Math.round(coverWidth * 1.5);
@@ -619,13 +619,13 @@ export const NovelDetailScreen: React.FC = () => {
   ]);
 
   // â”€â”€ Display values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const displayTitle = remoteDetail?.name || novel?.title || "Novel";
-  const displayAuthor = remoteDetail?.author || novel?.author || "Unknown";
+  const displayTitle = novel?.title || remoteDetail?.name || "Novel";
+  const displayAuthor = novel?.author || remoteDetail?.author || "Unknown";
   const displayCover =
-    remoteDetail?.cover ||
     novel?.coverUrl ||
+    remoteDetail?.cover ||
     "https://via.placeholder.com/300x450";
-  const displaySummary = remoteDetail?.summary || novel?.summary || "";
+  const displaySummary = novel?.summary || remoteDetail?.summary || "";
   const displayGenres: string[] = useMemo(() => {
     if (Array.isArray(remoteDetail?.genres)) return remoteDetail.genres;
     return novel?.genres || [];
@@ -2883,14 +2883,15 @@ export const NovelDetailScreen: React.FC = () => {
           onPress={() => setIsEditInfoModalVisible(false)}
         >
           <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            style={{ width: "100%" }}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ width: "100%", maxHeight: Math.round(SH * 0.9) }}
           >
             <TouchableOpacity
               activeOpacity={1}
               style={[
                 styles.modalCard,
                 {
+                  maxHeight: Math.round(SH * 0.9),
                   backgroundColor: theme.colors.surface,
                   borderColor: theme.colors.border,
                 },
@@ -2918,7 +2919,12 @@ export const NovelDetailScreen: React.FC = () => {
                 </View>
               </View>
 
-              <View style={styles.editForm}>
+              <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={styles.editForm}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
                 <Text style={[styles.editLabel, { color: theme.colors.textSecondary }]}>
                   Title
                 </Text>
@@ -2961,31 +2967,36 @@ export const NovelDetailScreen: React.FC = () => {
                     { color: theme.colors.text, borderColor: theme.colors.border },
                   ]}
                 />
+              </ScrollView>
 
-                <View style={styles.editActions}>
-                  <TouchableOpacity
-                    onPress={() => setIsEditInfoModalVisible(false)}
-                    style={[
-                      styles.editBtn,
-                      { backgroundColor: theme.colors.border },
-                    ]}
-                  >
-                    <Text style={[styles.editBtnText, { color: theme.colors.text }]}>
-                      Cancel
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={saveEditInfo}
-                    style={[
-                      styles.editBtn,
-                      { backgroundColor: theme.colors.primary },
-                    ]}
-                  >
-                    <Text style={[styles.editBtnText, { color: "#FFF" }]}>
-                      Save
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+              <View
+                style={[
+                  styles.editActions,
+                  {
+                    paddingHorizontal: 16,
+                    paddingBottom: 16,
+                    paddingTop: 12,
+                    borderTopWidth: StyleSheet.hairlineWidth,
+                    borderTopColor: theme.colors.divider,
+                  },
+                ]}
+              >
+                <TouchableOpacity
+                  onPress={() => setIsEditInfoModalVisible(false)}
+                  style={[styles.editBtn, { backgroundColor: theme.colors.border }]}
+                >
+                  <Text style={[styles.editBtnText, { color: theme.colors.text }]}>
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={saveEditInfo}
+                  style={[styles.editBtn, { backgroundColor: theme.colors.primary }]}
+                >
+                  <Text style={[styles.editBtnText, { color: "#FFF" }]}>
+                    Save
+                  </Text>
+                </TouchableOpacity>
               </View>
             </TouchableOpacity>
           </KeyboardAvoidingView>

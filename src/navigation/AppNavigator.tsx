@@ -1,7 +1,9 @@
 // src/navigation/AppNavigator.tsx
-import { NavigationContainer } from "@react-navigation/native";
+import { NavigationContainer, useNavigationContainerRef } from "@react-navigation/native";
+import { getDrawerStatusFromState } from "@react-navigation/drawer";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React from "react";
+import { Alert, BackHandler, Platform } from "react-native";
 import { useSettings } from "../context/SettingsContext";
 import { DownloadQueueScreen } from "../screens/DownloadQueueScreen";
 import { NovelDetailScreen } from "../screens/library/NovelDetailScreen";
@@ -28,6 +30,8 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const AppNavigator: React.FC = () => {
   const { settings, isReady } = useSettings();
+  const navigationRef = useNavigationContainerRef<RootStackParamList>();
+  const exitPromptVisibleRef = React.useRef(false);
 
   const drawerInitialRoute = React.useMemo(() => {
     const start = settings.general.startScreen;
@@ -44,8 +48,63 @@ export const AppNavigator: React.FC = () => {
     }
   }, [settings.general.startScreen]);
 
+  React.useEffect(() => {
+    if (Platform.OS !== "android") return;
+
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (!navigationRef.isReady()) return false;
+
+      // Let React Navigation (and nested navigators) handle back navigation.
+      if (navigationRef.canGoBack()) return false;
+
+      // If the drawer is open, let the drawer close first.
+      try {
+        const root: any = navigationRef.getRootState();
+        const topRoute = root?.routes?.[root?.index ?? 0];
+        if (topRoute?.name === "Main" && topRoute?.state) {
+          const status = getDrawerStatusFromState(topRoute.state as any);
+          if (status === "open") return false;
+        }
+      } catch {
+        // ignore
+      }
+
+      if (settings.general.confirmExitOnBack) {
+        if (exitPromptVisibleRef.current) return true;
+        exitPromptVisibleRef.current = true;
+
+        Alert.alert("Exit", "Do you want to exit NovelNest?", [
+          {
+            text: "Cancel",
+            style: "cancel",
+            onPress: () => {
+              exitPromptVisibleRef.current = false;
+            },
+          },
+          {
+            text: "Exit",
+            style: "destructive",
+            onPress: () => {
+              exitPromptVisibleRef.current = false;
+              BackHandler.exitApp();
+            },
+          },
+        ]);
+        return true;
+      }
+
+      BackHandler.exitApp();
+      return true;
+    });
+
+    return () => {
+      exitPromptVisibleRef.current = false;
+      sub.remove();
+    };
+  }, [navigationRef, settings.general.confirmExitOnBack]);
+
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
