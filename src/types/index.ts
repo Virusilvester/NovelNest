@@ -26,6 +26,9 @@ export interface Novel {
   // Per-chapter state overrides (only for chapters the user interacted with).
   // If a chapter path is present, its value overrides the inferred read/unread state.
   chapterReadOverrides?: Record<string, boolean>;
+  // Per-chapter scroll progress (0-100) keyed by chapter path.
+  // Used to resume chapters at the exact position the user left off.
+  chapterScrollProgress?: Record<string, number>;
   // Downloaded chapter files (keyed by chapter path).
   chapterDownloaded?: Record<string, boolean>;
   trackingLinks?: Record<string, TrackerLink>;

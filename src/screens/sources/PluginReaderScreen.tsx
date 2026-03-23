@@ -79,13 +79,18 @@ export const PluginReaderScreen: React.FC = () => {
   );
 
   const initialScrollProgress = useMemo(() => {
+    const fromNovel = libraryNovel?.chapterScrollProgress?.[chapterPath];
+    if (typeof fromNovel === "number" && Number.isFinite(fromNovel)) {
+      return Math.max(0, Math.min(100, fromNovel));
+    }
+
     const last = historyEntry?.lastReadChapter;
     if (!last) return undefined;
     if (last.id !== chapterPath) return undefined;
     const p = last.scrollProgress;
     if (typeof p !== "number" || !Number.isFinite(p)) return undefined;
     return Math.max(0, Math.min(100, p));
-  }, [chapterPath, historyEntry?.lastReadChapter]);
+  }, [chapterPath, historyEntry?.lastReadChapter, libraryNovel?.chapterScrollProgress]);
 
   const baseUrl = useMemo(() => {
     if (isAbsoluteUrl(chapterPath)) return chapterPath;
@@ -151,6 +156,7 @@ export const PluginReaderScreen: React.FC = () => {
         scrollProgress: 100,
       };
       lastScrollRef.current = { path: _chapter.path, progress: 100 };
+      scrollProgressByPathRef.current[_chapter.path] = 100;
       const totalChaptersRead = Math.max(0, total - nextUnread);
       const progress = total > 0 ? (totalChaptersRead / total) * 100 : 0;
       const existing = historyEntriesRef.current.find((e) => e.id === n.id);
@@ -174,6 +180,7 @@ export const PluginReaderScreen: React.FC = () => {
     index: number;
   } | null>(null);
   const lastScrollRef = useRef<{ path: string; progress: number } | null>(null);
+  const scrollProgressByPathRef = useRef<Record<string, number>>({});
   const sessionStartRef = useRef<number>(Date.now());
 
   // Ensure unmount persistence works even if the user never changes chapters.
@@ -232,14 +239,20 @@ export const PluginReaderScreen: React.FC = () => {
 
   const handleScrollProgress = useCallback(
     (chapter: ReaderChapterItem, index: number, progress: number) => {
+      const p =
+        typeof progress === "number" && Number.isFinite(progress)
+          ? Math.max(0, Math.min(100, progress))
+          : 0;
       lastChapterRef.current = { chapter, index };
-      lastScrollRef.current = { path: chapter.path, progress };
+      lastScrollRef.current = { path: chapter.path, progress: p };
+      if (p > 0) scrollProgressByPathRef.current[chapter.path] = p;
     },
     [],
   );
 
   useEffect(() => {
     sessionStartRef.current = Date.now();
+    const sessionScrollProgress = scrollProgressByPathRef.current;
     return () => {
       const n = libraryNovelRef.current;
       if (!n) return;
@@ -263,6 +276,9 @@ export const PluginReaderScreen: React.FC = () => {
         typeof scrollRaw === "number" && Number.isFinite(scrollRaw)
           ? Math.max(0, Math.min(100, scrollRaw))
           : undefined;
+      if (typeof scrollProgress === "number" && scrollProgress > 0) {
+        sessionScrollProgress[last.chapter.path] = scrollProgress;
+      }
       const historyChapter: Chapter = {
         id: last.chapter.path,
         novelId: n.id,
@@ -283,8 +299,31 @@ export const PluginReaderScreen: React.FC = () => {
         lastReadDate: new Date(),
         timeSpentReading: nextTime,
       });
+
+      const base = n.chapterScrollProgress || {};
+      const session = sessionScrollProgress;
+      let changed = false;
+      const next: Record<string, number> = { ...base };
+      for (const [path, value] of Object.entries(session)) {
+        if (!path) continue;
+        const p =
+          typeof value === "number" && Number.isFinite(value)
+            ? Math.max(0, Math.min(100, value))
+            : null;
+        if (p == null || p <= 0) continue;
+        if (next[path] !== p) {
+          next[path] = p;
+          changed = true;
+        }
+      }
+      if (changed) {
+        const keys = Object.keys(next);
+        updateNovel(n.id, {
+          chapterScrollProgress: keys.length ? next : undefined,
+        });
+      }
     };
-  }, [chapters.length, novelId, upsertHistoryEntry]);
+  }, [chapters.length, novelId, updateNovel, upsertHistoryEntry]);
 
   const extraMenuItems = useMemo(() => {
     const n = libraryNovel;
