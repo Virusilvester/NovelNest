@@ -21,6 +21,12 @@ export type RootStackParamList = {
     chapterTitle?: string;
   };
   Settings: undefined;
+  SettingsGeneral: undefined;
+  SettingsReader: undefined;
+  SettingsTracking: undefined;
+  SettingsBackup: undefined;
+  SettingsAdvanced: undefined;
+  SettingsAbout: undefined;
   Appearance: undefined;
   EditCategories: undefined;
   ReaderSettings: undefined;

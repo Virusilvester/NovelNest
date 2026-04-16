@@ -8,14 +8,20 @@ import { useSettings } from "../context/SettingsContext";
 import { DownloadQueueScreen } from "../screens/DownloadQueueScreen";
 import { NovelDetailScreen } from "../screens/library/NovelDetailScreen";
 import { ReaderScreen } from "../screens/reader/ReaderScreen";
+import { AboutSettingsScreen } from "../screens/settings/AboutSettingsScreen";
+import { AdvancedSettingsScreen } from "../screens/settings/AdvancedSettingsScreen";
+import { BackupSettingsScreen } from "../screens/settings/BackupSettingsScreen";
 import { DataManagementScreen } from "../screens/settings/DataManagementScreen";
 import { AppearanceScreen } from "../screens/settings/AppearanceScreen";
 import { EditCategoriesScreen } from "../screens/settings/EditCategoriesScreen";
+import { GeneralSettingsScreen } from "../screens/settings/GeneralSettingsScreen";
 import { LegacyBackupScreen } from "../screens/settings/LegacyBackupScreen";
+import { ReaderSettingsMenuScreen } from "../screens/settings/ReaderSettingsMenuScreen";
 import { ReaderSettingsScreen } from "../screens/settings/ReaderSettingsScreen";
 import { ReaderThemeScreen } from "../screens/settings/ReaderThemeScreen";
 import { RemoteBackupScreen } from "../screens/settings/RemoteBackupScreen";
 import { SettingsScreen } from "../screens/settings/SettingsScreen";
+import { TrackingSettingsScreen } from "../screens/settings/TrackingSettingsScreen";
 import { TrackingServicesScreen } from "../screens/settings/TrackingServicesScreen";
 import { TTSSettingsScreen } from "../screens/settings/TTSSettingsScreen";
 import { PluginReaderScreen } from "../screens/sources/PluginReaderScreen";
@@ -129,6 +135,12 @@ export const AppNavigator: React.FC = () => {
         <Stack.Screen name="PluginReader" component={PluginReaderScreen} />
         <Stack.Screen name="DownloadQueue" component={DownloadQueueScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="SettingsGeneral" component={GeneralSettingsScreen} />
+        <Stack.Screen name="SettingsReader" component={ReaderSettingsMenuScreen} />
+        <Stack.Screen name="SettingsTracking" component={TrackingSettingsScreen} />
+        <Stack.Screen name="SettingsBackup" component={BackupSettingsScreen} />
+        <Stack.Screen name="SettingsAdvanced" component={AdvancedSettingsScreen} />
+        <Stack.Screen name="SettingsAbout" component={AboutSettingsScreen} />
         <Stack.Screen name="Appearance" component={AppearanceScreen} />
         <Stack.Screen name="EditCategories" component={EditCategoriesScreen} />
         <Stack.Screen name="ReaderSettings" component={ReaderSettingsScreen} />
