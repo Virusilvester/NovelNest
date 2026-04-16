@@ -227,9 +227,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     theme: "light",
   },
   extensions: {
-    repositories: [
-      "https://raw.githubusercontent.com/LNReader/lnreader-plugins/plugins/v3.0.0/.dist/plugins.min.json",
-    ],
+    repositories: [],
     installedPlugins: {},
   },
   autoDownload: {

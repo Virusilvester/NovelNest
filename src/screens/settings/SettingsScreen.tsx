@@ -1,7 +1,6 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import React from "react";
-import { Linking, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { Header } from "../../components/common/Header";
 import { SettingsRow, SettingsSection } from "../../components/settings/SettingsList";
 import { useTheme } from "../../context/ThemeContext";
@@ -16,18 +15,6 @@ export const SettingsScreen: React.FC = () => {
       <Header
         title={getString("settings.title")}
         onBackPress={() => navigation.goBack()}
-        rightButtons={
-          <TouchableOpacity
-            onPress={() => Linking.openURL("https://github.com/your-repo/wiki")}
-            style={styles.iconBtn}
-          >
-            <Ionicons
-              name="help-circle-outline"
-              size={22}
-              color={theme.colors.text}
-            />
-          </TouchableOpacity>
-        }
       />
 
       <ScrollView
@@ -82,9 +69,7 @@ export const SettingsScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  iconBtn: { padding: 8 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 32 },
   bottomPad: { height: 8 },
 });
-

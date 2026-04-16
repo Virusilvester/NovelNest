@@ -898,18 +898,20 @@ export const NovelDetailScreen: React.FC = () => {
     const siteBase = toAbsoluteHttpUrl(pluginSite);
 
     const novelPath = String(novel?.pluginNovelPath || "");
-    const novelUrl =
+    const url =
       toAbsoluteHttpUrl(String(remoteDetail?.url || "")) ||
       toAbsoluteHttpUrl(novelPath) ||
       toAbsoluteHttpUrl(novelPath, siteBase) ||
-      siteBase ||
-      `https://example.com/novel/${novel?.id || ""}`;
+      siteBase;
 
-    const url = novelUrl;
+    if (!url) {
+      Alert.alert("No web page", "This novel doesn't have a web page to open.");
+      return;
+    }
+
     (navigation as any).navigate("WebView", { url });
   }, [
     navigation,
-    novel?.id,
     novel?.pluginId,
     novel?.pluginNovelPath,
     remoteDetail?.url,
@@ -1947,7 +1949,7 @@ export const NovelDetailScreen: React.FC = () => {
         Alert.alert(
           "Tracker not connected",
           e?.message ||
-            "Connect this tracker first in Settings â†’ Tracking Services.",
+            "Connect this tracker first in Settings > Tracking Services.",
           [
             { text: "OK", style: "cancel" },
             {
@@ -2433,7 +2435,7 @@ export const NovelDetailScreen: React.FC = () => {
               ]}
             >
               {progressPercent >= 100
-                ? "Completed âœ“"
+                ? "Completed"
                 : `${Math.round(progressPercent)}% read`}
             </Text>
             <Text
