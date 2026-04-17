@@ -206,6 +206,14 @@ export interface AppSettings {
       padding: number;
       fontStyle: string;
     };
+    tts: {
+      enabled: boolean;
+      voice: string | null;
+      language: string | null;
+      rate: number;
+      pitch: number;
+      autoAdvanceChapters: boolean;
+    };
   };
   tracking: {
     anilist: boolean;
@@ -258,6 +266,14 @@ export const DEFAULT_SETTINGS: AppSettings = {
       lineHeight: 1.5,
       padding: 16,
       fontStyle: "System",
+    },
+    tts: {
+      enabled: true,
+      voice: null,
+      language: null,
+      rate: 1.0,
+      pitch: 1.0,
+      autoAdvanceChapters: false,
     },
   },
   tracking: {

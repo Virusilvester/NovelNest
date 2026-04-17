@@ -2,6 +2,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useKeepAwake } from "expo-keep-awake";
+import * as Speech from "expo-speech";
 import React, {
   useCallback,
   useEffect,
@@ -11,6 +12,7 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Easing,
   Linking,
@@ -29,6 +31,7 @@ import type { WebViewMessageEvent } from "react-native-webview";
 import WebView from "react-native-webview";
 import { useSettings } from "../../context/SettingsContext";
 import { useTheme } from "../../context/ThemeContext";
+import { htmlToPlainText, splitTextForSpeech } from "../../utils/tts";
 import { PopupMenu } from "../common/PopupMenu";
 import { ChapterDrawer, type ReaderChapterItem } from "./ChapterDrawer";
 
@@ -225,6 +228,9 @@ export const ChapterReader: React.FC<Props> = ({
   const [scrollProgress, setScrollProgress] = useState(0);
   const [reloadToken, setReloadToken] = useState(0);
   const [quickSettingsVisible, setQuickSettingsVisible] = useState(false);
+  const [ttsStatus, setTtsStatus] = useState<
+    "stopped" | "loading" | "playing" | "paused"
+  >("stopped");
 
   const sheetMaxHeight = useMemo(
     () => Math.min(Math.round(viewportHeight * 0.88), 720),
@@ -406,6 +412,240 @@ export const ChapterReader: React.FC<Props> = ({
     currentTitle || chapters[chapterIndex]?.name || "Reader";
   const canGoPrev = chapterIndex > 0;
   const canGoNext = chapterIndex >= 0 && chapterIndex < chapters.length - 1;
+  const canGoNextRef = useRef(canGoNext);
+  useEffect(() => {
+    canGoNextRef.current = canGoNext;
+  }, [canGoNext]);
+
+  // ---- Text to Speech (TTS) ----
+  const ttsStatusRef = useRef(ttsStatus);
+  useEffect(() => {
+    ttsStatusRef.current = ttsStatus;
+  }, [ttsStatus]);
+
+  const ttsWantedRef = useRef(false); // "keep reading aloud" across chapter changes
+  const ttsQueueRef = useRef<string[]>([]);
+  const ttsIndexRef = useRef(0);
+  const ttsSessionRef = useRef(0); // increments to invalidate stale callbacks
+  const ttsPendingStartRef = useRef(false);
+
+  const ttsMaxChunkLen = useMemo(() => {
+    // Keep chunks modest even if the platform supports huge input.
+    const HARD_CAP = 3200;
+    const max = Speech.maxSpeechInputLength;
+    if (typeof max === "number" && Number.isFinite(max) && max > 0) {
+      return Math.max(200, Math.min(HARD_CAP, Math.floor(max)));
+    }
+    return HARD_CAP;
+  }, []);
+
+  const stopTts = useCallback(async (opts?: { keepWanted?: boolean }) => {
+    ttsPendingStartRef.current = false;
+    if (!opts?.keepWanted) ttsWantedRef.current = false;
+    ttsSessionRef.current += 1;
+    ttsQueueRef.current = [];
+    ttsIndexRef.current = 0;
+    setTtsStatus("stopped");
+    try {
+      await Speech.stop();
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const speakQueuedTts = useCallback(() => {
+    const session = ttsSessionRef.current;
+    const opts = settings.reader.tts;
+
+    const speakNext = (index: number) => {
+      if (session !== ttsSessionRef.current) return;
+      if (!ttsWantedRef.current) return;
+
+      const queue = ttsQueueRef.current;
+      if (index >= queue.length) {
+        setTtsStatus("stopped");
+
+        // Auto-advance and keep reading, if enabled.
+        if (opts.autoAdvanceChapters && canGoNextRef.current) {
+          ttsPendingStartRef.current = true;
+          setTtsStatus("loading");
+          goNextRef.current();
+          return;
+        }
+
+        ttsWantedRef.current = false;
+        return;
+      }
+
+      ttsIndexRef.current = index;
+      setTtsStatus("playing");
+
+      Speech.speak(queue[index], {
+        rate: opts.rate,
+        pitch: opts.pitch,
+        language: opts.language || undefined,
+        voice: opts.voice || undefined,
+        onDone: () => speakNext(index + 1),
+        onError: (e: any) => {
+          if (session !== ttsSessionRef.current) return;
+          console.warn("TTS error:", e);
+          Alert.alert("Text to Speech", e?.message || "Failed to speak.");
+          void stopTts();
+        },
+      });
+    };
+
+    speakNext(ttsIndexRef.current);
+  }, [settings.reader.tts, stopTts]);
+
+  const startTts = useCallback(async () => {
+    if (!settings.reader.tts.enabled) {
+      Alert.alert(
+        "Text to Speech",
+        "Enable Text to Speech first in Reader settings.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Open settings",
+            onPress: () => (navigation as any).navigate("TTSSettings"),
+          },
+        ],
+      );
+      return;
+    }
+
+    ttsWantedRef.current = true;
+
+    if (loading) {
+      ttsPendingStartRef.current = true;
+      setTtsStatus("loading");
+      return;
+    }
+
+    const text = htmlToPlainText(rawHtml);
+    if (!text) {
+      Alert.alert("Text to Speech", "No readable text found in this chapter.");
+      await stopTts();
+      return;
+    }
+
+    const chunks = splitTextForSpeech(text, ttsMaxChunkLen);
+    if (chunks.length === 0) {
+      Alert.alert("Text to Speech", "No readable text found in this chapter.");
+      await stopTts();
+      return;
+    }
+
+    try {
+      await Speech.stop();
+    } catch {
+      // ignore
+    }
+
+    ttsSessionRef.current += 1;
+    ttsQueueRef.current = chunks;
+    ttsIndexRef.current = 0;
+    ttsPendingStartRef.current = false;
+    setTtsStatus("playing");
+    speakQueuedTts();
+  }, [
+    loading,
+    navigation,
+    rawHtml,
+    settings.reader.tts.enabled,
+    speakQueuedTts,
+    stopTts,
+    ttsMaxChunkLen,
+  ]);
+
+  const pauseTts = useCallback(async () => {
+    if (ttsStatusRef.current !== "playing") return;
+    try {
+      await Speech.pause();
+    } catch {
+      // Android: pause/resume isn't supported. We emulate pause via stop.
+      try {
+        await Speech.stop();
+      } catch {
+        // ignore
+      }
+    }
+    setTtsStatus("paused");
+  }, []);
+
+  const resumeTts = useCallback(async () => {
+    if (ttsStatusRef.current !== "paused") return;
+
+    // If we have no queue (e.g. user navigated away), just start fresh.
+    if (ttsQueueRef.current.length === 0) {
+      void startTts();
+      return;
+    }
+
+    setTtsStatus("playing");
+    try {
+      await Speech.resume();
+      return;
+    } catch {
+      // Android / web fallback: restart from the current chunk.
+    }
+
+    try {
+      await Speech.stop();
+    } catch {
+      // ignore
+    }
+
+    ttsSessionRef.current += 1;
+    ttsPendingStartRef.current = false;
+    speakQueuedTts();
+  }, [speakQueuedTts, startTts]);
+
+  const toggleTts = useCallback(() => {
+    const s = ttsStatusRef.current;
+    if (s === "playing") void pauseTts();
+    else if (s === "paused") void resumeTts();
+    else void startTts();
+  }, [pauseTts, resumeTts, startTts]);
+
+  // Stop speech when leaving the reader.
+  useEffect(() => {
+    return () => {
+      ttsWantedRef.current = false;
+      ttsPendingStartRef.current = false;
+      ttsSessionRef.current += 1;
+      void Speech.stop();
+    };
+  }, []);
+
+  // If the user requested TTS while the chapter was loading, start when ready.
+  useEffect(() => {
+    if (!ttsWantedRef.current) return;
+    if (!ttsPendingStartRef.current) return;
+    if (loading) return;
+
+    ttsPendingStartRef.current = false;
+    void startTts();
+  }, [loading, startTts]);
+
+  // When chapter changes, stop current speech and (optionally) continue on the next chapter.
+  const ttsMountedRef = useRef(false);
+  useEffect(() => {
+    if (!ttsMountedRef.current) {
+      ttsMountedRef.current = true;
+      return;
+    }
+
+    ttsSessionRef.current += 1;
+    void Speech.stop();
+
+    if (ttsWantedRef.current) {
+      ttsPendingStartRef.current = true;
+      setTtsStatus("loading");
+    } else {
+      setTtsStatus("stopped");
+    }
+  }, [currentPath]);
 
   const readerTheme = settings.reader.theme;
   const preparedHtml = useMemo(() => {
@@ -845,7 +1085,50 @@ export const ChapterReader: React.FC<Props> = ({
   }, []);
 
   const menuItems = useMemo(() => {
+    const ttsEnabled = Boolean(settings.reader.tts.enabled);
+    const ttsToggleLabel = !ttsEnabled
+      ? "Enable Text to Speech"
+      : ttsStatus === "playing"
+        ? "Pause Text to Speech"
+        : ttsStatus === "paused"
+          ? "Resume Text to Speech"
+          : ttsStatus === "loading"
+            ? "Loading Text to Speech..."
+            : "Play Text to Speech";
+
     const items = [
+      {
+        id: "ttsToggle",
+        label: ttsToggleLabel,
+        icon: !ttsEnabled
+          ? ("volume-mute-outline" as const)
+          : ttsStatus === "playing"
+            ? ("pause" as const)
+            : ("play" as const),
+        onPress: () => {
+          if (!ttsEnabled) {
+            (navigation as any).navigate("TTSSettings");
+            return;
+          }
+          toggleTts();
+        },
+      },
+      ...(ttsEnabled && ttsStatus !== "stopped"
+        ? [
+            {
+              id: "ttsStop",
+              label: "Stop Text to Speech",
+              icon: "stop" as const,
+              onPress: () => void stopTts(),
+            },
+          ]
+        : []),
+      {
+        id: "ttsSettings",
+        label: "Text to Speech settings",
+        icon: "options-outline" as const,
+        onPress: () => (navigation as any).navigate("TTSSettings"),
+      },
       {
         id: "quickSettings",
         label: "Quick settings",
@@ -885,7 +1168,16 @@ export const ChapterReader: React.FC<Props> = ({
         onPress: () => onOpenWeb(currentPath),
       });
     return withExtras;
-  }, [currentPath, extraMenuItems, navigation, onOpenWeb]);
+  }, [
+    currentPath,
+    extraMenuItems,
+    navigation,
+    onOpenWeb,
+    settings.reader.tts.enabled,
+    stopTts,
+    toggleTts,
+    ttsStatus,
+  ]);
 
   const effectiveBaseUrl = useMemo(() => {
     if (isAbsoluteUrl(currentPath)) return currentPath;
@@ -1250,6 +1542,51 @@ export const ChapterReader: React.FC<Props> = ({
             ]}
           >
             <Ionicons name="text" size={18} color={theme.colors.primary} />
+          </TouchableOpacity>
+
+          {/* Text to Speech */}
+          <TouchableOpacity
+            onPress={() => {
+              if (!settings.reader.tts.enabled) {
+                Alert.alert(
+                  "Text to Speech",
+                  "Enable Text to Speech in settings first.",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Open settings",
+                      onPress: () => (navigation as any).navigate("TTSSettings"),
+                    },
+                  ],
+                );
+                return;
+              }
+              toggleTts();
+            }}
+            onLongPress={() => void stopTts()}
+            style={[
+              styles.navBtn,
+              {
+                backgroundColor:
+                  ttsStatus === "playing"
+                    ? theme.colors.primary + "20"
+                    : theme.colors.primary + "14",
+              },
+            ]}
+          >
+            <Ionicons
+              name={
+                ttsStatus === "loading"
+                  ? "hourglass-outline"
+                  : ttsStatus === "playing"
+                    ? "pause"
+                    : ttsStatus === "paused"
+                      ? "play"
+                      : "volume-high-outline"
+              }
+              size={18}
+              color={theme.colors.primary}
+            />
           </TouchableOpacity>
 
           {/* Next chapter */}
