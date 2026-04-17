@@ -103,6 +103,18 @@ export const GeneralSettingsScreen: React.FC = () => {
     return map;
   }, [novels]);
 
+  const undownloadedUpdatesCount = useMemo(() => {
+    if (updates.length === 0) return 0;
+    let count = 0;
+    for (const u of updates) {
+      const novel = novelById.get(u.novelId);
+      if (!novel?.pluginId) continue;
+      if (novel.chapterDownloaded?.[u.chapterPath]) continue;
+      count += 1;
+    }
+    return count;
+  }, [novelById, updates]);
+
   const updatesStatusSubtitle = useMemo(() => {
     if (isUpdateChecking) {
       if (updatesProgress) {
@@ -356,10 +368,16 @@ export const GeneralSettingsScreen: React.FC = () => {
             icon="download-outline"
             label="Download available updates"
             subtitle={
-              updates.length > 0 ? `${updates.length} update(s)` : "No updates"
+              undownloadedUpdatesCount > 0
+                ? `${undownloadedUpdatesCount} update(s)`
+                : updates.length > 0
+                  ? "All downloaded"
+                  : "No updates"
             }
             onPress={
-              updates.length > 0 ? handleDownloadAvailableUpdates : undefined
+              undownloadedUpdatesCount > 0
+                ? handleDownloadAvailableUpdates
+                : undefined
             }
           />
           <SettingsRow

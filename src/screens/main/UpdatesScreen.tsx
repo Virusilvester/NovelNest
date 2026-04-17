@@ -113,26 +113,40 @@ export const UpdatesScreen: React.FC = () => {
             });
           }}
         >
-          {item.novelCoverUrl ? (
-            <Image
-              source={{ uri: item.novelCoverUrl }}
-              style={styles.cover}
-              resizeMode="cover"
-            />
-          ) : (
-            <View
-              style={[
-                styles.coverPlaceholder,
-                { backgroundColor: theme.colors.border },
-              ]}
-            >
-              <Ionicons
-                name="book-outline"
-                size={22}
-                color={theme.colors.textSecondary}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => {
+              if (!novel) {
+                Alert.alert(
+                  getString("updates.notFound.title"),
+                  getString("updates.notFound.body"),
+                );
+                return;
+              }
+              navigation.navigate("NovelDetail", { novelId: item.novelId });
+            }}
+          >
+            {item.novelCoverUrl ? (
+              <Image
+                source={{ uri: item.novelCoverUrl }}
+                style={styles.cover}
+                resizeMode="cover"
               />
-            </View>
-          )}
+            ) : (
+              <View
+                style={[
+                  styles.coverPlaceholder,
+                  { backgroundColor: theme.colors.border },
+                ]}
+              >
+                <Ionicons
+                  name="book-outline"
+                  size={22}
+                  color={theme.colors.textSecondary}
+                />
+              </View>
+            )}
+          </TouchableOpacity>
 
           <View style={styles.updateInfo}>
             <Text
